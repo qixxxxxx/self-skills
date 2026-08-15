@@ -1,0 +1,4 @@
+interface:
+  display_name: "项目流程与 Skill 设计"
+  short_description: "通过逐轮讨论完善项目流程与细则，并将稳定方案落地为可复用 Skill"
+  default_prompt: "使用 $design-project-skill 与我逐步讨论项目目标、流程和执行细则，确认后整理并落地为 Skill。"
