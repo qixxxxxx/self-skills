@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "task_id": "",
+  "status": "未开始",
+  "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},
+  "catalogs": {"mechanics_version": "", "metrics_version": "", "hashes": {}},
+  "coverage": {"mechanic_required": 0, "mechanic_owned": 0, "mechanic_coverage": null, "metric_required": 0, "metric_measurable": 0, "metric_measurability": null},
+  "metrics": [],
+  "coupling_clusters": [],
+  "waivers": [],
+  "sealed_at": ""
+}
+

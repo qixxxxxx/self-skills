@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Delivery Manifest",
+  "type": "object",
+  "required": ["schema_version", "task_id", "delivery_version", "alignment_status", "delivery_status", "files", "generated_at"],
+  "properties": {"files": {"type": "array"}, "alignment_status": {"enum": ["通过", "豁免后通过", "不通过", "无法判定"]}, "delivery_status": {"enum": ["通过", "阻塞"]}}
+}

@@ -1,4 +1,4 @@
 interface:
   display_name: "项目流程与 Skill 设计"
-  short_description: "持久化记录复杂项目讨论、检查点与进度，确认后落地为 Skill"
-  default_prompt: "使用 $design-project-skill 与我逐步讨论项目，持久化记录框架、决定和进度，并在我确认后落地为 Skill。"
+  short_description: "用通俗语言和持久状态逐步完善项目，确认后落地为 Skill"
+  default_prompt: "使用 $design-project-skill 与我逐步讨论项目，用通俗语言和具体例子解释规则与算法，持久化记录决定和进度，并在我确认后落地为 Skill。"

@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "task_id": "",
+  "status": "未开始",
+  "scope": {"game_code": "", "mode": "", "rtp_group": ""},
+  "mechanics_catalog": {"version": "", "sha256": ""},
+  "mechanics": [],
+  "required_node_count": 0,
+  "semantic_gap_count": 0
+}
+

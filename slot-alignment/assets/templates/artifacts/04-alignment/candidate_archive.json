@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "task_id": "",
+  "candidates": [],
+  "stop_reason": "",
+  "budget": {"candidate": null, "cluster": null, "calibration": null, "formal": null}
+}
+

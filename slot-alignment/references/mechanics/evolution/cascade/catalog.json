@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "evolution.cascade",
+  "category": "evolution",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "evolution.cascade", "name_zh": "Cascade/Tumble", "definition": "一次入口内中奖符号移除或替换后继续落子并重复结算，直到不再满足继续条件。", "required_attributes": ["continuation_condition", "max_steps_policy"], "optional_attributes": ["step_multiplier_rule", "symbol_persistence"], "evidence_signatures": ["multiple settlements in one paid entry", "cascade index"], "exclusions": ["independent respin with new bet"]}
+  ]
+}
+

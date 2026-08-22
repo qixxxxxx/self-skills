@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "modifier.multiplier",
+  "category": "modifier",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "modifier.win-multiplier", "name_zh": "中奖倍率修饰", "definition": "对指定结算结果应用一个或多个倍率。", "required_attributes": ["application_scope", "combine_rule"], "optional_attributes": ["value_domain", "progression_rule", "reset_rule"], "evidence_signatures": ["multiplier value", "pre/post multiplier win"], "exclusions": ["paytable multiplier already intrinsic to symbol"]}
+  ]
+}
+

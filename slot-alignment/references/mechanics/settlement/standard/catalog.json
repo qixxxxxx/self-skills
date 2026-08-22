@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "settlement.standard",
+  "category": "settlement",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "settlement.payline", "name_zh": "固定线结算", "definition": "按已定义线序列、符号连续性和赔付表结算。", "required_attributes": ["line_count", "direction"], "optional_attributes": ["both_ways", "bet_per_line"], "evidence_signatures": ["payline definition", "line win record"], "exclusions": ["ways settlement"]},
+    {"mechanic_id": "settlement.ways", "name_zh": "Ways结算", "definition": "按相邻轴上满足条件的符号组合数量结算，不依赖固定线编号。", "required_attributes": ["direction", "min_reels"], "optional_attributes": ["variable_ways"], "evidence_signatures": ["ways count", "reel combination payout"], "exclusions": ["fixed payline only"]},
+    {"mechanic_id": "settlement.scatter-pay", "name_zh": "Scatter直接结算", "definition": "Scatter 按全盘计数直接派奖，可与触发语义并存。", "required_attributes": ["count_basis"], "optional_attributes": ["also_triggers_feature"], "evidence_signatures": ["scatter payout by count"], "exclusions": []}
+  ]
+}
+

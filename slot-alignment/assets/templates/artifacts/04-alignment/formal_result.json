@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "task_id": "",
+  "candidate_id": "",
+  "plan_id": "",
+  "status": "无法判定",
+  "execution_valid": false,
+  "independent_from_calibration": false,
+  "sample": {"paid_entry_count": 0, "seed_set_hash": ""},
+  "scorecard": {"alignment_status": "无法判定", "overall_score": null, "hard_gates": []},
+  "attempt": 0,
+  "failure_reason": ""
+}
+

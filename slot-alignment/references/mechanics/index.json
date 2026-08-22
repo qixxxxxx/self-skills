@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_index",
+  "version": "1.0.0",
+  "packages": [
+    {"package_id": "settlement.standard", "category": "settlement", "path": "settlement/standard/catalog.json", "version": "1.0.0", "sha256": "a00f8a4ea06242a469fe9e303e1a89211338d934b043e2d5673056b9e08613d7"},
+    {"package_id": "board.grid", "category": "board", "path": "board/grid/catalog.json", "version": "1.0.0", "sha256": "718f4dcaec0f87226815aed4932cfdfc8ebd97c587c4f30c43293dfec7a3b04e"},
+    {"package_id": "evolution.cascade", "category": "evolution", "path": "evolution/cascade/catalog.json", "version": "1.0.0", "sha256": "51f8b25f53541f0cfb4a55dd17a40d05adb89cfe2ee75e31a5ecf230be62d3d4"},
+    {"package_id": "feature.free-spin", "category": "feature", "path": "feature/free-spin/catalog.json", "version": "1.0.0", "sha256": "34ae9a8fe7fb72e6dc2ad51ba790eb2f36e6137740bf27fa38aec77adfc7f8a0"},
+    {"package_id": "feature.respin", "category": "feature", "path": "feature/respin/catalog.json", "version": "1.0.0", "sha256": "e3c1b848a18a6a83bd4dcf72b44617aba40874246241edc8548caf7d02894468"},
+    {"package_id": "trigger.scatter", "category": "trigger", "path": "trigger/scatter/catalog.json", "version": "1.0.0", "sha256": "7b09f299bb24d6ee1ac5f508be82c1f1ca75fef2182c4c80c0b55d66da4d3b6c"},
+    {"package_id": "modifier.wild", "category": "modifier", "path": "modifier/wild/catalog.json", "version": "1.0.0", "sha256": "bede326219a0f35204685df58c7f270f57f5ad39c71add812446652831d9a125"},
+    {"package_id": "modifier.multiplier", "category": "modifier", "path": "modifier/multiplier/catalog.json", "version": "1.0.0", "sha256": "aacfab04729b2bf3051af26a2e08421e36f66dd51b76fe5b78e205e7308370b7"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Metric Catalog",
+  "type": "object",
+  "required": ["schema_version", "catalog_type", "package_id", "type", "version", "metrics"],
+  "properties": {
+    "catalog_type": {"const": "metric_package"},
+    "package_id": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+    "type": {"enum": ["core", "atomic", "composite", "interaction"]},
+    "metrics": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["metric_id", "name_zh", "owner", "kind", "unit", "scope_template", "measurement"]}}
+  }
+}
+

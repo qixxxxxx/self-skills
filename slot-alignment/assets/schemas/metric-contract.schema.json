@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Metric Contract",
+  "type": "object",
+  "required": ["schema_version", "task_id", "status", "scope", "coverage", "metrics", "coupling_clusters", "waivers"],
+  "properties": {"metrics": {"type": "array"}, "coupling_clusters": {"type": "array"}, "waivers": {"type": "array"}}
+}
+

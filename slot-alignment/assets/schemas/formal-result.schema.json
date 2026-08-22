@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Formal Result",
+  "type": "object",
+  "required": ["schema_version", "task_id", "candidate_id", "plan_id", "status", "execution_valid", "independent_from_calibration", "sample", "scorecard", "attempt"],
+  "properties": {"execution_valid": {"type": "boolean"}, "independent_from_calibration": {"type": "boolean"}, "attempt": {"type": "integer", "minimum": 0}}
+}
+

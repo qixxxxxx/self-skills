@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "metric_package",
+  "package_id": "composite.feature-cycle",
+  "type": "composite",
+  "version": "1.0.0",
+  "applies_when": {"mechanic_id_any": ["feature.free-spin", "feature.respin"]},
+  "metrics": [
+    {"metric_id": "feature_cycle.zero_return_rate", "name_zh": "Feature零回报率", "owner": "composite.feature-cycle", "kind": "score", "unit": "ratio", "scope_template": "feature:*", "measurement": "feature_entries_with_zero_win/feature_entries", "score_group": "feature_experience", "default_weight": 0.35, "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.005,95],[0.015,85],[0.04,70],[0.08,50],[0.25,0]]}},
+    {"metric_id": "feature_cycle.median_return", "name_zh": "Feature回报中位数", "owner": "composite.feature-cycle", "kind": "score", "unit": "bet_multiple", "scope_template": "feature:*", "measurement": "median(feature_total_win/triggering_paid_bet)", "score_group": "feature_experience", "default_weight": 0.35, "score_profile": {"method": "relative_error", "anchors": [[0,100],[0.03,95],[0.08,85],[0.15,70],[0.30,50],[1,0]]}},
+    {"metric_id": "feature_cycle.duration_distribution", "name_zh": "Feature持续长度分布", "owner": "composite.feature-cycle", "kind": "score", "unit": "distribution", "scope_template": "feature:*", "measurement": "complete feature state-step distribution", "score_group": "feature_experience", "default_weight": 0.30, "score_profile": {"method": "total_variation", "anchors": [[0,100],[0.02,95],[0.05,85],[0.10,70],[0.20,50],[0.50,0]]}}
+  ]
+}
+

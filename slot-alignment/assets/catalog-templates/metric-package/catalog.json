@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "metric_package",
+  "package_id": "atomic.package-name",
+  "type": "atomic",
+  "version": "1.0.0",
+  "applies_when": {"mechanic_id": "category.mechanic-name"},
+  "metrics": [
+    {
+      "metric_id": "domain.metric-name",
+      "name_zh": "中文指标名",
+      "owner": "atomic.package-name",
+      "kind": "score",
+      "unit": "ratio",
+      "scope_template": "mechanic:*",
+      "measurement": "确定性测量表达",
+      "score_group": "group-name",
+      "default_weight": 1.0,
+      "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.01,85],[0.10,0]]}
+    }
+  ]
+}
+

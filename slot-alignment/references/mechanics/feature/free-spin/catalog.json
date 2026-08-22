@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "feature.free-spin",
+  "category": "feature",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "feature.free-spin", "name_zh": "免费旋转", "definition": "由自然入口或购买入口进入、不再次扣除基础投注的有限或可扩展旋转序列。", "required_attributes": ["entry_sources", "initial_spin_rule", "exit_condition"], "optional_attributes": ["retrigger_rule", "buy_available", "feature_multiplier"], "evidence_signatures": ["free spin counter", "feature start/end events"], "exclusions": ["paid respin"]}
+  ]
+}
+

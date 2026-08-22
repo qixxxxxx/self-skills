@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mechanic Catalog",
+  "type": "object",
+  "required": ["schema_version", "catalog_type", "package_id", "category", "version", "mechanics"],
+  "properties": {
+    "catalog_type": {"const": "mechanic_package"},
+    "package_id": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+    "category": {"enum": ["settlement", "board", "evolution", "feature", "trigger", "modifier"]},
+    "version": {"type": "string"},
+    "mechanics": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["mechanic_id", "name_zh", "definition", "required_attributes", "optional_attributes", "evidence_signatures", "exclusions"]}}
+  }
+}
+

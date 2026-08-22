@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "metric_package",
+  "package_id": "core.general",
+  "type": "core",
+  "version": "1.0.0",
+  "metrics": [
+    {"metric_id": "core.rtp.total", "name_zh": "总RTP", "owner": "core.general", "kind": "hard", "unit": "ratio", "scope_template": "mode×rtp_group", "measurement": "sum(total_win)/sum(real_bet)", "hard_gate_profile": {"method": "absolute_error", "tolerance_source": "task_contract", "confidence_required": true}},
+    {"metric_id": "core.hit_rate.paid_entry", "name_zh": "完整付费入口中奖率", "owner": "core.general", "kind": "hard", "unit": "ratio", "scope_template": "mode×rtp_group", "measurement": "count(paid_entry_total_win>0)/paid_entry_count", "hard_gate_profile": {"method": "absolute_error", "tolerance_source": "task_contract", "confidence_required": true}},
+    {"metric_id": "core.feature.natural_trigger_rate", "name_zh": "Feature自然触发率", "owner": "core.general", "kind": "hard", "unit": "ratio", "scope_template": "feature:*", "measurement": "natural_feature_entry_count/paid_entry_count", "hard_gate_profile": {"method": "absolute_error", "tolerance_source": "task_contract", "confidence_required": true}},
+    {"metric_id": "core.multiplier_distribution.lt200", "name_zh": "200x以下倍率分布", "owner": "core.general", "kind": "hard", "unit": "distribution", "scope_template": "mode×rtp_group", "measurement": "paid_entry_total_win/real_bet in fixed buckets below 200x", "hard_gate_profile": {"method": "total_variation", "tolerance_source": "task_contract", "confidence_required": true}},
+    {"metric_id": "core.sigma", "name_zh": "Sigma", "owner": "core.general", "kind": "hard", "unit": "bet_multiple", "scope_template": "overall_and_applicable_components", "measurement": "population standard deviation of paid-entry return multiple", "hard_gate_profile": {"method": "relative_error", "tolerance_source": "task_contract", "confidence_required": true}},
+    {"metric_id": "core.rtp.component_contribution", "name_zh": "组件RTP贡献", "owner": "core.general", "kind": "hard", "unit": "ratio", "scope_template": "base|feature:*|other:*", "measurement": "component_win/sum(real_bet)", "hard_gate_profile": {"method": "absolute_error", "tolerance_source": "task_contract", "confidence_required": true}},
+    {"metric_id": "core.long_tail.audit", "name_zh": "200x以上长尾审计", "owner": "core.general", "kind": "audit", "unit": "distribution", "scope_template": "mode×rtp_group", "measurement": "fixed buckets from 200x to max_win", "score_weight": 0},
+    {"metric_id": "core.max_win.audit", "name_zh": "最大中奖与封顶审计", "owner": "core.general", "kind": "audit", "unit": "bet_multiple", "scope_template": "mode×rtp_group", "measurement": "observed_max,theoretical_max,cap,overflow decisions", "score_weight": 0}
+  ]
+}
+

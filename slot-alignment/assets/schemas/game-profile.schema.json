@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Game Profile",
+  "type": "object",
+  "required": ["schema_version", "task_id", "status", "scope", "mechanics", "required_node_count", "semantic_gap_count"],
+  "properties": {"mechanics": {"type": "array"}, "required_node_count": {"type": "integer", "minimum": 0}, "semantic_gap_count": {"type": "integer", "minimum": 0}}
+}
+

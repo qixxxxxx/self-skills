@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "task_id": "",
+  "status": "未开始",
+  "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},
+  "paths": {"workspace_root": "", "slot_docs_root": "", "server_root": "", "runtime": "", "simulation_script": ""},
+  "evidence": [],
+  "hashes": {},
+  "data_gates": [],
+  "script_qualification": {"status": "未开始", "evidence": []}
+}
+

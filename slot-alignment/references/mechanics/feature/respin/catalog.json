@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "feature.respin",
+  "category": "feature",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "feature.respin", "name_zh": "重转", "definition": "在不重新建立普通付费入口的情况下重新生成全部或部分盘面。", "required_attributes": ["entry_sources", "rerolled_scope", "exit_condition"], "optional_attributes": ["locked_symbols", "reset_rule", "max_respins"], "evidence_signatures": ["respin counter", "locked symbol state"], "exclusions": ["cascade without reroll"]}
+  ]
+}
+

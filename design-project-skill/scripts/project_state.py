@@ -280,7 +280,7 @@ def initial_documents(project_id: str, title: str) -> dict[str, tuple[dict[str, 
             "current_stage": "stage-1",
             "current_question": "Q-0001",
         },
-        "# 当前讨论快照\n\n## 当前确认点\n\n- 编号：Q-0001\n- 目的：确认项目目标和边界。\n- 用户只需回答：项目最终必须解决什么问题并交付什么结果？\n\n## 已知事实\n\n暂无。\n\n## AI 建议\n\n暂无。\n\n## 待确认\n\n项目目标、范围和非目标。\n\n## 当前确认点流水\n\n- SC-0000：初始化状态包。",
+        "# 当前讨论快照\n\n## 当前确认点\n\n- 编号：Q-0001\n- 目的：确认项目目标和边界。\n- 解释深度：L3；目标和范围会影响后续全部阶段。\n- 本轮确认：项目最终必须解决的问题和交付结果。\n- 本轮不确认：具体阶段步骤、算法和实现方案。\n- 用户只需回答：项目最终必须解决什么问题并交付什么结果？\n\n## 已知事实\n\n暂无。\n\n## 面向用户的完整说明\n\n### 实际过程\n\n待补充。\n\n### 正常例子\n\n待补充。\n\n### 边界例子\n\n待补充。\n\n### 异常例子\n\n待补充。\n\n### 影响、代价和限制\n\n待补充。\n\n### 算法或数字规则\n\n当前不适用；后续涉及时记录输入、单位、步骤、示例计算、结果含义、边界、限制和公式。\n\n## AI 建议\n\n暂无。\n\n## 待确认\n\n项目目标、范围和非目标。\n\n## 当前确认点流水\n\n- SC-0000：初始化状态包。",
     )
     decisions = (
         {**common, "document_type": "decisions"},
@@ -321,7 +321,20 @@ def self_test() -> None:
         if validate_state(root, None):
             raise StateError("有效状态包校验失败")
         active = root / "ACTIVE.md"
-        text = active.read_text(encoding="utf-8").replace('checkpoint: "CP-0000"', 'checkpoint: "CP-9999"', 1)
+        text = active.read_text(encoding="utf-8")
+        required_sections = (
+            "解释深度：L3",
+            "## 面向用户的完整说明",
+            "### 实际过程",
+            "### 正常例子",
+            "### 边界例子",
+            "### 异常例子",
+            "### 影响、代价和限制",
+            "### 算法或数字规则",
+        )
+        if any(section not in text for section in required_sections):
+            raise StateError("初始化 ACTIVE.md 缺少人类可读说明栏目")
+        text = text.replace('checkpoint: "CP-0000"', 'checkpoint: "CP-9999"', 1)
         active.write_text(text, encoding="utf-8")
         if not validate_state(root, None):
             raise StateError("损坏状态包未被识别")

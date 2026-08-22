@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "metric_package",
+  "package_id": "atomic.respin",
+  "type": "atomic",
+  "version": "1.0.0",
+  "applies_when": {"mechanic_id": "feature.respin"},
+  "metrics": [
+    {"metric_id": "respin.length.mean", "name_zh": "重转平均长度", "owner": "atomic.respin", "kind": "score", "unit": "respins", "scope_template": "feature.respin", "measurement": "mean(respins_per_natural_entry)", "score_group": "feature_process", "default_weight": 0.45, "score_profile": {"method": "relative_error", "anchors": [[0,100],[0.03,95],[0.08,85],[0.15,70],[0.30,50],[1,0]]}},
+    {"metric_id": "respin.reset_rate", "name_zh": "重转次数重置率", "owner": "atomic.respin", "kind": "score", "unit": "ratio", "scope_template": "feature.respin", "measurement": "reset_events/eligible_respin_steps", "score_group": "feature_process", "default_weight": 0.25, "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.005,95],[0.015,85],[0.04,70],[0.08,50],[0.25,0]]}},
+    {"metric_id": "respin.terminal_value_distribution", "name_zh": "重转终局价值分布", "owner": "atomic.respin", "kind": "score", "unit": "distribution", "scope_template": "feature.respin", "measurement": "terminal feature return in declared buckets", "score_group": "feature_process", "default_weight": 0.30, "score_profile": {"method": "total_variation", "anchors": [[0,100],[0.02,95],[0.05,85],[0.10,70],[0.20,50],[0.50,0]]}}
+  ]
+}
+

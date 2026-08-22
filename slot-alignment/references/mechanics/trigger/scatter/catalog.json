@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "trigger.scatter",
+  "category": "trigger",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "trigger.scatter-count", "name_zh": "Scatter计数触发", "definition": "在指定盘面或入口范围内达到 Scatter 数量条件后进入 Feature。", "required_attributes": ["count_threshold", "count_scope", "target_feature_id"], "optional_attributes": ["symbol_ids", "mode_restrictions"], "evidence_signatures": ["scatter count", "feature transition"], "exclusions": ["random trigger without scatter condition"]}
+  ]
+}
+

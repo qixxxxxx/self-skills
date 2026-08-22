@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "task_id": "",
+  "status": "未开始",
+  "runtime_hash": "",
+  "parameters": [],
+  "forbidden_categories": ["game_rule", "state_machine", "trigger_semantics", "settlement_semantics", "rng_order", "bet_basis", "cap_rule", "max_win_rule"]
+}
+

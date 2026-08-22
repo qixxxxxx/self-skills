@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "modifier.wild",
+  "category": "modifier",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "modifier.wild-substitute", "name_zh": "Wild替代", "definition": "Wild 在结算中替代允许的普通符号。", "required_attributes": ["substitution_scope"], "optional_attributes": ["excluded_symbols", "own_pay"], "evidence_signatures": ["wild substitution in win"], "exclusions": []},
+    {"mechanic_id": "modifier.expanding-wild", "name_zh": "扩展Wild", "definition": "Wild 出现后按规则扩展到额外位置。", "required_attributes": ["expansion_rule"], "optional_attributes": ["persistence"], "evidence_signatures": ["wild expansion event"], "exclusions": []}
+  ]
+}
+

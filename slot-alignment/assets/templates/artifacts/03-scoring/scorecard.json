@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "task_id": "",
+  "status": "无法判定",
+  "hard_gates": [],
+  "scores": [],
+  "groups": [],
+  "overall_score": null,
+  "overall_band": "无有效评分",
+  "alignment_status": "无法判定",
+  "blocking_reasons": [],
+  "waiver_count": 0,
+  "input_hashes": {}
+}
+

@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "metric_index",
+  "version": "1.0.0",
+  "packages": [
+    {"package_id": "core.general", "type": "core", "path": "core/general/catalog.json", "version": "1.0.0", "sha256": "df180ca83bfbdca54a172f5f7552121052eab8ccc9746b0567075d04934441af", "applies_when": {"always": true}},
+    {"package_id": "atomic.free-spin", "type": "atomic", "path": "atomic/free-spin/catalog.json", "version": "1.0.0", "sha256": "462bc0a1f7828cd84f52f5e1fe101085b250bf8aa786eaee4bb80538bd4a2672", "applies_when": {"mechanic_id": "feature.free-spin"}},
+    {"package_id": "atomic.respin", "type": "atomic", "path": "atomic/respin/catalog.json", "version": "1.0.0", "sha256": "816b75d8df464c7146810d3b168d83b5b37038cf53fa166d7d12e1eae185556d", "applies_when": {"mechanic_id": "feature.respin"}},
+    {"package_id": "atomic.cascade", "type": "atomic", "path": "atomic/cascade/catalog.json", "version": "1.0.0", "sha256": "cd6166d8fd52574bcf9a09a8e260e3f2702ffe66b7ab972bb1d60a91fe272f9b", "applies_when": {"mechanic_id": "evolution.cascade"}},
+    {"package_id": "atomic.modifier", "type": "atomic", "path": "atomic/modifier/catalog.json", "version": "1.0.0", "sha256": "239e008129b905558bdcaf350afc2056d55e8d7bcc7191476fc29f4c2381c935", "applies_when": {"mechanic_id_any": ["modifier.wild-substitute", "modifier.expanding-wild", "modifier.win-multiplier"]}},
+    {"package_id": "composite.feature-cycle", "type": "composite", "path": "composite/feature-cycle/catalog.json", "version": "1.0.0", "sha256": "cb122e42948198fd8f48f72c926e56c643e2d02bdf52edd1127ad5506942adea", "applies_when": {"mechanic_id_any": ["feature.free-spin", "feature.respin"]}},
+    {"package_id": "interaction.cascade-multiplier", "type": "interaction", "path": "interaction/cascade-multiplier/catalog.json", "version": "1.0.0", "sha256": "e6546b8fc93b7ba574df1d7cde98e5cfd53e479106a9e1f790b9ed3ae8331bb0", "applies_when": {"mechanic_id_all": ["evolution.cascade", "modifier.win-multiplier"]}}
+  ]
+}

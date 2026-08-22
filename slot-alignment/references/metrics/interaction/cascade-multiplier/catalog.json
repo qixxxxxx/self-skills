@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "metric_package",
+  "package_id": "interaction.cascade-multiplier",
+  "type": "interaction",
+  "version": "1.0.0",
+  "applies_when": {"mechanic_id_all": ["evolution.cascade", "modifier.win-multiplier"]},
+  "metrics": [
+    {"metric_id": "cascade_multiplier.joint_distribution", "name_zh": "Cascade深度与倍率联合分布", "owner": "interaction.cascade-multiplier", "kind": "score", "unit": "distribution", "scope_template": "cascade_with_multiplier", "measurement": "joint distribution of cascade depth and effective multiplier", "score_group": "interaction", "default_weight": 1.0, "score_profile": {"method": "total_variation", "anchors": [[0,100],[0.02,95],[0.05,85],[0.10,70],[0.20,50],[0.50,0]]}}
+  ]
+}
+

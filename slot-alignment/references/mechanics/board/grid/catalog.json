@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "board.grid",
+  "category": "board",
+  "version": "1.0.0",
+  "mechanics": [
+    {"mechanic_id": "board.fixed-grid", "name_zh": "固定网格", "definition": "每次结算使用固定轴数和每轴固定可见行数。", "required_attributes": ["reels", "rows"], "optional_attributes": [], "evidence_signatures": ["constant board dimensions"], "exclusions": ["variable height reels"]},
+    {"mechanic_id": "board.variable-grid", "name_zh": "可变网格", "definition": "每次付费入口或状态中可见行数、轴高或 ways 数可变化。", "required_attributes": ["reels", "height_domain"], "optional_attributes": ["ways_formula"], "evidence_signatures": ["dynamic reel heights", "ways count output"], "exclusions": []}
+  ]
+}
+

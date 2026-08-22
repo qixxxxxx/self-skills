@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "metric_package",
+  "package_id": "atomic.modifier",
+  "type": "atomic",
+  "version": "1.0.0",
+  "applies_when": {"mechanic_id_any": ["modifier.wild-substitute", "modifier.expanding-wild", "modifier.win-multiplier"]},
+  "metrics": [
+    {"metric_id": "modifier.activation_rate", "name_zh": "修饰器生效率", "owner": "atomic.modifier", "kind": "score", "unit": "ratio", "scope_template": "mechanic:*", "measurement": "entries_with_effect/eligible_entries", "score_group": "modifier", "default_weight": 0.45, "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.005,95],[0.015,85],[0.04,70],[0.08,50],[0.25,0]]}},
+    {"metric_id": "modifier.value_distribution", "name_zh": "修饰值分布", "owner": "atomic.modifier", "kind": "score", "unit": "distribution", "scope_template": "mechanic:*", "measurement": "effective modifier value distribution", "score_group": "modifier", "default_weight": 0.55, "score_profile": {"method": "total_variation", "anchors": [[0,100],[0.02,95],[0.05,85],[0.10,70],[0.20,50],[0.50,0]]}}
+  ]
+}
+

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Slot 原版数值对齐v2"
+  short_description: "基于原版协议完成玩法画像、指标评分、调参与FORMAL验收"
+  default_prompt: "使用 $slot-alignment 根据原版采集协议完成当前 Slot 游戏的数值对齐与中文报告交付。"
