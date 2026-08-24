@@ -1,9 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
+  "report_contract_version": "slot-alignment.reports.v2.5",
   "task_id": "",
   "status": "未开始",
   "runtime_hash": "",
   "parameters": [],
+  "conflicts": [],
   "forbidden_categories": ["game_rule", "state_machine", "trigger_semantics", "settlement_semantics", "rng_order", "bet_basis", "cap_rule", "max_win_rule"]
 }
-

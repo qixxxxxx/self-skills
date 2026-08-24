@@ -1,0 +1,9 @@
+{
+  "schema_version": "slot-alignment.stage3-gate.v1",
+  "task_id": "",
+  "status": "阻塞",
+  "transition": "03-scoring->04-alignment",
+  "stage4_allowed": false,
+  "errors": ["尚未执行阶段转换校验"],
+  "source_hashes": {}
+}

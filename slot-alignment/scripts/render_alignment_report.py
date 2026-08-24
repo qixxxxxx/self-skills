@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -8,6 +9,10 @@ from pathlib import Path
 def load(path):
     with path.open(encoding="utf-8") as f:
         return json.load(f)
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def fmt(value):
@@ -22,7 +27,7 @@ def fmt(value):
 
 def table(headers, rows):
     if not rows:
-        return "无。"
+        rows = [["无"] + ["—"] * (len(headers) - 1)]
     lines = ["| " + " | ".join(headers) + " |", "|" + "|".join(["---"] * len(headers)) + "|"]
     lines += ["| " + " | ".join(fmt(x) for x in row) + " |" for row in rows]
     return "\n".join(lines)
@@ -32,12 +37,7 @@ def named_rows(data, names):
     return [[names.get(k, k), v] for k, v in data.items()]
 
 
-def main():
-    parser = argparse.ArgumentParser(description="由密封机器结果生成中文数值对齐报告")
-    parser.add_argument("--artifacts", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
-    a = args.artifacts
+def render(a):
     inputs = load(a / "01-input-profile/input_manifest.json")
     profile = load(a / "01-input-profile/game_profile.json")
     authority = load(a / "01-input-profile/parameter_authority.json")
@@ -60,14 +60,15 @@ def main():
     mechanics = profile.get("mechanics", [])
     metric_items = contract.get("metrics", [])
     feature_scores = [x for x in final_score.get("scores", []) if "feature" in x.get("metric_id", "") or "free_spin" in x.get("metric_id", "") or "respin" in x.get("metric_id", "")]
-    hard_table = table(["指标", "作用域", "目标", "FORMAL", "差距", "基础容差", "系数", "生效容差", "状态"], [[x.get("name_zh", x.get("metric_id")), x.get("scope"), x.get("target"), x.get("candidate"), x.get("distance"), x.get("base_tolerance", x.get("tolerance")), x.get("tolerance_factor", 1.0), x.get("tolerance"), x.get("status")] for x in hard])
-    score_table = table(["指标", "作用域", "得分", "档位", "权重"], [[x.get("name_zh", x.get("metric_id")), x.get("scope"), x.get("score"), x.get("band"), x.get("weight")] for x in final_score.get("scores", [])])
+    contract_metrics = {(x.get("metric_id"), x.get("scope")): x for x in contract.get("metrics", [])}
+    hard_table = table(["指标", "作用域", "目标", "FORMAL", "差距", "方法", "基础容差", "系数", "生效容差", "样本资格", "状态"], [[x.get("name_zh", x.get("metric_id")), x.get("scope"), x.get("target"), x.get("candidate"), x.get("distance"), contract_metrics.get((x.get("metric_id"), x.get("scope")), {}).get("hard_gate_profile", {}).get("method"), x.get("base_tolerance", x.get("tolerance")), x.get("tolerance_factor", 1.0), x.get("tolerance"), contract_metrics.get((x.get("metric_id"), x.get("scope")), {}).get("sample_qualification"), x.get("status")] for x in hard])
+    score_table = table(["指标", "作用域", "目标", "FORMAL", "差距", "评价方法/锚点", "评分组", "权重", "得分", "档位", "状态"], [[x.get("name_zh", x.get("metric_id")), x.get("scope"), x.get("target"), x.get("candidate"), x.get("distance"), contract_metrics.get((x.get("metric_id"), x.get("scope")), {}).get("score_profile"), contract_metrics.get((x.get("metric_id"), x.get("scope")), {}).get("score_group"), x.get("weight"), x.get("score"), x.get("band"), x.get("status")] for x in final_score.get("scores", [])])
     group_table = table(["评分组", "得分", "档位", "权重"], [[x.get("group"), x.get("score"), x.get("band"), x.get("weight")] for x in final_score.get("groups", [])])
-    mechanic_table = table(["玩法ID", "中文名", "状态", "作用域", "证据"], [[x.get("mechanic_id"), x.get("name_zh"), x.get("status"), x.get("scope"), x.get("evidence", [])] for x in mechanics])
+    mechanic_table = table(["玩法ID", "中文名", "父节点", "状态", "作用域", "标准属性", "置信状态", "证据"], [[x.get("mechanic_id"), x.get("name_zh"), x.get("parent_id"), x.get("status"), x.get("scope"), x.get("attributes"), x.get("confidence", x.get("confidence_status")), x.get("evidence", [])] for x in mechanics])
     metric_table = table(["指标ID", "Owner", "类型", "作用域", "状态"], [[x.get("metric_id"), x.get("owner"), x.get("kind"), x.get("scope"), x.get("status", "必需")] for x in metric_items])
-    parameter_table = table(["参数", "原值", "对齐值", "变化", "授权"], [[x.get("path"), x.get("before"), x.get("after"), x.get("delta"), x.get("authorization_status", "已授权")] for x in parameters.get("parameters", [])])
-    candidate_table = table(["候选", "父候选", "硬指标", "综合分", "样本", "状态"], [[x.get("candidate_id"), x.get("parent_id"), x.get("hard_gate_status"), x.get("overall_score"), x.get("sample_count"), x.get("status")] for x in candidates.get("candidates", [])])
-    feature_table = table(["Feature指标", "得分", "档位"], [[x.get("name_zh", x.get("metric_id")), x.get("score"), x.get("band")] for x in feature_scores]) if feature_scores else "不适用。"
+    parameter_table = table(["参数", "原值", "对齐值", "变化", "授权", "控制簇", "影响指标", "运行风险"], [[x.get("path"), x.get("before"), x.get("after"), x.get("delta"), x.get("authorization_status", "已授权"), x.get("control_cluster"), x.get("affected_metrics"), x.get("risk")] for x in parameters.get("parameters", [])])
+    candidate_table = table(["候选", "父候选", "参数摘要", "硬指标", "综合分", "样本", "风险", "晋级/淘汰原因", "stage3_gate hash", "状态"], [[x.get("candidate_id"), x.get("parent_id"), x.get("parameter_summary"), x.get("hard_gate_status"), x.get("overall_score"), x.get("sample_count"), x.get("risk"), x.get("decision_reason"), x.get("stage3_gate_sha256", candidates.get("stage3_gate_sha256")), x.get("status")] for x in candidates.get("candidates", [])])
+    feature_table = table(["Feature指标", "得分", "档位"], [[x.get("name_zh", x.get("metric_id")), x.get("score"), x.get("band")] for x in feature_scores])
     long_tail = formal.get("audits", {}).get("long_tail", [])
     long_tail_table = table(["倍率桶", "原版", "候选", "样本资格", "结论"], [[x.get("bucket"), x.get("target"), x.get("candidate"), x.get("sample_status"), x.get("status", "审计")] for x in long_tail])
     hashes = {}
@@ -76,6 +77,27 @@ def main():
     tolerance_policy = contract.get("hard_gate_tolerance_policy", {})
     if tolerance_policy.get("source_sha256"):
         hashes["hard_gate_tolerance_policy"] = tolerance_policy["source_sha256"]
+    component_rows = []
+    for item in hard:
+        if "component_contribution" not in item.get("metric_id", ""):
+            continue
+        source = contract_metrics.get((item.get("metric_id"), item.get("scope")), {})
+        derivation = source.get("target_derivation", {})
+        component_rows.append([item.get("scope"), derivation.get("original_component_share"), item.get("target"), item.get("candidate"), item.get("status")])
+    component_table = table(["作用域", "原版贡献占比", "映射目标", "FORMAL", "状态"], component_rows)
+    budget_summary = {
+        "budget": candidates.get("budget", {}),
+        "attainability": candidates.get("attainability", {}),
+        "attainability_ceiling": manifest.get("budget_policy", {}).get("attainability_ceiling", {})
+    }
+    for rel in [
+        "01-input-profile/input_manifest.json", "01-input-profile/game_profile.json", "01-input-profile/parameter_authority.json",
+        "02-metric-matching/metric_contract.json", "03-scoring/scorecard.json", "03-scoring/stage3_gate.json",
+        "04-alignment/alignment_manifest.json", "04-alignment/candidate_archive.json", "04-alignment/aligned_parameters.json", "04-alignment/formal_result.json",
+    ]:
+        path = a / rel
+        if path.is_file():
+            hashes[rel] = sha(path)
     lines = [
         "# 阶段4-数值对齐报告", "", "## 首页结论", "",
         table(["项目", "最终结果"], [
@@ -85,19 +107,28 @@ def main():
             ["综合档位", final_score.get("overall_band")], ["低于85分项", len(low)], ["豁免", len(waivers)],
             ["200x以上长尾", "已审计" if long_tail else "无数据/未完成"], ["交付建议", "可进入交付" if formal.get("execution_valid") else "等待有效FORMAL"]
         ]), "", "### 一句话结论", "", f"本次对齐结论为**{status}**；硬指标、综合评分和 FORMAL 资格以本报告后续机器证据为准。", "",
-        "## 1. 任务范围与依据", "", "### 1.1 对齐范围", "", table(["字段", "值"], named_rows(scope, {"game_code": "游戏", "mode": "模式", "rtp_group": "RTP组", "target_rtp": "目标RTP"})), "", "### 1.2 权威资料与版本", "", table(["资料", "路径"], named_rows(inputs.get("paths", {}), {"workspace_root": "工作区", "slot_docs_root": "游戏资料根目录", "server_root": "Server根目录", "runtime": "Runtime", "simulation_script": "模拟脚本"})), "", "### 1.3 统计口径", "", "以真实扣款开始、包含全部自然后续状态的完整付费入口链为总体统计单位；定向 Feature 样本不混入总体指标。", "",
-        "## 2. 硬指标结果", "", "> 硬指标采用红线门禁，只判通过、不通过或硬指标已豁免，不进入综合分。新任务同时展示基础容差、系数和生效容差。", "", hard_table, "", "### 2.1 总RTP", "", table(["指标", "目标", "FORMAL", "状态"], [[x.get("name_zh"), x.get("target"), x.get("candidate"), x.get("status")] for x in hard if x.get("metric_id") == "core.rtp.total"]), "", "### 2.2 中奖率与各类Feature自然触发率", "", table(["指标", "作用域", "目标", "FORMAL", "状态"], [[x.get("name_zh"), x.get("scope"), x.get("target"), x.get("candidate"), x.get("status")] for x in hard if "hit_rate" in x.get("metric_id", "") or "trigger_rate" in x.get("metric_id", "")]), "", "### 2.3 200x以下倍率分布", "", table(["指标", "差距", "基础容差", "系数", "生效容差", "状态"], [[x.get("name_zh"), x.get("distance"), x.get("base_tolerance", x.get("tolerance")), x.get("tolerance_factor", 1.0), x.get("tolerance"), x.get("status")] for x in hard if "multiplier_distribution" in x.get("metric_id", "")]), "", "### 2.4 Sigma", "", table(["作用域", "目标", "FORMAL", "状态"], [[x.get("scope"), x.get("target"), x.get("candidate"), x.get("status")] for x in hard if x.get("metric_id") == "core.sigma"]), "", "### 2.5 Base / Feature / 其他组件RTP贡献", "", table(["作用域", "目标", "FORMAL", "状态"], [[x.get("scope"), x.get("target"), x.get("candidate"), x.get("status")] for x in hard if "component_contribution" in x.get("metric_id", "")]), "",
+        "## 1. 任务范围与依据", "", "### 1.1 对齐范围", "", table(["字段", "值", "边界"], [["任务ID", inputs.get("task_id"), "全阶段一致"], *[[name, value, "不得跨作用域"] for name, value in named_rows(scope, {"game_code": "游戏", "mode": "模式", "rtp_group": "RTP组", "target_rtp": "目标RTP"})]]), "", "### 1.2 权威资料与版本", "", table(["资料", "路径", "SHA-256/版本"], [[name, value, inputs.get("hashes", {}).get(key)] for key, value in inputs.get("paths", {}).items() for name in [{"workspace_root": "工作区", "slot_docs_root": "游戏资料根目录", "server_root": "Server根目录", "runtime": "Runtime", "simulation_script": "模拟脚本"}.get(key, key)]]), "", "### 1.3 统计口径", "", table(["口径项", "定义"], [["完整付费入口", inputs.get("paid_entry_definition", "真实扣款开始至恢复可再次扣款状态")], ["投注", inputs.get("bet_basis", "入口实际扣款")], ["派奖", inputs.get("payout_basis", "入口及全部后续Feature/collect派奖")], ["组件拆分", "按同一入口链拆分Base/Feature/其他贡献"], ["定向样本", "不混入总体指标"], ["FORMAL单位", "完整付费入口"]]), "",
+        "## 2. 硬指标结果", "", "> 硬指标采用红线门禁，只判通过、不通过或硬指标已豁免，不进入综合分。新任务同时展示基础容差、系数和生效容差。", "", hard_table, "", "### 2.1 总RTP", "", table(["目标", "点估计", "99%置信区间", "样本数", "Sigma/标准误", "区间完整落入目标", "状态"], [[x.get("target"), x.get("candidate"), x.get("confidence_interval_99", formal.get("rtp_confidence_interval_99")), formal.get("sample", {}).get("paid_entry_count"), x.get("sigma", x.get("standard_error")), x.get("ci_fully_within_target"), x.get("status")] for x in hard if x.get("metric_id") == "core.rtp.total"]), "", "### 2.2 中奖率与各类Feature自然触发率", "", table(["指标", "作用域", "目标", "FORMAL", "差距", "生效容差", "状态"], [[x.get("name_zh"), x.get("scope"), x.get("target"), x.get("candidate"), x.get("distance"), x.get("tolerance"), x.get("status")] for x in hard if "hit_rate" in x.get("metric_id", "") or "trigger_rate" in x.get("metric_id", "")]), "", "### 2.3 200x以下倍率分布", "", table(["指标/桶", "目标分布", "FORMAL分布", "TV/差距", "基础容差", "系数", "生效容差", "状态"], [[x.get("name_zh"), x.get("target"), x.get("candidate"), x.get("distance"), x.get("base_tolerance", x.get("tolerance")), x.get("tolerance_factor", 1.0), x.get("tolerance"), x.get("status")] for x in hard if "multiplier_distribution" in x.get("metric_id", "")]), "", "### 2.4 Sigma", "", table(["作用域", "目标", "FORMAL", "差距", "生效容差", "样本", "状态"], [[x.get("scope"), x.get("target"), x.get("candidate"), x.get("distance"), x.get("tolerance"), formal.get("sample", {}).get("paid_entry_count"), x.get("status")] for x in hard if x.get("metric_id") == "core.sigma"]), "", "### 2.5 Base / Feature / 其他组件RTP贡献", "", "> 组件目标使用原版贡献占比映射权威总RTP，不直接使用原版组件绝对RTP。", "", component_table, "",
         "## 3. 综合评分", "", "### 3.1 评分组汇总", "", group_table, "", "### 3.2 低于85分项", "", table(["指标", "得分", "档位", "差距"], [[x.get("name_zh"), x.get("score"), x.get("band"), x.get("distance")] for x in low]), "", "### 3.3 全部评分指标", "", score_table, "",
         "## 4. 玩法画像与指标覆盖", "", "### 4.1 玩法画像", "", mechanic_table, "", "### 4.2 指标包匹配", "", metric_table, "", "### 4.3 覆盖率", "", table(["项目", "结果"], named_rows(contract.get("coverage", {}), {"mechanic_required": "必需玩法节点", "mechanic_owned": "已有Owner玩法节点", "mechanic_coverage": "玩法覆盖率", "metric_required": "必需指标", "metric_measurable": "可测指标", "metric_measurability": "指标可测率"})), "",
         "## 5. Feature专项结果", "", feature_table, "", "## 6. 200x以上长尾与最大中奖审计", "", long_tail_table, "", fmt(formal.get("audits", {}).get("max_win", "无。")), "", "> 本章节只审计；其贡献仍包含在总RTP、Sigma和风险判断中。", "",
-        "## 7. 参数变化", "", parameter_table, "", "### 7.1 权限与玩法边界确认", "", f"参数授权状态：{authority.get('status','未知')}；未修改玩法、状态机、触发/结算语义、RNG顺序或封顶规则。", "",
-        "## 8. CALIBRATION过程", "", "### 8.1 搜索与预算", "", fmt(candidates.get("budget", {})), "", "### 8.2 候选演进", "", candidate_table, "", "### 8.3 停止原因", "", fmt(candidates.get("stop_reason", "")), "",
-        "## 9. FORMAL验收", "", table(["项目", "结果"], [["候选ID", formal.get("candidate_id")], ["计划ID", formal.get("plan_id")], ["有效尝试", formal.get("attempt")], ["样本", formal.get("sample")], ["状态", formal.get("status")]]), "", "### 9.1 独立性证明", "", "通过。" if formal.get("independent_from_calibration") else "未通过或证据不足。", "",
-        "## 10. 豁免、不可达与阻塞", "", table(["指标", "状态", "原因", "批准"], [[x.get("metric_id"), x.get("status"), x.get("reason"), x.get("approval")] for x in waivers]) if waivers else "无。", "", "## 11. 最终交付建议", "", "进入阶段5封存。" if formal.get("execution_valid") else "等待有效FORMAL或补充证据后再封存。", "",
+        "## 7. 参数变化", "", parameter_table, "", "### 7.1 权限与玩法边界确认", "", table(["边界", "结论", "依据"], [["参数授权", authority.get("status", "未知"), "parameter_authority.json"], ["Normal / Ante", "未修改", "作用域限制"], ["paytable / 价格 / 初始次数 / 重触", "未修改", "禁止类别"], ["状态机 / 触发与结算 / RNG顺序", "未修改", "禁止类别"], ["封顶 / 最大中奖 / 公共接口", "未修改", "禁止类别"]]), "",
+        "## 8. CALIBRATION过程", "", "### 8.1 搜索与预算", "", fmt(budget_summary), "", "### 8.2 候选演进", "", candidate_table, "", "### 8.3 停止原因", "", f"停止原因：{fmt(candidates.get('stop_reason', ''))}", "",
+        "## 9. FORMAL验收", "", table(["项目", "计划/要求", "实际结果"], [["冻结候选", manifest.get("frozen_candidate_id"), formal.get("candidate_id")], ["计划ID", manifest.get("formal_plan_id"), formal.get("plan_id")], ["执行路径", "完整service.flow；fast path关闭", formal.get("execution_path", "未记录")], ["独立种子集", "与CALIBRATION不同", formal.get("sample", {}).get("seed_set_hash")], ["样本数", formal.get("planned_sample_count"), formal.get("sample", {}).get("paid_entry_count")], ["有效尝试上限", manifest.get("formal_attempt_limit"), formal.get("attempt")], ["执行有效性", True, formal.get("execution_valid")], ["真实结论", "硬指标+综合分+FORMAL联合判定", formal.get("status")]]), "", "### 9.1 独立性证明", "", table(["检查项", "要求", "结果"], [["候选冻结", "FORMAL前参数hash固定", formal.get("candidate_hash", "未记录")], ["种子/trace", "与CALIBRATION独立", formal.get("sample", {}).get("seed_set_hash")], ["执行进程/输入", "独立且hash密封", formal.get("input_hashes", "未记录")], ["Fast Buy", "关闭", formal.get("fast_buy_enabled", "未记录")], ["独立性总判定", True, formal.get("independent_from_calibration")]]), "",
+        "## 10. 豁免、不可达与阻塞", "", table(["指标", "状态", "原因", "批准"], [[x.get("metric_id"), x.get("status"), x.get("reason"), x.get("approval")] for x in waivers]), "", "## 11. 最终交付建议", "", "进入阶段5封存。" if formal.get("execution_valid") else "等待有效FORMAL或补充证据后再封存。", "",
         "## 12. 版本、Hash与复算", "", table(["对象", "SHA-256"], sorted(hashes.items())), "", "### 12.1 复算命令", "", "```bash", "<python_bin> <skill_root>/scripts/score_alignment.py --contract artifacts/02-metric-matching/metric_contract.json --measurements <formal_measurements.json> --output artifacts/03-scoring/scorecard.json", "```", "", "## 附录索引", "", "- `../01-input-profile/`：资料、玩法画像与参数权限", "- `../02-metric-matching/`：指标合同、扩展与豁免", "- `../03-scoring/scorecard.json`：权威评分", "- `alignment_manifest.json`、`candidate_archive.json`、`aligned_parameters.json`、`formal_result.json`：对齐与FORMAL机器结果", ""
     ]
+    return "\n".join(lines), status
+
+
+def main():
+    parser = argparse.ArgumentParser(description="由密封机器结果生成中文数值对齐报告")
+    parser.add_argument("--artifacts", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    text, status = render(args.artifacts)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text("\n".join(lines), encoding="utf-8")
+    args.output.write_text(text, encoding="utf-8")
     print(json.dumps({"status": "通过", "output": str(args.output), "alignment_status": status}, ensure_ascii=False))
     return 0
 

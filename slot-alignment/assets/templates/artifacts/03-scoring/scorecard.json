@@ -1,5 +1,6 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.2",
+  "report_contract_version": "slot-alignment.reports.v2.5",
   "task_id": "",
   "status": "无法判定",
   "hard_gates": [],
@@ -10,6 +11,8 @@
   "alignment_status": "无法判定",
   "blocking_reasons": [],
   "waiver_count": 0,
-  "input_hashes": {}
+  "input_hashes": {},
+  "source_paths": {"metric_contract": "", "measurements": ""},
+  "source_hashes": {"metric_contract": "", "measurements": ""},
+  "generator": "score_alignment.py"
 }
-

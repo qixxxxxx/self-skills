@@ -1,12 +1,25 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.3",
+  "report_contract_version": "slot-alignment.reports.v2.5",
   "task_id": "",
   "status": "未开始",
   "baseline_id": "",
   "frozen_candidate_id": "",
   "formal_plan_id": "",
   "formal_attempt_limit": 3,
+  "stage3_gate": {
+    "path": "03-scoring/stage3_gate.json",
+    "sha256": "",
+    "stage4_allowed": false
+  },
+  "budget_policy": {
+    "auto_expand": true,
+    "attainability_ceiling": {
+      "enabled": true,
+      "stop_status": "结构不可达",
+      "prohibit_budget_only_expansion": true
+    }
+  },
   "input_hashes": {},
   "generated_at": ""
 }
-

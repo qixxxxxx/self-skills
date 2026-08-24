@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -9,6 +10,10 @@ from pathlib import Path
 def load(path):
     with path.open(encoding="utf-8") as f:
         return json.load(f)
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def key(item):
@@ -177,7 +182,7 @@ def main():
     else:
         status = "通过"
     result = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "task_id": contract.get("task_id", ""),
         "status": "已完成" if not blockers else "阻塞",
         "hard_gates": hard_gates,
@@ -188,7 +193,10 @@ def main():
         "alignment_status": status,
         "blocking_reasons": blockers,
         "waiver_count": waiver_count,
-        "input_hashes": contract.get("input_hashes", {})
+        "input_hashes": contract.get("input_hashes", {}),
+        "source_paths": {"metric_contract": str(args.contract.resolve()), "measurements": str(args.measurements.resolve())},
+        "source_hashes": {"metric_contract": sha(args.contract), "measurements": sha(args.measurements)},
+        "generator": "score_alignment.py"
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")

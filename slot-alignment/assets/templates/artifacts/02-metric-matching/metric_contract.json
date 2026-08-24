@@ -1,5 +1,6 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.2",
+  "report_contract_version": "slot-alignment.reports.v2.5",
   "task_id": "",
   "status": "未开始",
   "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},
@@ -21,9 +22,19 @@
     "locked_metrics": ["core.rtp.total"],
     "legacy_contracts_unchanged": true
   },
+  "component_rtp_target_policy": {
+    "method": "original_component_share_mapped_to_authoritative_total_rtp",
+    "original_absolute_rtp_as_target": false,
+    "authoritative_total_rtp_required": true,
+    "share_sum_target": 1.0,
+    "legacy_contracts_unchanged": true
+  },
   "coverage": {"mechanic_required": 0, "mechanic_owned": 0, "mechanic_coverage": null, "metric_required": 0, "metric_measurable": 0, "metric_measurability": null},
   "metrics": [],
+  "package_matches": [],
   "coupling_clusters": [],
+  "gaps": [],
+  "owner_conflicts": [],
   "waivers": [],
   "sealed_at": ""
 }

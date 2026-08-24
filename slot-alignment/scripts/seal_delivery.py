@@ -7,7 +7,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from validate_artifacts import REQUIRED_STAGE14, validate
+from validate_artifacts import required_stage14, validate
+from render_delivery_report import render
 
 
 def load(path):
@@ -45,11 +46,11 @@ def main():
     score = load(args.artifacts / "03-scoring/scorecard.json")
     input_manifest = load(args.artifacts / "01-input-profile/input_manifest.json")
     files = []
-    for rel in REQUIRED_STAGE14:
+    for rel in required_stage14(args.artifacts):
         path = args.artifacts / rel
         files.append({"path": rel, "required": True, "role": "机器结果" if path.suffix == ".json" else "中文报告", "sha256": sha(path), "valid": True})
     now = datetime.now(timezone.utc).isoformat()
-    manifest = {"schema_version": "1.0", "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "alignment_status": score.get("alignment_status", "无法判定"), "delivery_status": "通过", "files": files, "generated_at": now}
+    manifest = {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.5", "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "alignment_status": score.get("alignment_status", "无法判定"), "delivery_status": "通过", "files": files, "generated_at": now}
     checks = [
         {"check_id": "structure", "name_zh": "固定目录与必需文件", "status": "通过"},
         {"check_id": "scope", "name_zh": "作用域与task_id一致", "status": "通过"},
@@ -57,10 +58,8 @@ def main():
         {"check_id": "formal", "name_zh": "FORMAL结果与中文报告存在", "status": "通过"},
         {"check_id": "hash", "name_zh": "阶段1至4 SHA-256有效", "status": "通过"}
     ]
-    checklist = {"schema_version": "1.0", "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "status": "通过", "checks": checks}
-    md = "\n".join([
-        "# 阶段5-交付清单", "", "## 一、交付结论", "", "| 项目 | 结果 |", "|---|---|", f"| 对齐状态 | {manifest['alignment_status']} |", "| 交付状态 | 通过 |", f"| 交付版本 | {version} |", f"| 必需文件 | {len(files)} / {len(files)} |", "| Hash校验 | 通过 |", "", "## 二、主要人类报告", "", "- `../04-alignment/阶段4-数值对齐报告.md`", "", "## 三、文件清单", "", "| 路径 | 职责 | SHA-256 |", "|---|---|---|", *[f"| `{x['path']}` | {x['role']} | `{x['sha256']}` |" for x in files], "", "## 四、交付检查", "", "| 检查 | 状态 |", "|---|---|", *[f"| {x['name_zh']} | {x['status']} |" for x in checks], "", "## 五、限制与上线建议", "", "交付完整性通过不等于游戏一定通过；以上线判断应以阶段4报告中的真实对齐状态为准。", "", "## 六、历史版本", "", f"当前版本：`versions/{version}/`", ""
-    ])
+    checklist = {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.5", "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "status": "通过", "checks": checks}
+    md = render(manifest, checklist)
     dump(version_dir / "delivery_manifest.json", manifest)
     dump(version_dir / "delivery_checklist.json", checklist)
     (version_dir / "阶段5-交付清单.md").write_text(md, encoding="utf-8")

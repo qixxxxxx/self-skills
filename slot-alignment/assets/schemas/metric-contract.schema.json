@@ -3,6 +3,12 @@
   "title": "Metric Contract",
   "type": "object",
   "required": ["schema_version", "task_id", "status", "scope", "coverage", "metrics", "coupling_clusters", "waivers"],
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": "1.1"}}},
+      "then": {"required": ["component_rtp_target_policy"]}
+    }
+  ],
   "properties": {
     "hard_gate_tolerance_policy": {
       "type": "object",
@@ -15,6 +21,17 @@
         "default_factor": {"type": "number", "exclusiveMinimum": 0},
         "metric_factors": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
         "locked_metrics": {"type": "array", "items": {"type": "string"}},
+        "legacy_contracts_unchanged": {"const": true}
+      }
+    },
+    "component_rtp_target_policy": {
+      "type": "object",
+      "required": ["method", "original_absolute_rtp_as_target", "authoritative_total_rtp_required", "share_sum_target", "legacy_contracts_unchanged"],
+      "properties": {
+        "method": {"const": "original_component_share_mapped_to_authoritative_total_rtp"},
+        "original_absolute_rtp_as_target": {"const": false},
+        "authoritative_total_rtp_required": {"const": true},
+        "share_sum_target": {"const": 1.0},
         "legacy_contracts_unchanged": {"const": true}
       }
     },

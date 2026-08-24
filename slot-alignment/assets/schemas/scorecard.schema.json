@@ -3,5 +3,20 @@
   "title": "Alignment Scorecard",
   "type": "object",
   "required": ["schema_version", "task_id", "status", "hard_gates", "scores", "groups", "overall_score", "overall_band", "alignment_status", "blocking_reasons", "waiver_count"],
-  "properties": {"hard_gates": {"type": "array"}, "scores": {"type": "array"}, "groups": {"type": "array"}, "overall_score": {"type": ["number", "null"]}, "alignment_status": {"enum": ["通过", "豁免后通过", "不通过", "无法判定"]}}
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": "1.1"}}},
+      "then": {"required": ["source_paths", "source_hashes", "generator"]}
+    }
+  ],
+  "properties": {
+    "hard_gates": {"type": "array"},
+    "scores": {"type": "array"},
+    "groups": {"type": "array"},
+    "overall_score": {"type": ["number", "null"]},
+    "alignment_status": {"enum": ["通过", "豁免后通过", "不通过", "无法判定"]},
+    "source_paths": {"type": "object", "required": ["metric_contract", "measurements"]},
+    "source_hashes": {"type": "object", "required": ["metric_contract", "measurements"]},
+    "generator": {"const": "score_alignment.py"}
+  }
 }
