@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 from validate_artifacts import validate_attainability_ceiling, validate_component_rtp_targets
-from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_template_text, validate_templates
+from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_template_text, validate_templates
 from seal_delivery import delivery_report_contract_version
 
 
@@ -147,7 +147,12 @@ def main():
     for rel in ("01-input-profile", "02-metric-matching", "03-scoring", "04-alignment"):
         (artifacts / rel).mkdir(parents=True, exist_ok=True)
     certification_sha = "a" * 64
-    dump(artifacts / "01-input-profile/input_manifest.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "scope": {"game_code": "demo", "mode": "base", "rtp_group": "96", "target_rtp": 0.96}, "paths": {}, "hashes": {}, "script_qualification": {"status": "通过", "certified_execution_path": "certified_simulator", "server_flow_certification": {"status": "通过", "batch_count": 1, "critical_state_chains": ["entry", "feature", "collect", "cap"], "evidence_path": "certification.json", "evidence_sha256": certification_sha}, "consistency_checks": [{"check_id": "python-vs-server", "subjects": "Python/Kotlin", "seed_or_trace": "trace-001", "sample_count": 1000, "status": "一致", "evidence": "certification.json"}], "semantic_checks": [{"semantic": "entry-feature-collect-cap", "expected": "一致", "actual": "一致", "status": "通过", "evidence": "certification.json"}]}, "server_flow_policy": {"stage1_certification_batches": 1, "stage2_to_stage5_calls_allowed": False, "post_delivery_audit_attempts": 1, "post_delivery_audit_affects_status": False}})
+    dump(artifacts / "01-input-profile/input_manifest.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "scope": {"game_code": "demo", "mode": "base", "rtp_group": "96", "target_rtp": 0.96}, "paths": {"simulation_script": "/tmp/demo_simulator.py"}, "hashes": {}, "script_qualification": {"status": "通过", "certified_execution_path": "python", "server_flow_certification": {"status": "通过", "batch_count": 1, "critical_state_chains": ["entry", "feature", "collect", "cap"], "evidence_path": "certification.json", "evidence_sha256": certification_sha}, "consistency_checks": [{"check_id": "python-vs-server", "subjects": "Python/Kotlin", "seed_or_trace": "trace-001", "sample_count": 1000, "status": "一致", "evidence": "certification.json"}], "semantic_checks": [{"semantic": "entry-feature-collect-cap", "expected": "一致", "actual": "一致", "status": "通过", "evidence": "certification.json"}]}, "server_flow_policy": {"stage1_certification_batches": 1, "stage2_to_stage5_calls_allowed": False, "stage2_to_stage5_python_only": True, "post_delivery_audit_attempts": 1, "post_delivery_audit_affects_status": False}})
+    valid_input_manifest = json.loads((artifacts / "01-input-profile/input_manifest.json").read_text(encoding="utf-8"))
+    assert validate_server_flow_policy(valid_input_manifest) == []
+    invalid_python_path = json.loads(json.dumps(valid_input_manifest))
+    invalid_python_path["script_qualification"]["certified_execution_path"] = "kotlin"
+    assert "阶段2至阶段5的已认证执行路径必须是Python" in validate_server_flow_policy(invalid_python_path)
     dump(artifacts / "01-input-profile/game_profile.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "scope": {}, "mechanics": [{"mechanic_id": "feature.free-spin", "name_zh": "免费旋转", "status": "必需", "scope": "base", "evidence": ["demo"]}], "required_node_count": 1, "semantic_gap_count": 0})
     dump(artifacts / "01-input-profile/parameter_authority.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "parameters": []})
     run(ROOT / "render_input_profile_report.py", "--artifacts", artifacts, "--output", artifacts / "01-input-profile/阶段1-资料确认与玩法画像.md")
@@ -207,10 +212,10 @@ def main():
     run(ROOT / "render_scoring_report.py", "--contract", contract_path, "--scorecard", scorecard_path, "--output", report_path)
     run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
     gate_hash = sha(gate_path)
-    dump(artifacts / "04-alignment/alignment_manifest.json", {"schema_version": "1.4", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "input_hashes": {}, "server_flow_policy": {"calibration_calls_allowed": False, "formal_calls_allowed": False, "post_delivery_audit_affects_status": False}, "stage3_gate": {"path": "03-scoring/stage3_gate.json", "sha256": gate_hash, "stage4_allowed": True}, "budget_policy": {"auto_expand": True, "attainability_ceiling": {"enabled": True, "stop_status": "结构不可达", "prohibit_budget_only_expansion": True}}})
+    dump(artifacts / "04-alignment/alignment_manifest.json", {"schema_version": "1.4", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "input_hashes": {}, "server_flow_policy": {"calibration_calls_allowed": False, "formal_calls_allowed": False, "python_only_execution": True, "post_delivery_audit_affects_status": False}, "stage3_gate": {"path": "03-scoring/stage3_gate.json", "sha256": gate_hash, "stage4_allowed": True}, "budget_policy": {"auto_expand": True, "attainability_ceiling": {"enabled": True, "stop_status": "结构不可达", "prohibit_budget_only_expansion": True}}})
     dump(artifacts / "04-alignment/candidate_archive.json", {"schema_version": "1.3", "task_id": "self-test", "stage3_gate_sha256": gate_hash, "server_flow_call_count": 0, "candidates": [], "stop_reason": "基线通过", "budget": {}, "attainability": {"status": "可达", "evidence_path": "", "evidence_sha256": "", "budget_expansion_allowed": True}})
     dump(artifacts / "04-alignment/aligned_parameters.json", {"schema_version": "1.0", "task_id": "self-test", "candidate_id": "baseline", "status": "已完成", "parameters": []})
-    dump(artifacts / "04-alignment/formal_result.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "candidate_id": "baseline", "plan_id": "formal-1", "status": "通过", "execution_valid": True, "independent_from_calibration": True, "execution_path": "certified_simulator", "stage1_server_flow_certification_sha256": certification_sha, "server_flow_call_count": 0, "sample": {"paid_entry_count": 1000}, "scorecard": {"alignment_status": "通过"}, "attempt": 1, "audits": {"long_tail": [], "max_win": "已审计"}})
+    dump(artifacts / "04-alignment/formal_result.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "candidate_id": "baseline", "plan_id": "formal-1", "status": "通过", "execution_valid": True, "independent_from_calibration": True, "execution_path": "python", "stage1_server_flow_certification_sha256": certification_sha, "server_flow_call_count": 0, "sample": {"paid_entry_count": 1000}, "scorecard": {"alignment_status": "通过"}, "attempt": 1, "audits": {"long_tail": [], "max_win": "已审计"}})
     run(ROOT / "render_alignment_report.py", "--artifacts", artifacts, "--output", artifacts / "04-alignment/阶段4-数值对齐报告.md")
     alignment_report = artifacts / "04-alignment/阶段4-数值对齐报告.md"
     alignment_original = alignment_report.read_text(encoding="utf-8")
@@ -282,7 +287,7 @@ def main():
     assert tampered_delivery.returncode == 1
     delivery_report.write_text(delivery_original, encoding="utf-8")
     run(ROOT / "validate_artifacts.py", "--artifacts", artifacts)
-    print(json.dumps({"status": "通过", "scenarios": ["五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "阶段1单次Server Flow认证", "阶段2至FORMAL禁止Server Flow", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "交付后Server Flow失败只警告且不改交付hash", "空硬指标不得审计通过", "畸形审计数据降级警告", "无效审计JSON降级警告", "完整硬指标审计通过"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
+    print(json.dumps({"status": "通过", "scenarios": ["五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "阶段1单次Server Flow认证", "阶段2至阶段5仅Python", "阶段2至FORMAL禁止Server Flow", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "交付后Server Flow失败只警告且不改交付hash", "空硬指标不得审计通过", "畸形审计数据降级警告", "无效审计JSON降级警告", "完整硬指标审计通过"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 

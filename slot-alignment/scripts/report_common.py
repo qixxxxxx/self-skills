@@ -145,25 +145,32 @@ def validate_server_flow_policy(input_manifest, alignment_manifest=None, candida
         errors.append("阶段1Server Flow数值一致性检查不完整或未通过")
     if not semantic_checks or any(item.get("status") != "通过" for item in semantic_checks):
         errors.append("阶段1Server Flow关键状态链语义检查不完整或未通过")
-    if not qualification.get("certified_execution_path"):
-        errors.append("阶段1未记录已认证模拟执行路径")
+    if qualification.get("certified_execution_path") != "python":
+        errors.append("阶段2至阶段5的已认证执行路径必须是Python")
+    simulation_script = input_manifest.get("paths", {}).get("simulation_script", "")
+    if not isinstance(simulation_script, str) or not simulation_script.endswith(".py"):
+        errors.append("阶段2至阶段5的模拟脚本必须是.py文件")
     if policy.get("stage1_certification_batches") != 1:
         errors.append("Server Flow政策未密封阶段1单认证批次")
     if policy.get("stage2_to_stage5_calls_allowed") is not False:
         errors.append("Server Flow政策未禁止阶段2至阶段5调用")
+    if policy.get("stage2_to_stage5_python_only") is not True:
+        errors.append("执行政策未锁定阶段2至阶段5仅使用Python")
     if policy.get("post_delivery_audit_attempts") != 1 or policy.get("post_delivery_audit_affects_status") is not False:
         errors.append("交付后Server Flow审计政策无效")
     if alignment_manifest is not None:
         stage4_policy = alignment_manifest.get("server_flow_policy", {})
         if stage4_policy.get("calibration_calls_allowed") is not False or stage4_policy.get("formal_calls_allowed") is not False:
             errors.append("阶段4未禁止CALIBRATION或FORMAL调用Server Flow")
+        if stage4_policy.get("python_only_execution") is not True:
+            errors.append("阶段4未锁定仅使用Python执行")
         if stage4_policy.get("post_delivery_audit_affects_status") is not False:
             errors.append("阶段4未隔离交付后Server Flow审计状态")
     if candidate_archive is not None and candidate_archive.get("server_flow_call_count") != 0:
         errors.append("CALIBRATION阶段存在Server Flow调用")
     if formal_result is not None:
-        if formal_result.get("execution_path") != "certified_simulator":
-            errors.append("FORMAL未使用阶段1已认证模拟路径")
+        if formal_result.get("execution_path") != "python":
+            errors.append("FORMAL执行路径不是Python")
         if formal_result.get("server_flow_call_count") != 0:
             errors.append("FORMAL阶段存在Server Flow调用")
         if formal_result.get("stage1_server_flow_certification_sha256") != evidence_sha:

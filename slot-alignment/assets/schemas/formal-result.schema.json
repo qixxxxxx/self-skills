@@ -12,7 +12,7 @@
   "properties": {
     "execution_valid": {"type": "boolean"},
     "independent_from_calibration": {"type": "boolean"},
-    "execution_path": {"const": "certified_simulator"},
+    "execution_path": {"const": "python"},
     "stage1_server_flow_certification_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
     "server_flow_call_count": {"const": 0},
     "attempt": {"type": "integer", "minimum": 0}

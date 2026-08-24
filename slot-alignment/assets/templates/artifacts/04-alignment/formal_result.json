@@ -7,7 +7,7 @@
   "status": "无法判定",
   "execution_valid": false,
   "independent_from_calibration": false,
-  "execution_path": "certified_simulator",
+  "execution_path": "python",
   "stage1_server_flow_certification_sha256": "",
   "server_flow_call_count": 0,
   "sample": {"paid_entry_count": 0, "seed_set_hash": ""},

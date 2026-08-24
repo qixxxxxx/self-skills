@@ -13,7 +13,7 @@
   "data_gates": [],
   "script_qualification": {
     "status": "未开始",
-    "certified_execution_path": "",
+    "certified_execution_path": "python",
     "server_flow_certification": {
       "status": "未开始",
       "batch_count": 0,
@@ -28,6 +28,7 @@
   "server_flow_policy": {
     "stage1_certification_batches": 1,
     "stage2_to_stage5_calls_allowed": false,
+    "stage2_to_stage5_python_only": true,
     "post_delivery_audit_attempts": 1,
     "post_delivery_audit_affects_status": false
   },

@@ -10,6 +10,7 @@
   "server_flow_policy": {
     "calibration_calls_allowed": false,
     "formal_calls_allowed": false,
+    "python_only_execution": true,
     "post_delivery_audit_affects_status": false
   },
   "stage3_gate": {

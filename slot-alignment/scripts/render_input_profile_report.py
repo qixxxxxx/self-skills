@@ -49,7 +49,9 @@ def render(manifest, profile, authority, source_hashes):
         and certification.get("batch_count") == 1
         and bool(certification.get("critical_state_chains"))
         and bool(certification.get("evidence_sha256"))
-        and qualification.get("certified_execution_path")
+        and qualification.get("certified_execution_path") == "python"
+        and str(manifest.get("paths", {}).get("simulation_script", "")).endswith(".py")
+        and server_flow_policy.get("stage2_to_stage5_python_only") is True
         and bool(qualification.get("consistency_checks"))
         and all(item.get("status") in {"通过", "一致"} for item in qualification.get("consistency_checks", []))
         and bool(qualification.get("semantic_checks"))
@@ -105,7 +107,7 @@ def render(manifest, profile, authority, source_hashes):
         "### 5.2 玩法节点明细", "", table(["mechanic_id", "中文名", "父节点", "作用域", "必需性", "状态", "标准属性", "证据", "置信状态"], [[x.get("mechanic_id"), x.get("name_zh"), x.get("parent_id"), x.get("scope"), x.get("required", x.get("status")), x.get("status"), x.get("attributes"), x.get("evidence"), x.get("confidence", x.get("confidence_status"))] for x in mechanics]), "",
         "## 六、模拟脚本与执行链资格", "",
         "### 6.1 阶段1单次 Server Flow 一致性认证", "",
-        f"阶段1认证批次：{fmt(certification.get('batch_count'))}；认证路径：{fmt(qualification.get('certified_execution_path'))}；阶段2至阶段5Server Flow调用：{'禁止' if server_flow_policy.get('stage2_to_stage5_calls_allowed') is False else '未密封'}。", "",
+        f"阶段1认证批次：{fmt(certification.get('batch_count'))}；认证路径：{fmt(qualification.get('certified_execution_path'))}；阶段2至阶段5：仅Python，Server Flow调用{'禁止' if server_flow_policy.get('stage2_to_stage5_calls_allowed') is False else '未密封'}。", "",
         table(["认证批次", "检查项", "比较对象", "种子/RNG trace", "样本", "结果", "证据"], [[certification.get("certification_id", "cert-001"), *row] for row in rows(chains, ["check_id", "subjects", "seed_or_trace", "sample_count", "status", "evidence"])]), "",
         "### 6.2 状态链、结算与封顶证据", "", table(["语义", "预期", "实测", "状态", "证据"], rows(qualification.get("semantic_checks", []), ["semantic", "expected", "actual", "status", "evidence"])), "",
         "## 七、参数权限与控制拓扑", "",
