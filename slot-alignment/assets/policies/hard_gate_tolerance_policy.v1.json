@@ -1,0 +1,27 @@
+{
+  "schema_version": "slot-alignment.hard-gate-tolerance-policy.v1",
+  "policy_id": "future-default-hard-gate-tolerance-factors-v1",
+  "version": "1.0.0",
+  "status": "已授权",
+  "authority": "用户",
+  "authorized_at": "2026-08-24",
+  "applies_to": "仅适用于采用本政策后新建并在候选结果出现前密封的对齐任务",
+  "legacy_contracts_unchanged": true,
+  "default_factor": 1.0,
+  "metric_factors": {
+    "core.rtp.total": 1.0,
+    "core.hit_rate.paid_entry": 2.0,
+    "core.feature.natural_trigger_rate": 1.5,
+    "core.multiplier_distribution.lt200": 4.0,
+    "core.sigma": 1.5,
+    "core.rtp.component_contribution": 1.5
+  },
+  "locked_metrics": [
+    "core.rtp.total"
+  ],
+  "calculation": {
+    "formula": "effective_tolerance = base_tolerance * tolerance_factor",
+    "range_error": "保持权威目标区间不变，生效容差仅作为区间外扩展距离",
+    "target_mutation_forbidden": true
+  }
+}

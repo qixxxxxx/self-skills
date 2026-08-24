@@ -3,7 +3,7 @@ name: slot-alignment
 description: 根据 Slot 游戏原版采集协议、规则、规格、Runtime、服务端和模拟脚本建立统一玩法画像，匹配版本化指标包，执行结构可达性预检、硬指标门禁、100 分评分、受控 CALIBRATION、独立 FORMAL 验收和中文交付。用于老虎机原版数值对齐、玩法体验对齐、指标规划、参数搜索、候选验收、不可达与豁免审查，或生成阶段1至阶段5固定结构产物及`阶段4-数值对齐报告.md`。
 ---
 
-# Slot 原版数值对齐v2
+# Slot 原版数值对齐v2.1
 
 ## 目标
 
@@ -17,6 +17,7 @@ description: 根据 Slot 游戏原版采集协议、规则、规格、Runtime、
 - 禁止修改玩法、状态机、触发与结算语义、RNG 调用顺序、投注口径、封顶、最大中奖规则及未授权结构。
 - 模拟脚本缺少统计输出时，可在保持游戏逻辑不变的前提下增强输出；修改后必须重新证明与 server 逻辑一致。
 - 总 RTP 目标必须来自外部权威来源；不得从原版样本反推。
+- 新建任务默认加载`assets/policies/hard_gate_tolerance_policy.v1.json`，在候选结果出现前密封基础容差、指标系数和生效容差；已有任务不得回溯套用。
 - 候选结果出现前密封指标合同、评价合同、权重、样本计划、预算和 FORMAL 计划；不得看结果后放宽标准。
 - 200x 以下倍率桶默认进入指标；200x 及以上与最大中奖默认只审计，但仍进入总 RTP、Sigma 和风险检查。
 - 用户是指标库扩展和指标豁免的唯一批准者。未经批准不得跳过必需指标。
@@ -42,8 +43,8 @@ target_rtp
 ## 五阶段工作流
 
 1. **资料确认与玩法画像**：读取[01-资料确认与玩法画像.md](references/01-资料确认与玩法画像.md)，检查证据、脚本资格、Runtime、作用域和参数权限，生成阶段 1 四件套。建立画像前读取`references/mechanics/index.json`及命中的中文目录说明。
-2. **指标匹配**：读取[02-指标匹配.md](references/02-指标匹配.md)和`references/metrics/index.json`，按`mechanic_id + 标准属性`加载 Core、Atomic、Composite、Interaction；再执行结构可达性预检。出现缺口或不可达时读取[02A-可达性与豁免.md](references/02A-可达性与豁免.md)。
-3. **评分**：读取[03-评分系统.md](references/03-评分系统.md)和[03A-指标评价合同.md](references/03A-指标评价合同.md)，先判全部未豁免硬指标，再计算非硬指标 0～100 分和综合分。
+2. **指标匹配**：读取[02-指标匹配.md](references/02-指标匹配.md)和`references/metrics/index.json`，按`mechanic_id + 标准属性`加载 Core、Atomic、Composite、Interaction；为新任务应用默认硬指标容差政策并密封政策 hash；再执行结构可达性预检。出现缺口或不可达时读取[02A-可达性与豁免.md](references/02A-可达性与豁免.md)。
+3. **评分**：读取[03-评分系统.md](references/03-评分系统.md)、[03A-指标评价合同.md](references/03A-指标评价合同.md)和[03B-硬指标容差系数.md](references/03B-硬指标容差系数.md)，新任务先应用默认容差系数政策，再判全部未豁免硬指标，最后计算非硬指标 0～100 分和综合分。
 4. **自动对齐与 FORMAL**：读取[04-自动对齐与正式验收.md](references/04-自动对齐与正式验收.md)和[04A-搜索效率与预算.md](references/04A-搜索效率与预算.md)，依次执行基线、敏感性、CALIBRATION、候选冻结、独立 FORMAL；生成`阶段4-数值对齐报告.md`。
 5. **交付**：读取[05-交付.md](references/05-交付.md)，验证完整`artifacts/`，生成不可变交付版本与三份阶段 5 清单。
 
@@ -76,6 +77,7 @@ target_rtp
 
 ```bash
 <python_bin> <skill_root>/scripts/catalog_tool.py validate --skill-root <skill_root>
+<python_bin> <skill_root>/scripts/apply_hard_gate_tolerance_policy.py --contract <base_metric_contract.json> --policy <skill_root>/assets/policies/hard_gate_tolerance_policy.v1.json --output <metric_contract.json>
 <python_bin> <skill_root>/scripts/score_alignment.py --contract <metric_contract.json> --measurements <measurements.json> --output <scorecard.json>
 <python_bin> <skill_root>/scripts/render_alignment_report.py --artifacts <artifacts> --output <阶段4-数值对齐报告.md>
 <python_bin> <skill_root>/scripts/validate_artifacts.py --artifacts <artifacts>

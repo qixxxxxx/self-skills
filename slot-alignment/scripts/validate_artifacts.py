@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -24,6 +25,38 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def validate_tolerance_policy(contract):
+    errors = []
+    policy = contract.get("hard_gate_tolerance_policy")
+    if not policy:
+        return errors
+    factors = policy.get("metric_factors", {})
+    default_factor = policy.get("default_factor", 1.0)
+    locked = set(policy.get("locked_metrics", []))
+    for metric in contract.get("metrics", []):
+        if metric.get("kind") != "hard" or metric.get("status") == "不适用":
+            continue
+        metric_id = metric.get("metric_id", "")
+        profile = metric.get("hard_gate_profile", {})
+        try:
+            base = float(profile["base_tolerance"])
+            factor = float(profile["tolerance_factor"])
+            effective = float(profile["tolerance"])
+            expected_factor = float(factors.get(metric_id, default_factor))
+        except (KeyError, TypeError, ValueError):
+            errors.append(f"硬指标容差字段无效: {metric_id}")
+            continue
+        if profile.get("tolerance_policy_id") != policy.get("policy_id"):
+            errors.append(f"硬指标政策ID不一致: {metric_id}")
+        if metric_id in locked and factor != 1.0:
+            errors.append(f"锁定硬指标系数不是1.0: {metric_id}")
+        if not math.isclose(factor, expected_factor, rel_tol=0.0, abs_tol=1e-12):
+            errors.append(f"硬指标系数与政策不一致: {metric_id}")
+        if not math.isclose(effective, base * factor, rel_tol=1e-12, abs_tol=1e-15):
+            errors.append(f"硬指标生效容差计算错误: {metric_id}")
+    return errors
+
+
 def validate(root, require_delivery=True):
     errors, task_ids = [], set()
     required = REQUIRED_STAGE14 + (REQUIRED_STAGE5 if require_delivery else [])
@@ -43,6 +76,9 @@ def validate(root, require_delivery=True):
             errors.append(f"Markdown仍含模板占位符: {rel}")
     if len(task_ids) > 1:
         errors.append(f"task_id不一致: {sorted(task_ids)}")
+    contract_path = root / "02-metric-matching/metric_contract.json"
+    if contract_path.is_file():
+        errors += validate_tolerance_policy(load(contract_path))
     score_path = root / "03-scoring/scorecard.json"
     report_path = root / "04-alignment/阶段4-数值对齐报告.md"
     formal_path = root / "04-alignment/formal_result.json"

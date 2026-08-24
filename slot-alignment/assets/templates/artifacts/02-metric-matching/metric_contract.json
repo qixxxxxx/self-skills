@@ -4,10 +4,26 @@
   "status": "未开始",
   "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},
   "catalogs": {"mechanics_version": "", "metrics_version": "", "hashes": {}},
+  "hard_gate_tolerance_policy": {
+    "policy_id": "future-default-hard-gate-tolerance-factors-v1",
+    "version": "1.0.0",
+    "source_path": "assets/policies/hard_gate_tolerance_policy.v1.json",
+    "source_sha256": "",
+    "default_factor": 1.0,
+    "metric_factors": {
+      "core.rtp.total": 1.0,
+      "core.hit_rate.paid_entry": 2.0,
+      "core.feature.natural_trigger_rate": 1.5,
+      "core.multiplier_distribution.lt200": 4.0,
+      "core.sigma": 1.5,
+      "core.rtp.component_contribution": 1.5
+    },
+    "locked_metrics": ["core.rtp.total"],
+    "legacy_contracts_unchanged": true
+  },
   "coverage": {"mechanic_required": 0, "mechanic_owned": 0, "mechanic_coverage": null, "metric_required": 0, "metric_measurable": 0, "metric_measurability": null},
   "metrics": [],
   "coupling_clusters": [],
   "waivers": [],
   "sealed_at": ""
 }
-

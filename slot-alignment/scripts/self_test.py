@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
+SKILL_ROOT = ROOT.parent
 
 
 def dump(path, data):
@@ -16,6 +17,10 @@ def dump(path, data):
 
 def run(*args):
     return subprocess.run([sys.executable, *map(str, args)], check=True, capture_output=True, text=True)
+
+
+def run_result(*args):
+    return subprocess.run([sys.executable, *map(str, args)], check=False, capture_output=True, text=True)
 
 
 def score_case(base, waiver=False, hard_fail=False):
@@ -38,14 +43,49 @@ def score_case(base, waiver=False, hard_fail=False):
     return json.loads((base / "scorecard.json").read_text(encoding="utf-8"))
 
 
+def tolerance_policy_case(base):
+    contract = {
+        "schema_version": "1.0", "task_id": "policy-test", "input_hashes": {}, "group_weights": {"experience": 1},
+        "metrics": [
+            {"metric_id": "core.rtp.total", "name_zh": "总RTP", "owner": "core.general", "kind": "hard", "scope": "base", "target": 0.96, "hard_gate_profile": {"method": "absolute_error", "tolerance": 0.002}},
+            {"metric_id": "core.multiplier_distribution.lt200", "name_zh": "200x以下倍率分布", "owner": "core.general", "kind": "hard", "scope": "base", "target": [1.0, 0.0], "hard_gate_profile": {"method": "total_variation", "tolerance": 0.01}},
+            {"metric_id": "demo.a", "name_zh": "体验A", "owner": "demo", "kind": "score", "scope": "base", "target": 0.10, "score_group": "experience", "weight": 1.0, "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.01,85],[0.10,0]]}}
+        ]
+    }
+    measurements = {"measurements": [
+        {"metric_id": "core.rtp.total", "scope": "base", "status": "有效", "value": 0.959},
+        {"metric_id": "core.multiplier_distribution.lt200", "scope": "base", "status": "有效", "value": [0.964, 0.036]},
+        {"metric_id": "demo.a", "scope": "base", "status": "有效", "value": 0.10}
+    ]}
+    dump(base / "base-contract.json", contract)
+    dump(base / "measurements.json", measurements)
+    run(ROOT / "apply_hard_gate_tolerance_policy.py", "--contract", base / "base-contract.json", "--policy", SKILL_ROOT / "assets/policies/hard_gate_tolerance_policy.v1.json", "--output", base / "contract.json")
+    run(ROOT / "score_alignment.py", "--contract", base / "contract.json", "--measurements", base / "measurements.json", "--output", base / "scorecard.json")
+    scorecard = json.loads((base / "scorecard.json").read_text(encoding="utf-8"))
+    tampered = json.loads((base / "contract.json").read_text(encoding="utf-8"))
+    tv = next(item for item in tampered["metrics"] if item["metric_id"] == "core.multiplier_distribution.lt200")
+    tv["hard_gate_profile"]["tolerance"] = 0.041
+    dump(base / "tampered-contract.json", tampered)
+    invalid = run_result(ROOT / "score_alignment.py", "--contract", base / "tampered-contract.json", "--measurements", base / "measurements.json", "--output", base / "tampered-scorecard.json")
+    assert invalid.returncode == 2
+    return scorecard
+
+
 def main():
     root = Path(tempfile.mkdtemp(prefix="slot-alignment-self-test-"))
     normal = score_case(root / "normal")
     waived = score_case(root / "waived", waiver=True)
     failed = score_case(root / "failed", hard_fail=True)
+    policy = tolerance_policy_case(root / "policy")
     assert normal["alignment_status"] == "通过"
     assert waived["alignment_status"] == "豁免后通过"
     assert failed["alignment_status"] == "不通过"
+    policy_gates = {item["metric_id"]: item for item in policy["hard_gates"]}
+    assert policy_gates["core.rtp.total"]["tolerance_factor"] == 1.0
+    assert policy_gates["core.multiplier_distribution.lt200"]["base_tolerance"] == 0.01
+    assert policy_gates["core.multiplier_distribution.lt200"]["tolerance_factor"] == 4.0
+    assert policy_gates["core.multiplier_distribution.lt200"]["tolerance"] == 0.04
+    assert policy_gates["core.multiplier_distribution.lt200"]["status"] == "通过"
     artifacts = root / "artifacts"
     for rel in ("01-input-profile", "02-metric-matching", "03-scoring", "04-alignment"):
         (artifacts / rel).mkdir(parents=True, exist_ok=True)
@@ -67,7 +107,7 @@ def main():
     run(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--pre-delivery")
     run(ROOT / "seal_delivery.py", "--artifacts", artifacts)
     run(ROOT / "validate_artifacts.py", "--artifacts", artifacts)
-    print(json.dumps({"status": "通过", "scenarios": ["正向", "硬指标失败", "豁免后通过", "报告生成", "交付封存"], "fixture": str(root)}, ensure_ascii=False))
+    print(json.dumps({"status": "通过", "scenarios": ["正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "报告生成", "交付封存"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 

@@ -3,6 +3,23 @@
   "title": "Metric Contract",
   "type": "object",
   "required": ["schema_version", "task_id", "status", "scope", "coverage", "metrics", "coupling_clusters", "waivers"],
-  "properties": {"metrics": {"type": "array"}, "coupling_clusters": {"type": "array"}, "waivers": {"type": "array"}}
+  "properties": {
+    "hard_gate_tolerance_policy": {
+      "type": "object",
+      "required": ["policy_id", "version", "source_path", "source_sha256", "default_factor", "metric_factors", "locked_metrics", "legacy_contracts_unchanged"],
+      "properties": {
+        "policy_id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "source_path": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "default_factor": {"type": "number", "exclusiveMinimum": 0},
+        "metric_factors": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
+        "locked_metrics": {"type": "array", "items": {"type": "string"}},
+        "legacy_contracts_unchanged": {"const": true}
+      }
+    },
+    "metrics": {"type": "array"},
+    "coupling_clusters": {"type": "array"},
+    "waivers": {"type": "array"}
+  }
 }
-

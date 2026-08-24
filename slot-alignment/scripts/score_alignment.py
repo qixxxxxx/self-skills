@@ -76,6 +76,30 @@ def band(score):
     return "严重偏差"
 
 
+def hard_tolerance(contract, metric, profile):
+    effective = profile.get("tolerance")
+    if effective is None:
+        raise ValueError("硬指标缺少已解析容差")
+    effective = scalar(effective)
+    policy = contract.get("hard_gate_tolerance_policy")
+    if not policy:
+        return effective, 1.0, effective, None
+    metric_id = metric.get("metric_id", "")
+    base = scalar(profile.get("base_tolerance"))
+    expected_factor = float(policy.get("metric_factors", {}).get(metric_id, policy.get("default_factor", 1.0)))
+    actual_factor = scalar(profile.get("tolerance_factor"))
+    if profile.get("tolerance_policy_id") != policy.get("policy_id"):
+        raise ValueError("硬指标政策ID与合同不一致")
+    if metric_id in policy.get("locked_metrics", []) and actual_factor != 1.0:
+        raise ValueError("锁定硬指标系数必须为1.0")
+    if not math.isclose(actual_factor, expected_factor, rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("硬指标系数与政策不一致")
+    expected = base * actual_factor
+    if not math.isclose(effective, expected, rel_tol=1e-12, abs_tol=1e-15):
+        raise ValueError("生效容差不等于基础容差乘系数")
+    return base, actual_factor, effective, policy.get("policy_id")
+
+
 def main():
     parser = argparse.ArgumentParser(description="确定性复算 Slot 对齐评分")
     parser.add_argument("--contract", required=True, type=Path)
@@ -110,12 +134,13 @@ def main():
             continue
         base = {"metric_id": item_key[0], "name_zh": metric.get("name_zh", item_key[0]), "scope": item_key[1], "target": metric["target"], "candidate": measurement["value"], "distance": gap, "waiver": waiver}
         if kind == "hard":
-            tolerance = profile.get("tolerance")
-            if tolerance is None:
-                blockers.append({"metric_id": item_key[0], "scope": item_key[1], "reason": "硬指标缺少已解析容差"})
+            try:
+                base_tolerance, tolerance_factor, tolerance, policy_id = hard_tolerance(contract, metric, profile)
+            except (TypeError, ValueError) as exc:
+                blockers.append({"metric_id": item_key[0], "scope": item_key[1], "reason": str(exc)})
                 continue
-            passed = gap <= float(tolerance)
-            base.update({"tolerance": float(tolerance), "status": "硬指标已豁免" if waived else ("通过" if passed else "不通过")})
+            passed = gap <= tolerance
+            base.update({"base_tolerance": base_tolerance, "tolerance_factor": tolerance_factor, "tolerance": tolerance, "tolerance_policy_id": policy_id, "status": "硬指标已豁免" if waived else ("通过" if passed else "不通过")})
             hard_gates.append(base)
         elif waived:
             base.update({"status": "已豁免", "score": None, "band": "不适用", "weight": 0})
@@ -173,4 +198,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
