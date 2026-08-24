@@ -11,7 +11,7 @@ from render_delivery_report import render as render_stage5
 from render_input_profile_report import render as render_stage1
 from render_metric_matching_report import render as render_stage2
 from render_scoring_report import render as render_stage3
-from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_templates
+from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_templates
 
 
 REQUIRED_STAGE14 = [
@@ -233,6 +233,7 @@ def validate(root, require_delivery=True):
     if len(task_ids) > 1:
         errors.append(f"task_id不一致: {sorted(task_ids)}")
     stage1_paths = [root / "01-input-profile/input_manifest.json", root / "01-input-profile/game_profile.json", root / "01-input-profile/parameter_authority.json", root / "01-input-profile/阶段1-资料确认与玩法画像.md"]
+    input_manifest = None
     if all(path.is_file() for path in stage1_paths):
         input_manifest, profile, authority = map(load, stage1_paths[:3])
         actual = stage1_paths[3].read_text(encoding="utf-8")
@@ -279,6 +280,12 @@ def validate(root, require_delivery=True):
         formal = load(formal_path)
         if formal.get("execution_valid") and not formal.get("independent_from_calibration"):
             errors.append("有效FORMAL缺少CALIBRATION独立性")
+        alignment_manifest_path = root / "04-alignment/alignment_manifest.json"
+        candidate_archive_path = root / "04-alignment/candidate_archive.json"
+        if input_manifest is not None and alignment_manifest_path.is_file() and candidate_archive_path.is_file():
+            errors += validate_server_flow_policy(input_manifest, load(alignment_manifest_path), load(candidate_archive_path), formal)
+        elif input_manifest is not None:
+            errors += validate_server_flow_policy(input_manifest)
     manifest_path = root / "05-delivery/delivery_manifest.json"
     if require_delivery and manifest_path.is_file():
         delivery_manifest = load(manifest_path)

@@ -29,6 +29,10 @@ def next_version(versions):
     return f"dv{(max(nums, default=0) + 1):04d}"
 
 
+def delivery_report_contract_version(input_manifest):
+    return input_manifest.get("report_contract_version", "slot-alignment.reports.v2.5")
+
+
 def main():
     parser = argparse.ArgumentParser(description="原子生成阶段5交付清单")
     parser.add_argument("--artifacts", required=True, type=Path)
@@ -45,12 +49,13 @@ def main():
     version_dir.mkdir()
     score = load(args.artifacts / "03-scoring/scorecard.json")
     input_manifest = load(args.artifacts / "01-input-profile/input_manifest.json")
+    report_contract_version = delivery_report_contract_version(input_manifest)
     files = []
     for rel in required_stage14(args.artifacts):
         path = args.artifacts / rel
         files.append({"path": rel, "required": True, "role": "机器结果" if path.suffix == ".json" else "中文报告", "sha256": sha(path), "valid": True})
     now = datetime.now(timezone.utc).isoformat()
-    manifest = {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.5", "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "alignment_status": score.get("alignment_status", "无法判定"), "delivery_status": "通过", "files": files, "generated_at": now}
+    manifest = {"schema_version": "1.1", "report_contract_version": report_contract_version, "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "alignment_status": score.get("alignment_status", "无法判定"), "delivery_status": "通过", "files": files, "generated_at": now}
     checks = [
         {"check_id": "structure", "name_zh": "固定目录与必需文件", "status": "通过"},
         {"check_id": "scope", "name_zh": "作用域与task_id一致", "status": "通过"},
@@ -58,7 +63,7 @@ def main():
         {"check_id": "formal", "name_zh": "FORMAL结果与中文报告存在", "status": "通过"},
         {"check_id": "hash", "name_zh": "阶段1至4 SHA-256有效", "status": "通过"}
     ]
-    checklist = {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.5", "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "status": "通过", "checks": checks}
+    checklist = {"schema_version": "1.1", "report_contract_version": report_contract_version, "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "status": "通过", "checks": checks}
     md = render(manifest, checklist)
     dump(version_dir / "delivery_manifest.json", manifest)
     dump(version_dir / "delivery_checklist.json", checklist)

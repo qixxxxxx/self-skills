@@ -1,6 +1,6 @@
 {
   "schema_version": "1.1",
-  "report_contract_version": "slot-alignment.reports.v2.5",
+  "report_contract_version": "slot-alignment.reports.v2.6",
   "task_id": "",
   "status": "未开始",
   "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},
@@ -11,6 +11,25 @@
   "component_rtp_shares": [],
   "hashes": {},
   "data_gates": [],
-  "script_qualification": {"status": "未开始", "consistency_checks": [], "semantic_checks": [], "evidence": []},
+  "script_qualification": {
+    "status": "未开始",
+    "certified_execution_path": "",
+    "server_flow_certification": {
+      "status": "未开始",
+      "batch_count": 0,
+      "critical_state_chains": [],
+      "evidence_path": "",
+      "evidence_sha256": ""
+    },
+    "consistency_checks": [],
+    "semantic_checks": [],
+    "evidence": []
+  },
+  "server_flow_policy": {
+    "stage1_certification_batches": 1,
+    "stage2_to_stage5_calls_allowed": false,
+    "post_delivery_audit_attempts": 1,
+    "post_delivery_audit_affects_status": false
+  },
   "blockers": []
 }

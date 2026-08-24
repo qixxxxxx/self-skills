@@ -20,7 +20,7 @@ REPORT_HEADINGS = {
         "### 5.1 玩法树",
         "### 5.2 玩法节点明细",
         "## 六、模拟脚本与执行链资格",
-        "### 6.1 Fast / Full / Python / Server一致性",
+        "### 6.1 阶段1单次 Server Flow 一致性认证",
         "### 6.2 状态链、结算与封顶证据",
         "## 七、参数权限与控制拓扑",
         "### 7.1 授权参数",
@@ -119,6 +119,56 @@ TEMPLATE_PATHS = {
     4: "assets/templates/artifacts/04-alignment/阶段4-数值对齐报告.md",
     5: "assets/templates/artifacts/05-delivery/阶段5-交付清单.md",
 }
+
+REPORT_CONTRACT_V26 = "slot-alignment.reports.v2.6"
+
+
+def validate_server_flow_policy(input_manifest, alignment_manifest=None, candidate_archive=None, formal_result=None):
+    if input_manifest.get("report_contract_version") != REPORT_CONTRACT_V26:
+        return []
+    errors = []
+    qualification = input_manifest.get("script_qualification", {})
+    certification = qualification.get("server_flow_certification", {})
+    policy = input_manifest.get("server_flow_policy", {})
+    evidence_sha = certification.get("evidence_sha256", "")
+    consistency_checks = qualification.get("consistency_checks", [])
+    semantic_checks = qualification.get("semantic_checks", [])
+    if qualification.get("status") != "通过":
+        errors.append("阶段1模拟脚本资格未通过")
+    if certification.get("status") != "通过" or certification.get("batch_count") != 1:
+        errors.append("阶段1必须且只能有一个有效Server Flow认证批次")
+    if not certification.get("critical_state_chains"):
+        errors.append("阶段1Server Flow认证未覆盖关键状态链")
+    if not certification.get("evidence_path") or len(evidence_sha) != 64:
+        errors.append("阶段1Server Flow认证证据hash无效")
+    if not consistency_checks or any(item.get("status") not in {"通过", "一致"} for item in consistency_checks):
+        errors.append("阶段1Server Flow数值一致性检查不完整或未通过")
+    if not semantic_checks or any(item.get("status") != "通过" for item in semantic_checks):
+        errors.append("阶段1Server Flow关键状态链语义检查不完整或未通过")
+    if not qualification.get("certified_execution_path"):
+        errors.append("阶段1未记录已认证模拟执行路径")
+    if policy.get("stage1_certification_batches") != 1:
+        errors.append("Server Flow政策未密封阶段1单认证批次")
+    if policy.get("stage2_to_stage5_calls_allowed") is not False:
+        errors.append("Server Flow政策未禁止阶段2至阶段5调用")
+    if policy.get("post_delivery_audit_attempts") != 1 or policy.get("post_delivery_audit_affects_status") is not False:
+        errors.append("交付后Server Flow审计政策无效")
+    if alignment_manifest is not None:
+        stage4_policy = alignment_manifest.get("server_flow_policy", {})
+        if stage4_policy.get("calibration_calls_allowed") is not False or stage4_policy.get("formal_calls_allowed") is not False:
+            errors.append("阶段4未禁止CALIBRATION或FORMAL调用Server Flow")
+        if stage4_policy.get("post_delivery_audit_affects_status") is not False:
+            errors.append("阶段4未隔离交付后Server Flow审计状态")
+    if candidate_archive is not None and candidate_archive.get("server_flow_call_count") != 0:
+        errors.append("CALIBRATION阶段存在Server Flow调用")
+    if formal_result is not None:
+        if formal_result.get("execution_path") != "certified_simulator":
+            errors.append("FORMAL未使用阶段1已认证模拟路径")
+        if formal_result.get("server_flow_call_count") != 0:
+            errors.append("FORMAL阶段存在Server Flow调用")
+        if formal_result.get("stage1_server_flow_certification_sha256") != evidence_sha:
+            errors.append("FORMAL绑定的阶段1Server Flow认证证据hash无效")
+    return errors
 
 
 def fmt(value):

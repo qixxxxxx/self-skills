@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Post-delivery Server Flow Audit",
+  "type": "object",
+  "required": ["schema_version", "task_id", "delivery_version", "delivery_manifest_sha256", "attempt_count", "execution_status", "status_effect", "input_hashes", "sample", "hard_metric_comparisons", "warnings"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.post-delivery-server-flow-audit.v1"},
+    "attempt_count": {"const": 1},
+    "execution_status": {"enum": ["成功", "失败", "异常"]},
+    "input_hashes": {
+      "type": "object",
+      "required": ["server", "runtime", "candidate", "formal_result", "scorecard"]
+    },
+    "sample": {
+      "type": "object",
+      "required": ["paid_entry_count", "seed_set_hash"],
+      "properties": {
+        "paid_entry_count": {"type": "integer", "minimum": 1},
+        "seed_set_hash": {"type": "string", "minLength": 1}
+      }
+    },
+    "hard_metric_comparisons": {"type": "array", "items": {"type": "object", "required": ["metric_id", "scope", "formal_value", "server_flow_value", "difference", "tolerance", "sample_qualification", "status"]}},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "status_effect": {"const": "无"}
+  }
+}

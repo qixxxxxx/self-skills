@@ -1,0 +1,24 @@
+{
+  "schema_version": "slot-alignment.post-delivery-server-flow-audit.v1",
+  "task_id": "",
+  "delivery_version": "",
+  "delivery_manifest_sha256": "",
+  "attempt_count": 1,
+  "execution_status": "异常",
+  "status_effect": "无",
+  "input_hashes": {
+    "server": "",
+    "runtime": "",
+    "candidate": "",
+    "formal_result": "",
+    "scorecard": ""
+  },
+  "sample": {
+    "paid_entry_count": 0,
+    "seed_set_hash": ""
+  },
+  "hard_metric_comparisons": [],
+  "warnings": [],
+  "error": "",
+  "generated_at": ""
+}

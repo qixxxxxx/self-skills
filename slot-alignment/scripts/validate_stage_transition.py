@@ -8,7 +8,7 @@ from pathlib import Path
 from render_scoring_report import render
 from render_input_profile_report import render as render_stage1
 from render_metric_matching_report import render as render_stage2
-from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_templates
+from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_templates
 
 
 REQUIRED = [
@@ -59,6 +59,7 @@ def validate(root):
     for name, item in (("input_manifest", input_manifest), ("game_profile", game_profile), ("parameter_authority", authority), ("metric_contract", contract)):
         if item.get("status") != "已完成":
             errors.append(f"上游阶段状态未完成: {name}={item.get('status')}")
+    errors += validate_server_flow_policy(input_manifest)
     if scorecard.get("status") != "已完成" or scorecard.get("blocking_reasons"):
         errors.append("阶段3评分未完成或仍有阻塞")
     if scorecard.get("alignment_status") == "无法判定":

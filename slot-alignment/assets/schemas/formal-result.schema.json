@@ -3,6 +3,18 @@
   "title": "Formal Result",
   "type": "object",
   "required": ["schema_version", "task_id", "candidate_id", "plan_id", "status", "execution_valid", "independent_from_calibration", "sample", "scorecard", "attempt"],
-  "properties": {"execution_valid": {"type": "boolean"}, "independent_from_calibration": {"type": "boolean"}, "attempt": {"type": "integer", "minimum": 0}}
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": "1.1"}}},
+      "then": {"required": ["execution_path", "stage1_server_flow_certification_sha256", "server_flow_call_count"]}
+    }
+  ],
+  "properties": {
+    "execution_valid": {"type": "boolean"},
+    "independent_from_calibration": {"type": "boolean"},
+    "execution_path": {"const": "certified_simulator"},
+    "stage1_server_flow_certification_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+    "server_flow_call_count": {"const": 0},
+    "attempt": {"type": "integer", "minimum": 0}
+  }
 }
-

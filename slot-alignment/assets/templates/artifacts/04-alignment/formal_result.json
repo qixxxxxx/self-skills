@@ -1,14 +1,17 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
+  "report_contract_version": "slot-alignment.reports.v2.6",
   "task_id": "",
   "candidate_id": "",
   "plan_id": "",
   "status": "无法判定",
   "execution_valid": false,
   "independent_from_calibration": false,
+  "execution_path": "certified_simulator",
+  "stage1_server_flow_certification_sha256": "",
+  "server_flow_call_count": 0,
   "sample": {"paid_entry_count": 0, "seed_set_hash": ""},
   "scorecard": {"alignment_status": "无法判定", "overall_score": null, "hard_gates": []},
   "attempt": 0,
   "failure_reason": ""
 }
-
