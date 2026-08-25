@@ -125,7 +125,7 @@ def render(contract, scorecard, contract_hash, scorecard_hash):
             ["硬指标结果数量", len(hard), len([x for x in contract.get("metrics", []) if x.get("kind") == "hard" and x.get("status") != "不适用"]), "必须一致"],
             ["评分指标结果数量", len(scores), len([x for x in contract.get("metrics", []) if x.get("kind") == "score" and x.get("status") != "不适用"]), "必须一致"],
         ]), "",
-        "## 八、版本、Hash与复算", "", table(["对象ID", "对象", "SHA-256"], [[ref, name, hash_value] for ref, name, _, _, hash_value in source_items] + [["S05", "生成器", "由Skill版本绑定"]]), "", table(["对象ID", "路径"], [[ref, path] for ref, _, _, path, _ in source_items] + [["S05", "render_scoring_report.py"]]), "", "```bash", "<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> --output <阶段3-评分报告.md>", "```", "",
+        "## 八、版本、Hash与复算", "", table(["对象ID", "对象", "SHA-256"], [[ref, name, hash_value] for ref, name, _, _, hash_value in source_items] + [["S05", "生成器", "由Skill版本绑定"]]), "", table(["对象ID", "路径"], [[ref, path] for ref, _, _, path, _ in source_items] + [["S05", "render_scoring_report.py"]]), "", "```bash", "<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> --output <report_dir>/阶段3-评分报告.md", "```", "",
         "## 九、阶段3到阶段4门禁", "", table(["门禁项", "要求", "当前状态/动作"], [
             ["固定scorecard", "来自当前合同和基线测量", scorecard.get("status")], ["报告确定性", "与当前JSON重新渲染完全一致", "由validate_stage_transition.py校验"],
             ["评分可判定", "alignment_status不得为无法判定", scorecard.get("alignment_status")], ["阶段4启动", "stage3_gate.json通过且stage4_allowed=true", "未通过前禁止敏感性、CALIBRATION和候选计算"],

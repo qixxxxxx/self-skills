@@ -27,10 +27,14 @@
 post-delivery-server-flow/
 └── dv####/
     ├── post_delivery_server_flow_audit.json
-    └── 交付后ServerFlow验证报告.md
+    ├── server_flow_measurements.json
+    └── server_flow_raw.json
+
+<report_dir>/
+└── 交付后ServerFlow验证报告.md
 ```
 
-目录必须位于`artifacts/`之外。机器 JSON 绑定`delivery_version`、交付 manifest、FORMAL结果和阶段3 scorecard SHA-256，记录单次执行状态、输入 hash、样本、硬指标对照、异常和警告。中文报告由`render_post_delivery_server_flow_report.py`确定性生成；生成器以密封 FORMAL 硬指标清单为准，FORMAL未内嵌硬指标时回退读取阶段3 scorecard。缺少任一适用硬指标对照时必须显示警告，不得显示`审计通过`。
+机器目录必须位于`artifacts/`之外且只保存JSON。机器JSON绑定`delivery_version`、交付manifest、FORMAL结果和阶段3 scorecard SHA-256，记录单次执行状态、输入hash、样本、硬指标对照、异常和警告。中文报告由`render_post_delivery_server_flow_report.py`确定性生成到当前`report_dir`；生成器以密封FORMAL硬指标清单为准，FORMAL未内嵌硬指标时回退读取阶段3 scorecard。缺少任一适用硬指标对照时必须显示警告，不得显示`审计通过`。
 
 ## 报告结论
 

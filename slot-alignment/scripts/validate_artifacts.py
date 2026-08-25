@@ -12,16 +12,17 @@ from render_input_profile_report import render as render_stage1
 from render_metric_matching_report import render as render_stage2
 from render_scoring_report import render as render_stage3
 from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_templates
+from workspace_paths import REPORT_FILES, REPORT_VERSION_PATTERN, RUNTIME_FILES, latest_report_dir, report_path as workspace_report_path, resolve_manifest_path, task_root
 
 
 REQUIRED_STAGE14 = [
-    "01-input-profile/input_manifest.json", "01-input-profile/game_profile.json", "01-input-profile/parameter_authority.json", "01-input-profile/阶段1-资料确认与玩法画像.md",
-    "02-metric-matching/metric_contract.json", "02-metric-matching/阶段2-指标匹配报告.md",
-    "03-scoring/scorecard.json", "03-scoring/阶段3-评分报告.md",
-    "04-alignment/alignment_manifest.json", "04-alignment/candidate_archive.json", "04-alignment/aligned_parameters.json", "04-alignment/formal_result.json", "04-alignment/阶段4-数值对齐报告.md"
+    "01-input-profile/input_manifest.json", "01-input-profile/game_profile.json", "01-input-profile/parameter_authority.json",
+    "02-metric-matching/metric_contract.json",
+    "03-scoring/scorecard.json",
+    "04-alignment/alignment_manifest.json", "04-alignment/candidate_archive.json", "04-alignment/aligned_parameters.json", "04-alignment/formal_result.json"
 ]
 STAGE3_GATE_REL = "03-scoring/stage3_gate.json"
-REQUIRED_STAGE5 = ["05-delivery/delivery_manifest.json", "05-delivery/delivery_checklist.json", "05-delivery/阶段5-交付清单.md"]
+REQUIRED_STAGE5 = ["05-delivery/delivery_manifest.json", "05-delivery/delivery_checklist.json"]
 
 
 def load(path):
@@ -191,7 +192,7 @@ def validate_stage3_gate(root):
     if gate.get("status") != "通过" or gate.get("stage4_allowed") is not True or gate.get("errors"):
         errors.append("阶段3到阶段4门禁未通过")
     for rel, expected in gate.get("source_hashes", {}).items():
-        path = root / rel
+        path = resolve_manifest_path(root, rel)
         if not path.is_file() or sha(path) != expected:
             errors.append(f"阶段3门禁上游hash失效: {rel}")
     score_path = root / "03-scoring/scorecard.json"
@@ -212,9 +213,15 @@ def validate_stage3_gate(root):
     return errors
 
 
-def validate(root, require_delivery=True):
+def validate(root, require_delivery=True, reports=None):
     skill_root = Path(__file__).resolve().parent.parent
     errors, task_ids = validate_templates(skill_root), set()
+    reports = Path(reports) if reports else latest_report_dir(root)
+    if reports.name != "artifacts" and not REPORT_VERSION_PATTERN.match(reports.name):
+        errors.append("报告目录必须使用rv####命名")
+    if reports.name != "artifacts":
+        for markdown in root.rglob("*.md"):
+            errors.append(f"artifacts只允许机器JSON，发现Markdown: {markdown.relative_to(root)}")
     required = required_stage14(root) + (REQUIRED_STAGE5 if require_delivery else [])
     for rel in required:
         path = root / rel
@@ -228,11 +235,16 @@ def validate(root, require_delivery=True):
                     task_ids.add(data["task_id"])
             except (OSError, json.JSONDecodeError) as exc:
                 errors.append(f"JSON无效 {rel}: {exc}")
-        elif "{{" in path.read_text(encoding="utf-8"):
-            errors.append(f"Markdown仍含模板占位符: {rel}")
     if len(task_ids) > 1:
         errors.append(f"task_id不一致: {sorted(task_ids)}")
-    stage1_paths = [root / "01-input-profile/input_manifest.json", root / "01-input-profile/game_profile.json", root / "01-input-profile/parameter_authority.json", root / "01-input-profile/阶段1-资料确认与玩法画像.md"]
+    required_reports = range(1, 6 if require_delivery else 5)
+    for stage in required_reports:
+        path = workspace_report_path(reports, stage)
+        if not path.is_file():
+            errors.append(f"缺少必需中文报告: {REPORT_FILES[stage]}")
+        elif "{{" in path.read_text(encoding="utf-8"):
+            errors.append(f"Markdown仍含模板占位符: {path}")
+    stage1_paths = [root / "01-input-profile/input_manifest.json", root / "01-input-profile/game_profile.json", root / "01-input-profile/parameter_authority.json", workspace_report_path(reports, 1)]
     input_manifest = None
     if all(path.is_file() for path in stage1_paths):
         input_manifest, profile, authority = map(load, stage1_paths[:3])
@@ -246,7 +258,7 @@ def validate(root, require_delivery=True):
         contract = load(contract_path)
         errors += validate_tolerance_policy(contract)
         errors += validate_component_rtp_targets(contract)
-        stage2_path = root / "02-metric-matching/阶段2-指标匹配报告.md"
+        stage2_path = workspace_report_path(reports, 2)
         if stage2_path.is_file():
             actual = stage2_path.read_text(encoding="utf-8")
             errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[2]).read_text(encoding="utf-8"), 2)
@@ -255,14 +267,14 @@ def validate(root, require_delivery=True):
     errors += validate_attainability_ceiling(root)
     errors += validate_stage3_gate(root)
     score_path = root / "03-scoring/scorecard.json"
-    stage3_report_path = root / "03-scoring/阶段3-评分报告.md"
+    stage3_report_path = workspace_report_path(reports, 3)
     if score_path.is_file() and contract_path.is_file() and stage3_report_path.is_file():
         score = load(score_path)
         actual = stage3_report_path.read_text(encoding="utf-8")
         errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[3]).read_text(encoding="utf-8"), 3)
         if actual != render_stage3(load(contract_path), score, sha(contract_path), sha(score_path)):
             errors.append("阶段3报告不是当前合同与scorecard的确定性完整输出")
-    report_path = root / "04-alignment/阶段4-数值对齐报告.md"
+    report_path = workspace_report_path(reports, 4)
     formal_path = root / "04-alignment/formal_result.json"
     if score_path.is_file() and report_path.is_file() and formal_path.is_file():
         score, formal, report = load(score_path), load(formal_path), report_path.read_text(encoding="utf-8")
@@ -290,11 +302,28 @@ def validate(root, require_delivery=True):
     if require_delivery and manifest_path.is_file():
         delivery_manifest = load(manifest_path)
         for item in delivery_manifest.get("files", []):
-            path = root / item.get("path", "")
+            path = resolve_manifest_path(root, item.get("path", ""))
             if not path.is_file() or sha(path) != item.get("sha256"):
                 errors.append(f"交付Hash无效: {item.get('path')}")
+        delivery_runtime = task_root(root) / "交付物/runtime"
+        for name in RUNTIME_FILES:
+            path = delivery_runtime / name
+            if not path.is_file():
+                errors.append(f"交付物缺少FORMAL Runtime文件: {name}")
+        game_core_path = delivery_runtime / "game_core.json"
+        if game_core_path.is_file():
+            try:
+                game_core = load(game_core_path)
+                task_id = delivery_manifest.get("task_id")
+                if game_core.get("meta", {}).get("version") != task_id:
+                    errors.append("交付Runtime meta.version必须等于task_id")
+                routing = game_core.get("runtime_flags", {}).get("rtp_routing", {})
+                if routing.get("default_group") != 1 or routing.get("groups") != [1]:
+                    errors.append("交付Runtime只允许RTP Group 1")
+            except (OSError, json.JSONDecodeError) as exc:
+                errors.append(f"交付Runtime game_core.json无效: {exc}")
         checklist_path = root / "05-delivery/delivery_checklist.json"
-        delivery_report_path = root / "05-delivery/阶段5-交付清单.md"
+        delivery_report_path = workspace_report_path(reports, 5)
         if checklist_path.is_file() and delivery_report_path.is_file():
             actual = delivery_report_path.read_text(encoding="utf-8")
             errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[5]).read_text(encoding="utf-8"), 5)
@@ -306,9 +335,10 @@ def validate(root, require_delivery=True):
 def main():
     parser = argparse.ArgumentParser(description="验证固定 artifacts 结构与一致性")
     parser.add_argument("--artifacts", required=True, type=Path)
+    parser.add_argument("--reports", type=Path)
     parser.add_argument("--pre-delivery", action="store_true")
     args = parser.parse_args()
-    errors = validate(args.artifacts, not args.pre_delivery)
+    errors = validate(args.artifacts, not args.pre_delivery, args.reports)
     print(json.dumps({"status": "通过" if not errors else "失败", "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 

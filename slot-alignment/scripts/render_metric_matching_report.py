@@ -108,7 +108,7 @@ def render(contract, contract_hash):
         "## 九、合同密封、Hash与复算", "", table(["对象", "Schema/版本", "SHA-256", "密封时间/状态"], [
             ["metric_contract.json", contract.get("schema_version"), contract_hash, contract.get("sealed_at")], ["容差政策", policy.get("version"), policy.get("source_sha256"), policy.get("policy_id")],
             ["玩法目录", contract.get("catalogs", {}).get("mechanics_version"), contract.get("catalogs", {}).get("hashes", {}).get("mechanics"), "已绑定"], ["指标目录", contract.get("catalogs", {}).get("metrics_version"), contract.get("catalogs", {}).get("hashes", {}).get("metrics"), "已绑定"],
-        ]), "", "```bash", "<python_bin> <skill_root>/scripts/render_metric_matching_report.py --contract <artifacts/02-metric-matching/metric_contract.json> --output <artifacts/02-metric-matching/阶段2-指标匹配报告.md>", "```", "",
+        ]), "", "```bash", "<python_bin> <skill_root>/scripts/render_metric_matching_report.py --contract <artifacts/02-metric-matching/metric_contract.json> --output <report_dir>/阶段2-指标匹配报告.md", "```", "",
         "## 十、阶段3准入结论", "", table(["条件", "当前值", "通过标准", "结论"], [
             ["玩法覆盖率", coverage.get("mechanic_coverage"), "100%", "通过" if all_covered else "阻塞"], ["指标可测率", coverage.get("metric_measurability"), "100%", "通过" if all_measurable else "阻塞"],
             ["必需缺口", len(gaps), "0或用户批准扩展后归零", "通过" if not gaps else "阻塞"], ["Owner冲突", len(conflicts), "0", "通过" if not conflicts else "阻塞"], ["最终准入", "允许" if ready else "禁止", "全部条件通过", "不得以候选结果倒推修改合同"],

@@ -180,8 +180,12 @@ def main():
     assert policy_gates["core.multiplier_distribution.lt200"]["tolerance"] == 0.04
     assert policy_gates["core.multiplier_distribution.lt200"]["status"] == "通过"
     artifacts = root / "artifacts"
+    reports = root / "交付物/报告文档/rv0001"
+    formal_runtime = root / "work/formal/fv0001/runtime"
     for rel in ("01-input-profile", "02-metric-matching", "03-scoring", "04-alignment"):
         (artifacts / rel).mkdir(parents=True, exist_ok=True)
+    reports.mkdir(parents=True, exist_ok=True)
+    formal_runtime.mkdir(parents=True, exist_ok=True)
     certification_sha = "a" * 64
     dump(artifacts / "01-input-profile/input_manifest.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "scope": {"game_code": "demo", "mode": "base", "rtp_group": "96", "target_rtp": 0.96}, "paths": {"simulation_script": "/tmp/demo_simulator.py"}, "hashes": {}, "script_qualification": {"status": "通过", "certified_execution_path": "python", "server_flow_certification": {"status": "通过", "batch_count": 1, "critical_state_chains": ["entry", "feature", "collect", "cap"], "evidence_path": "certification.json", "evidence_sha256": certification_sha}, "consistency_checks": [{"check_id": "python-vs-server", "subjects": "Python/Kotlin", "seed_or_trace": "trace-001", "sample_count": 1000, "status": "一致", "evidence": "certification.json"}], "semantic_checks": [{"semantic": "entry-feature-collect-cap", "expected": "一致", "actual": "一致", "status": "通过", "evidence": "certification.json"}]}, "server_flow_policy": {"stage1_certification_batches": 1, "stage2_to_stage5_calls_allowed": False, "stage2_to_stage5_python_only": True, "post_delivery_audit_attempts": 1, "post_delivery_audit_affects_status": False}})
     valid_input_manifest = json.loads((artifacts / "01-input-profile/input_manifest.json").read_text(encoding="utf-8"))
@@ -191,7 +195,7 @@ def main():
     assert "阶段2至阶段5的已认证执行路径必须是Python" in validate_server_flow_policy(invalid_python_path)
     dump(artifacts / "01-input-profile/game_profile.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "scope": {}, "mechanics": [{"mechanic_id": "feature.free-spin", "name_zh": "免费旋转", "status": "必需", "scope": "base", "attributes": {"initial_spins": 10, "retrigger": True}, "evidence": ["demo", {"protocol": "spin"}]}], "required_node_count": 1, "semantic_gap_count": 0})
     dump(artifacts / "01-input-profile/parameter_authority.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "parameters": [{"path": "demo.weight", "type": "weight", "current": 1, "authorization_status": "已授权", "affected_metrics": ["demo.a", "demo.b"], "control_cluster": "demo", "constraints": {"min": 1, "max": 10}, "evidence": ["authority.json"]}]})
-    run(ROOT / "render_input_profile_report.py", "--artifacts", artifacts, "--output", artifacts / "01-input-profile/阶段1-资料确认与玩法画像.md")
+    run(ROOT / "render_input_profile_report.py", "--artifacts", artifacts, "--output", reports / "阶段1-资料确认与玩法画像.md")
     contract = json.loads((root / "normal/contract.json").read_text(encoding="utf-8"))
     contract.update({"status": "已完成", "scope": {"game_code": "demo", "mode": "base", "rtp_group": "96", "target_rtp": 0.96}, "catalogs": {"hashes": {}}, "coverage": {"mechanic_coverage": 1, "metric_measurability": 1}, "coupling_clusters": [], "waivers": [], "component_rtp_target_policy": {"method": "original_component_share_mapped_to_authoritative_total_rtp", "original_absolute_rtp_as_target": False, "authoritative_total_rtp_required": True, "share_sum_target": 1.0, "legacy_contracts_unchanged": True}})
     contract["input_hashes"] = {"game_profile": "b" * 64, "parameter_authority": "c" * 64}
@@ -199,82 +203,82 @@ def main():
     contract["coupling_clusters"] = [{"cluster_id": "demo", "parameters": ["demo.weight"], "metrics": ["demo.a", "demo.b"], "direction_evidence": {"demo.a": "正向", "demo.b": "负向"}, "sensitivity_evidence": ["sensitivity.json"], "control_type": "耦合", "attainability_status": "可达", "budget_expansion_allowed": True}]
     contract_path = artifacts / "02-metric-matching/metric_contract.json"
     dump(contract_path, contract)
-    run(ROOT / "render_metric_matching_report.py", "--contract", contract_path, "--output", artifacts / "02-metric-matching/阶段2-指标匹配报告.md")
+    run(ROOT / "render_metric_matching_report.py", "--contract", contract_path, "--output", reports / "阶段2-指标匹配报告.md")
     baseline_measurements = root / "baseline-measurements.json"
     dump(baseline_measurements, json.loads((root / "normal/measurements.json").read_text(encoding="utf-8")))
     scorecard_path = artifacts / "03-scoring/scorecard.json"
-    report_path = artifacts / "03-scoring/阶段3-评分报告.md"
+    report_path = reports / "阶段3-评分报告.md"
     gate_path = artifacts / "03-scoring/stage3_gate.json"
     run(ROOT / "score_alignment.py", "--contract", contract_path, "--measurements", baseline_measurements, "--output", scorecard_path)
-    missing_report = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    missing_report = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     assert missing_report.returncode == 1
     run(ROOT / "render_scoring_report.py", "--contract", contract_path, "--scorecard", scorecard_path, "--output", report_path)
     scoring_text = report_path.read_text(encoding="utf-8")
     bad_header = scoring_text.replace("| 目标值 | 单位 | 基线值 | 差距 | 评分/门禁 |", "| 目标 | 单位 | 基线值 | 差距 | 评分/门禁 |", 1)
     field_errors = validate_report_against_template(bad_header, (SKILL_ROOT / TEMPLATE_PATHS[3]).read_text(encoding="utf-8"), 3)
     assert any("不允许的表头" in error for error in field_errors)
-    stage1_report = artifacts / "01-input-profile/阶段1-资料确认与玩法画像.md"
+    stage1_report = reports / "阶段1-资料确认与玩法画像.md"
     stage1_original = stage1_report.read_text(encoding="utf-8")
     stage1_report.write_text("# 阶段1-资料确认与玩法画像\n\n已完成。\n", encoding="utf-8")
-    incomplete_stage1 = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    incomplete_stage1 = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     assert incomplete_stage1.returncode == 1
     stage1_report.write_text(stage1_original, encoding="utf-8")
-    stage2_report = artifacts / "02-metric-matching/阶段2-指标匹配报告.md"
+    stage2_report = reports / "阶段2-指标匹配报告.md"
     stage2_original = stage2_report.read_text(encoding="utf-8")
     stage2_report.write_text(stage2_original.replace("## 二、上游画像与目录版本绑定", "## 临时错误章节"), encoding="utf-8")
-    reordered_stage2 = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    reordered_stage2 = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     assert reordered_stage2.returncode == 1
     stage2_report.write_text(stage2_original, encoding="utf-8")
-    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     report_path.write_text(report_path.read_text(encoding="utf-8") + "\n篡改", encoding="utf-8")
-    tampered_report = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    tampered_report = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     assert tampered_report.returncode == 1
     run(ROOT / "render_scoring_report.py", "--contract", contract_path, "--scorecard", scorecard_path, "--output", report_path)
-    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     original_contract = json.loads(contract_path.read_text(encoding="utf-8"))
     tampered_contract = json.loads(contract_path.read_text(encoding="utf-8"))
     tampered_contract["group_weights"] = {"experience": 2}
     dump(contract_path, tampered_contract)
-    stale_contract = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    stale_contract = run_result(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     assert stale_contract.returncode == 1
     dump(contract_path, original_contract)
-    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     failed_baseline = json.loads(baseline_measurements.read_text(encoding="utf-8"))
     failed_baseline["measurements"][0]["value"] = 0.90
     dump(baseline_measurements, failed_baseline)
     run(ROOT / "score_alignment.py", "--contract", contract_path, "--measurements", baseline_measurements, "--output", scorecard_path)
     assert json.loads(scorecard_path.read_text(encoding="utf-8"))["alignment_status"] == "不通过"
     run(ROOT / "render_scoring_report.py", "--contract", contract_path, "--scorecard", scorecard_path, "--output", report_path)
-    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     dump(baseline_measurements, json.loads((root / "normal/measurements.json").read_text(encoding="utf-8")))
     run(ROOT / "score_alignment.py", "--contract", contract_path, "--measurements", baseline_measurements, "--output", scorecard_path)
     run(ROOT / "render_scoring_report.py", "--contract", contract_path, "--scorecard", scorecard_path, "--output", report_path)
-    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
+    run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     gate_hash = sha(gate_path)
     dump(artifacts / "04-alignment/alignment_manifest.json", {"schema_version": "1.4", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "input_hashes": {}, "server_flow_policy": {"calibration_calls_allowed": False, "formal_calls_allowed": False, "python_only_execution": True, "post_delivery_audit_affects_status": False}, "stage3_gate": {"path": "03-scoring/stage3_gate.json", "sha256": gate_hash, "stage4_allowed": True}, "budget_policy": {"auto_expand": True, "attainability_ceiling": {"enabled": True, "stop_status": "结构不可达", "prohibit_budget_only_expansion": True}}})
     dump(artifacts / "04-alignment/candidate_archive.json", {"schema_version": "1.3", "task_id": "self-test", "stage3_gate_sha256": gate_hash, "server_flow_call_count": 0, "candidates": [{"candidate_id": "baseline", "parent_id": "—", "parameter_summary": {"demo.weight": 2}, "hard_gate_status": "通过", "overall_score": 90, "sample_count": 1000, "risk": "低", "decision_reason": "基线通过", "status": "冻结"}], "stop_reason": "基线通过", "budget": {"calibration_samples": 1000, "formal_samples": 1000}, "attainability": {"status": "可达", "evidence_path": "", "evidence_sha256": "", "budget_expansion_allowed": True}})
     dump(artifacts / "04-alignment/aligned_parameters.json", {"schema_version": "1.0", "task_id": "self-test", "candidate_id": "baseline", "status": "已完成", "parameters": [{"path": "demo.weight", "before": 1, "after": 2, "delta": 1, "authorization_status": "已授权", "control_cluster": "demo", "affected_metrics": ["demo.a", "demo.b"], "risk": "低"}]})
     dump(artifacts / "04-alignment/formal_result.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "candidate_id": "baseline", "plan_id": "formal-1", "status": "通过", "execution_valid": True, "independent_from_calibration": True, "execution_path": "python", "stage1_server_flow_certification_sha256": certification_sha, "server_flow_call_count": 0, "input_hashes": {"metric_contract": "e" * 64, "candidate": "f" * 64}, "sample": {"paid_entry_count": 1000}, "scorecard": {"alignment_status": "通过"}, "attempt": 1, "audits": {"long_tail": [], "max_win": {"status": "已审计", "cap": "5000x", "observed": "1200x"}}})
-    run(ROOT / "render_alignment_report.py", "--artifacts", artifacts, "--output", artifacts / "04-alignment/阶段4-数值对齐报告.md")
-    alignment_report = artifacts / "04-alignment/阶段4-数值对齐报告.md"
+    run(ROOT / "render_alignment_report.py", "--artifacts", artifacts, "--output", reports / "阶段4-数值对齐报告.md")
+    alignment_report = reports / "阶段4-数值对齐报告.md"
     stage_metric_headings = [
         [heading for heading, _ in metric_blocks(path.read_text(encoding="utf-8"))]
-        for path in (artifacts / "02-metric-matching/阶段2-指标匹配报告.md", report_path, alignment_report)
+        for path in (reports / "阶段2-指标匹配报告.md", report_path, alignment_report)
     ]
     assert stage_metric_headings[0] == stage_metric_headings[1] == stage_metric_headings[2]
     alignment_original = alignment_report.read_text(encoding="utf-8")
     alignment_report.write_text(alignment_original + "\n手工篡改", encoding="utf-8")
-    tampered_alignment = run_result(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--pre-delivery")
+    tampered_alignment = run_result(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--reports", reports, "--pre-delivery")
     assert tampered_alignment.returncode == 1
     alignment_report.write_text(alignment_original, encoding="utf-8")
     original_measurements = json.loads(baseline_measurements.read_text(encoding="utf-8"))
     tampered_measurements = json.loads(baseline_measurements.read_text(encoding="utf-8"))
     tampered_measurements["measurements"][0]["value"] = 0.91
     dump(baseline_measurements, tampered_measurements)
-    stale_measurements = run_result(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--pre-delivery")
+    stale_measurements = run_result(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--reports", reports, "--pre-delivery")
     assert stale_measurements.returncode == 1
     dump(baseline_measurements, original_measurements)
-    run(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--pre-delivery")
+    run(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--reports", reports, "--pre-delivery")
     archive_path = artifacts / "04-alignment/candidate_archive.json"
     archive = json.loads(archive_path.read_text(encoding="utf-8"))
     archive["attainability"] = {"status": "结构不可达", "evidence_path": "blocked.json", "evidence_sha256": "a" * 64, "budget_expansion_allowed": True}
@@ -285,9 +289,12 @@ def main():
     assert validate_attainability_ceiling(artifacts) == []
     archive["attainability"] = {"status": "可达", "evidence_path": "", "evidence_sha256": "", "budget_expansion_allowed": True}
     dump(archive_path, archive)
-    run(ROOT / "seal_delivery.py", "--artifacts", artifacts)
-    run(ROOT / "validate_artifacts.py", "--artifacts", artifacts)
-    for report_path in sorted(artifacts.glob("*/*.md")):
+    dump(formal_runtime / "game_core.json", {"meta": {"game_code": "demo", "version": "self-test"}, "runtime_flags": {"rtp_routing": {"default_group": 1, "groups": [1]}}})
+    for name in ("payout_config.json", "reel_config.json", "symbol_catalog.json"):
+        dump(formal_runtime / name, {})
+    run(ROOT / "seal_delivery.py", "--artifacts", artifacts, "--reports", reports, "--formal-runtime", formal_runtime)
+    run(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--reports", reports)
+    for report_path in sorted(reports.glob("*.md")):
         assert_report_display(report_path)
     delivery_manifest_path = artifacts / "05-delivery/delivery_manifest.json"
     delivery_hash_before_audit = sha(delivery_manifest_path)
@@ -296,15 +303,15 @@ def main():
     audit_json = audit_dir / "post_delivery_server_flow_audit.json"
     audit_input_hashes = {"server": "b" * 64, "runtime": "c" * 64, "candidate": "d" * 64, "formal_result": sha(artifacts / "04-alignment/formal_result.json"), "scorecard": sha(scorecard_path)}
     dump(audit_json, {"schema_version": "slot-alignment.post-delivery-server-flow-audit.v1", "task_id": "self-test", "delivery_version": delivery_manifest["delivery_version"], "delivery_manifest_sha256": delivery_hash_before_audit, "attempt_count": 1, "execution_status": "失败", "status_effect": "无", "input_hashes": audit_input_hashes, "sample": {"paid_entry_count": 0, "seed_set_hash": ""}, "hard_metric_comparisons": [], "warnings": ["模拟执行失败"], "error": "test failure"})
-    audit_report = audit_dir / "交付后ServerFlow验证报告.md"
+    audit_report = reports / "交付后ServerFlow验证报告.md"
     audit_args = [ROOT / "render_post_delivery_server_flow_report.py", "--audit", audit_json, "--delivery-manifest", delivery_manifest_path, "--formal-result", artifacts / "04-alignment/formal_result.json", "--scorecard", scorecard_path]
     run(*audit_args, "--output", audit_report)
     assert "警告" in audit_report.read_text(encoding="utf-8")
-    empty_report = audit_dir / "空硬指标报告.md"
+    empty_report = reports / "空硬指标报告.md"
     dump(audit_json, {"schema_version": "slot-alignment.post-delivery-server-flow-audit.v1", "task_id": "self-test", "delivery_version": delivery_manifest["delivery_version"], "delivery_manifest_sha256": delivery_hash_before_audit, "attempt_count": 1, "execution_status": "成功", "status_effect": "无", "input_hashes": audit_input_hashes, "sample": {"paid_entry_count": 1000, "seed_set_hash": "e" * 64}, "hard_metric_comparisons": [], "warnings": []})
     run(*audit_args, "--output", empty_report)
     assert "未生成任何硬指标数值对照" in empty_report.read_text(encoding="utf-8")
-    malformed_report = audit_dir / "畸形硬指标报告.md"
+    malformed_report = reports / "畸形硬指标报告.md"
     malformed = json.loads(audit_json.read_text(encoding="utf-8"))
     malformed["hard_metric_comparisons"] = {"bad": "shape"}
     dump(audit_json, malformed)
@@ -312,13 +319,13 @@ def main():
     assert "hard_metric_comparisons字段不是数组" in malformed_report.read_text(encoding="utf-8")
     invalid_json = audit_dir / "invalid-audit.json"
     invalid_json.write_text("{", encoding="utf-8")
-    invalid_report = audit_dir / "无效JSON报告.md"
+    invalid_report = reports / "无效JSON报告.md"
     invalid_args = [ROOT / "render_post_delivery_server_flow_report.py", "--audit", invalid_json, "--delivery-manifest", delivery_manifest_path, "--formal-result", artifacts / "04-alignment/formal_result.json", "--scorecard", scorecard_path]
     run(*invalid_args, "--output", invalid_report)
     assert "审计JSON读取失败" in invalid_report.read_text(encoding="utf-8")
     final_scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
     hard_gate = final_scorecard["hard_gates"][0]
-    success_report = audit_dir / "成功报告.md"
+    success_report = reports / "成功报告.md"
     valid_comparison = {"metric_id": hard_gate["metric_id"], "scope": hard_gate["scope"], "formal_value": hard_gate["candidate"], "server_flow_value": hard_gate["candidate"], "difference": 0, "tolerance": hard_gate["tolerance"], "sample_qualification": "有效", "status": "一致"}
     valid_audit = json.loads(audit_json.read_text(encoding="utf-8"))
     valid_audit["hard_metric_comparisons"] = [valid_comparison]
@@ -326,13 +333,13 @@ def main():
     run(*audit_args, "--output", success_report)
     assert "审计通过" in success_report.read_text(encoding="utf-8")
     assert sha(delivery_manifest_path) == delivery_hash_before_audit
-    delivery_report = artifacts / "05-delivery/阶段5-交付清单.md"
+    delivery_report = reports / "阶段5-交付清单.md"
     delivery_original = delivery_report.read_text(encoding="utf-8")
     delivery_report.write_text(delivery_original.replace("## 七、回退与复算方法", "## 错误章节"), encoding="utf-8")
-    tampered_delivery = run_result(ROOT / "validate_artifacts.py", "--artifacts", artifacts)
+    tampered_delivery = run_result(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--reports", reports)
     assert tampered_delivery.returncode == 1
     delivery_report.write_text(delivery_original, encoding="utf-8")
-    run(ROOT / "validate_artifacts.py", "--artifacts", artifacts)
+    run(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--reports", reports)
     print(json.dumps({"status": "通过", "scenarios": ["五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "阶段1单次Server Flow认证", "阶段2至阶段5仅Python", "阶段2至FORMAL禁止Server Flow", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "交付后Server Flow失败只警告且不改交付hash", "空硬指标不得审计通过", "畸形审计数据降级警告", "无效审计JSON降级警告", "完整硬指标审计通过"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 

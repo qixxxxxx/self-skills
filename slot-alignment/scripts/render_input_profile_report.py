@@ -207,7 +207,7 @@ def render(manifest, profile, authority, source_hashes):
         "## 十一、版本、Hash与复算", "", table(["对象", "Schema/版本", "SHA-256"], [
             ["input_manifest.json", manifest.get("schema_version"), source_hashes.get("input_manifest")], ["game_profile.json", profile.get("schema_version"), source_hashes.get("game_profile")],
             ["parameter_authority.json", authority.get("schema_version"), source_hashes.get("parameter_authority")], ["玩法语义目录", profile.get("mechanics_catalog", {}).get("version"), profile.get("mechanics_catalog", {}).get("sha256")],
-        ]), "", "复算命令：", "", "```bash", "<python_bin> <skill_root>/scripts/render_input_profile_report.py --artifacts <artifacts> --output <artifacts/01-input-profile/阶段1-资料确认与玩法画像.md>", "```", ""
+        ]), "", "复算命令：", "", "```bash", "<python_bin> <skill_root>/scripts/render_input_profile_report.py --artifacts <artifacts> --output <report_dir>/阶段1-资料确认与玩法画像.md", "```", ""
     ]
     return "\n".join(lines)
 

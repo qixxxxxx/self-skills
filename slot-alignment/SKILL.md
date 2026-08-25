@@ -23,6 +23,9 @@ description: 根据 Slot 游戏原版采集协议、规则、规格、Runtime、
 - 新建任务默认加载`assets/policies/hard_gate_tolerance_policy.v1.json`，在候选结果出现前密封基础容差、指标系数和生效容差；已有任务不得回溯套用。
 - 候选结果出现前密封指标合同、评价合同、权重、样本计划、预算和 FORMAL 计划；不得看结果后放宽标准。
 - 自动连续执行不等于跳过阶段产物。每个阶段必须先生成固定机器结果和中文报告并通过阶段转换门禁，才能开始下一阶段；禁止用`work/`中的临时或候选scorecard替代`artifacts/03-scoring/`固定产物。
+- 工作区必须使用`<slot_docs_root>/ai-math-workbench/<game_code>/alignments/<mode>/<task_id>/`，不增加Runtime版本或RTP Group目录层级。规范、模板和示例禁止写具体机器绝对路径；完整职责、路径表达规则和目录树以[92-命名与状态规范.md](references/92-命名与状态规范.md)为准。
+- `artifacts/`只保存阶段机器JSON；所有中文Markdown写入`交付物/报告文档/rv####/`。FORMAL通过的Runtime四件套写入`交付物/runtime/`；交付后审计机器JSON写入`post-delivery-server-flow/dv####/`，中文审计报告仍写入当前报告目录。
+- 所有任务固定使用RTP Group 1。Runtime必须密封`default_group=1`、`groups=[1]`并移除其他Group配置；FORMAL Runtime的`game_core.json.meta.version`必须等于`task_id`。
 - 阶段1至5中文报告必须使用`assets/templates/artifacts/`对应模板的完整章节顺序和展示契约。每章模板必须明确展示方式、必需字段及顺序、空值规则和Markdown实例；无数据时写“无/不适用”及原因，不得删节。报告必须由确定性生成器生成，并与当前机器JSON确定性等价；百分比等阅读转换必须能无损映射回机器值。手工改写、缺章节、章节错序、字段缺失、表头改名或调序、上游hash变化均阻塞下一阶段或交付。
 - 中文报告的主表只展示标量摘要和结论；目标、数组、对象、评价参数、指标列表、审批详情及错误详情必须拆成明细表，禁止直接展示JSON。长路径必须使用稳定ID在摘要表中引用，并在同章路径表中单独展示。
 - 阶段2、3、4的指标展示必须使用同一合同清单、分类、编号、顺序和标题；固定分为硬指标、评分指标、审计指标，每项指标使用独立小章节，并按标量、区间、分布或复合对象选择一张主详情表。阶段2展示目标合同，阶段3增加基线与评分，阶段4增加FORMAL与最终对齐结果。
@@ -45,19 +48,19 @@ server_root
 python_bin
 game_code
 mode
-rtp_group
+task_id
 target_rtp
 ```
 
-路径不存在、结果不唯一、资料目录缺失或关键作用域不明确时停止询问，不自行猜测。Python 一律使用已解析的`python_bin`。
+`rtp_group`不再从外部选择，固定为整数`1`。`task_id`缺失时按`aln-<mode>-<YYYYMMDD>-<NNN>`生成，并在创建文件前确认任务目录不存在。路径不存在、结果不唯一、资料目录缺失或关键作用域不明确时停止询问，不自行猜测。Python一律使用已解析的`python_bin`。
 
 ## 五阶段工作流
 
-1. **资料确认与玩法画像**：读取[01-资料确认与玩法画像.md](references/01-资料确认与玩法画像.md)，检查证据、脚本资格、Runtime、作用域和参数权限，执行唯一一次覆盖关键状态链的 server flow 一致性认证批次，生成阶段 1 四件套，并运行`render_input_profile_report.py`生成完整中文报告。建立画像前读取`references/mechanics/index.json`及命中的中文目录说明。
+1. **资料确认与玩法画像**：先读取[92-命名与状态规范.md](references/92-命名与状态规范.md)创建任务工作区，再读取[01-资料确认与玩法画像.md](references/01-资料确认与玩法画像.md)，检查证据、脚本资格、Runtime、作用域和参数权限，执行唯一一次覆盖关键状态链的 server flow 一致性认证批次，生成阶段1三份机器JSON，并运行`render_input_profile_report.py`把完整中文报告写入当前`report_dir`。建立画像前读取`references/mechanics/index.json`及命中的中文目录说明。
 2. **指标匹配**：读取[02-指标匹配.md](references/02-指标匹配.md)和`references/metrics/index.json`，按`mechanic_id + 标准属性`加载 Core、Atomic、Composite、Interaction；使用原版组件贡献占比生成组件 RTP 目标，为新任务应用默认硬指标容差政策并密封政策 hash；执行结构可达性预检后运行`render_metric_matching_report.py`生成完整中文报告。出现缺口或不可达时读取[02A-可达性与豁免.md](references/02A-可达性与豁免.md)。
 3. **评分**：读取[03-评分系统.md](references/03-评分系统.md)、[03A-指标评价合同.md](references/03A-指标评价合同.md)和[03B-硬指标容差系数.md](references/03B-硬指标容差系数.md)，新任务先应用默认容差系数政策，再使用当前基线判全部未豁免硬指标并计算非硬指标 0～100 分和综合分；生成阶段3机器评分、中文报告和`stage3_gate.json`。
-4. **自动对齐与 FORMAL**：只有`stage3_gate.json`为`通过`且`stage4_allowed=true`时，才读取[04-自动对齐与正式验收.md](references/04-自动对齐与正式验收.md)和[04A-搜索效率与预算.md](references/04A-搜索效率与预算.md)，只用`python_bin`执行阶段 1 已认证的 Python 模拟脚本，依次完成敏感性、CALIBRATION、候选冻结和独立 FORMAL；本阶段 server flow 调用数必须为 0，并生成`阶段4-数值对齐报告.md`。
-5. **交付与交付后审计**：读取[05-交付.md](references/05-交付.md)，验证完整`artifacts/`并生成不可变交付版本与三份阶段 5 清单。封存成功后读取[05A-交付后ServerFlow审计.md](references/05A-交付后ServerFlow审计.md)，只执行一次 server flow，对照 RTP 等硬指标，并在交付包外生成非阻塞审计 JSON 和中文警告报告。
+4. **自动对齐与 FORMAL**：只有`stage3_gate.json`为`通过`且`stage4_allowed=true`时，才读取[04-自动对齐与正式验收.md](references/04-自动对齐与正式验收.md)和[04A-搜索效率与预算.md](references/04A-搜索效率与预算.md)，只用`python_bin`执行阶段1已认证的Python模拟脚本，依次完成敏感性、CALIBRATION、候选冻结和独立FORMAL；本阶段server flow调用数必须为0，机器结果写入`artifacts/04-alignment/`，中文报告写入当前`report_dir`。
+5. **交付与交付后审计**：读取[05-交付.md](references/05-交付.md)，验证完整机器产物和中文报告，把FORMAL Runtime四件套复制到`交付物/runtime/`，生成不可变`dv####`机器清单和当前`report_dir/阶段5-交付清单.md`。封存成功后读取[05A-交付后ServerFlow审计.md](references/05A-交付后ServerFlow审计.md)，只执行一次server flow；审计JSON写入`post-delivery-server-flow/dv####/`，中文警告报告写入当前`report_dir`。
 
 执行跨阶段 hash、状态传播或重新进入任务时读取[90-跨阶段一致性.md](references/90-跨阶段一致性.md)。遇到权限、资料、审批或停止判断时读取[91-边界停止与责任.md](references/91-边界停止与责任.md)。创建或检查文件时读取[92-命名与状态规范.md](references/92-命名与状态规范.md)。FORMAL 或交付前必须读取[95-验收检查清单.md](references/95-验收检查清单.md)。需要最小样例时读取[97-最小完整示例.md](references/97-最小完整示例.md)。
 
@@ -89,18 +92,18 @@ target_rtp
 
 ```bash
 <python_bin> <skill_root>/scripts/catalog_tool.py validate --skill-root <skill_root>
-<python_bin> <skill_root>/scripts/render_input_profile_report.py --artifacts <artifacts> --output <artifacts/01-input-profile/阶段1-资料确认与玩法画像.md>
+<python_bin> <skill_root>/scripts/render_input_profile_report.py --artifacts <artifacts> --output <report_dir>/阶段1-资料确认与玩法画像.md
 <python_bin> <skill_root>/scripts/derive_component_rtp_targets.py --input <component_rtp_shares.json> --output <component_rtp_targets.json>
 <python_bin> <skill_root>/scripts/apply_hard_gate_tolerance_policy.py --contract <base_metric_contract.json> --policy <skill_root>/assets/policies/hard_gate_tolerance_policy.v1.json --output <metric_contract.json>
-<python_bin> <skill_root>/scripts/render_metric_matching_report.py --contract <artifacts/02-metric-matching/metric_contract.json> [--display-metadata <report_display_metadata.json>] --output <artifacts/02-metric-matching/阶段2-指标匹配报告.md>
+<python_bin> <skill_root>/scripts/render_metric_matching_report.py --contract <artifacts/02-metric-matching/metric_contract.json> [--display-metadata <report_display_metadata.json>] --output <report_dir>/阶段2-指标匹配报告.md
 <python_bin> <skill_root>/scripts/score_alignment.py --contract <metric_contract.json> --measurements <measurements.json> --output <scorecard.json>
-<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> [--display-metadata <report_display_metadata.json>] --output <阶段3-评分报告.md>
-<python_bin> <skill_root>/scripts/validate_stage_transition.py --artifacts <artifacts> --output <artifacts/03-scoring/stage3_gate.json>
-<python_bin> <skill_root>/scripts/render_alignment_report.py --artifacts <artifacts> [--display-metadata <report_display_metadata.json>] --output <阶段4-数值对齐报告.md>
-<python_bin> <skill_root>/scripts/render_delivery_report.py --manifest <delivery_manifest.json> --checklist <delivery_checklist.json> --output <阶段5-交付清单.md>
-<python_bin> <skill_root>/scripts/validate_artifacts.py --artifacts <artifacts>
-<python_bin> <skill_root>/scripts/seal_delivery.py --artifacts <artifacts>
-<python_bin> <skill_root>/scripts/render_post_delivery_server_flow_report.py --audit <post_delivery_server_flow_audit.json> --delivery-manifest <artifacts/05-delivery/delivery_manifest.json> --formal-result <artifacts/04-alignment/formal_result.json> --scorecard <artifacts/03-scoring/scorecard.json> --output <post-delivery-server-flow/dv####/交付后ServerFlow验证报告.md>
+<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> [--display-metadata <report_display_metadata.json>] --output <report_dir>/阶段3-评分报告.md
+<python_bin> <skill_root>/scripts/validate_stage_transition.py --artifacts <artifacts> --reports <report_dir> --output <artifacts/03-scoring/stage3_gate.json>
+<python_bin> <skill_root>/scripts/render_alignment_report.py --artifacts <artifacts> [--display-metadata <report_display_metadata.json>] --output <report_dir>/阶段4-数值对齐报告.md
+<python_bin> <skill_root>/scripts/render_delivery_report.py --manifest <delivery_manifest.json> --checklist <delivery_checklist.json> --output <report_dir>/阶段5-交付清单.md
+<python_bin> <skill_root>/scripts/validate_artifacts.py --artifacts <artifacts> --reports <report_dir>
+<python_bin> <skill_root>/scripts/seal_delivery.py --artifacts <artifacts> --reports <report_dir> --formal-runtime <formal_runtime>
+<python_bin> <skill_root>/scripts/render_post_delivery_server_flow_report.py --audit <post_delivery_server_flow_audit.json> --delivery-manifest <artifacts/05-delivery/delivery_manifest.json> --formal-result <artifacts/04-alignment/formal_result.json> --scorecard <artifacts/03-scoring/scorecard.json> --output <report_dir>/交付后ServerFlow验证报告.md
 ```
 
 不得直接编辑 Markdown 改变机器 JSON 中的状态、分数、豁免或 FORMAL 结论。
@@ -108,6 +111,8 @@ target_rtp
 ## 完成条件
 
 - 阶段 1～5 固定产物齐全，Schema、引用、版本、hash 和作用域一致。
+- 任务路径符合`<game_code>/alignments/<mode>/<task_id>/`；不存在Runtime版本和RTP Group目录层级，作用域及Runtime只保留RTP Group 1。
+- `artifacts/`只包含机器JSON；五阶段及交付后中文报告位于同一`交付物/报告文档/rv####/`；FORMAL Runtime四件套位于`交付物/runtime/`且`meta.version=task_id`。
 - 五份中文报告均通过模板章节顺序、章节非空、展示实例完整、必需字段存在、表头名称与顺序、无占位符、确定性重渲染一致性校验；阶段2、3、4每项指标均有三类通俗说明、业务单位和真实分布标签。
 - 玩法必需覆盖率与指标可测率均为 100%，或存在用户批准且仍保留审计的有效豁免。
 - 评分可由密封输入确定性复算，中文报告与机器结果一致。

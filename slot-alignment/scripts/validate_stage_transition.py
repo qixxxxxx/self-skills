@@ -9,17 +9,15 @@ from render_scoring_report import render
 from render_input_profile_report import render as render_stage1
 from render_metric_matching_report import render as render_stage2
 from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_templates
+from workspace_paths import REPORT_FILES, latest_report_dir, report_path as workspace_report_path, task_root
 
 
 REQUIRED = [
     "01-input-profile/input_manifest.json",
     "01-input-profile/game_profile.json",
     "01-input-profile/parameter_authority.json",
-    "01-input-profile/阶段1-资料确认与玩法画像.md",
     "02-metric-matching/metric_contract.json",
-    "02-metric-matching/阶段2-指标匹配报告.md",
     "03-scoring/scorecard.json",
-    "03-scoring/阶段3-评分报告.md"
 ]
 
 
@@ -37,15 +35,20 @@ def dump(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def validate(root):
+def validate(root, reports=None):
     skill_root = Path(__file__).resolve().parent.parent
     errors = validate_templates(skill_root)
+    reports = Path(reports) if reports else latest_report_dir(root)
     paths = {rel: root / rel for rel in REQUIRED}
     for rel, path in paths.items():
         if not path.is_file():
             errors.append(f"缺少阶段转换必需文件: {rel}")
-        elif path.suffix == ".md" and "{{" in path.read_text(encoding="utf-8"):
-            errors.append(f"阶段报告仍含模板占位符: {rel}")
+    report_paths = {stage: workspace_report_path(reports, stage) for stage in (1, 2, 3)}
+    for stage, path in report_paths.items():
+        if not path.is_file():
+            errors.append(f"缺少阶段转换必需报告: {REPORT_FILES[stage]}")
+        elif "{{" in path.read_text(encoding="utf-8"):
+            errors.append(f"阶段报告仍含模板占位符: {path}")
     if errors:
         return errors, {}
     input_manifest = load(paths["01-input-profile/input_manifest.json"])
@@ -69,12 +72,12 @@ def validate(root):
         "game_profile": sha(paths["01-input-profile/game_profile.json"]),
         "parameter_authority": sha(paths["01-input-profile/parameter_authority.json"]),
     })
-    stage1_report = paths["01-input-profile/阶段1-资料确认与玩法画像.md"].read_text(encoding="utf-8")
+    stage1_report = report_paths[1].read_text(encoding="utf-8")
     errors += validate_report_against_template(stage1_report, (skill_root / TEMPLATE_PATHS[1]).read_text(encoding="utf-8"), 1)
     if stage1_report != expected_stage1:
         errors.append("阶段1中文报告不是当前三份机器JSON的确定性完整输出")
     expected_stage2 = render_stage2(contract, sha(paths["02-metric-matching/metric_contract.json"]))
-    stage2_report = paths["02-metric-matching/阶段2-指标匹配报告.md"].read_text(encoding="utf-8")
+    stage2_report = report_paths[2].read_text(encoding="utf-8")
     errors += validate_report_against_template(stage2_report, (skill_root / TEMPLATE_PATHS[2]).read_text(encoding="utf-8"), 2)
     if stage2_report != expected_stage2:
         errors.append("阶段2中文报告不是当前指标合同的确定性完整输出")
@@ -93,22 +96,24 @@ def validate(root):
         errors.append("阶段3基线测量源不存在")
     elif source_hashes.get("measurements") != sha(measurement_path):
         errors.append("阶段3基线测量hash失效")
-    report_path = paths["03-scoring/阶段3-评分报告.md"]
+    report_path = report_paths[3]
     expected_report = render(contract, scorecard, sha(paths["02-metric-matching/metric_contract.json"]), sha(paths["03-scoring/scorecard.json"]))
     errors += validate_report_against_template(report_path.read_text(encoding="utf-8"), (skill_root / TEMPLATE_PATHS[3]).read_text(encoding="utf-8"), 3)
     if report_path.read_text(encoding="utf-8") != expected_report:
         errors.append("阶段3中文报告不是当前机器结果的确定性输出")
-    hashes = {rel: sha(path) for rel, path in paths.items() if path.is_file()}
+    root_dir = task_root(root)
+    hashes = {str(path.relative_to(root_dir)): sha(path) for path in [*paths.values(), *report_paths.values()] if path.is_file()}
     return errors, hashes
 
 
 def main():
     parser = argparse.ArgumentParser(description="校验阶段3到阶段4的强制转换门禁")
     parser.add_argument("--artifacts", required=True, type=Path)
+    parser.add_argument("--reports", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
-        errors, hashes = validate(args.artifacts)
+        errors, hashes = validate(args.artifacts, args.reports)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         errors, hashes = [str(exc)], {}
     task_id = ""
