@@ -1,6 +1,6 @@
 {
   "schema_version": "1.2",
-  "report_contract_version": "slot-alignment.reports.v2.6",
+  "report_contract_version": "slot-alignment.reports.v2.9",
   "task_id": "",
   "status": "未开始",
   "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},

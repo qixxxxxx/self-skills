@@ -1,6 +1,6 @@
 interface:
-  display_name: "Slot 原版数值对齐v2.6"
-  short_description: "按五阶段逐章展示实例、字段契约和强制门禁完成数值对齐"
+  display_name: "Slot 原版数值对齐v2.9"
+  short_description: "按五阶段、真实业务单位和可读指标详情完成数值对齐"
   default_prompt: "使用 $slot-alignment 根据原版采集协议完成当前 Slot 游戏的数值对齐与中文报告交付。"
 policy:
   allow_implicit_invocation: false

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 from validate_artifacts import validate_attainability_ceiling, validate_component_rtp_targets
-from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_template_text, validate_templates
+from report_common import TEMPLATE_PATHS, apply_metric_display_metadata, detail_rows, metric_blocks, metric_item_labels, metric_stage2_table, validate_report_against_template, validate_server_flow_policy, validate_template_text, validate_templates
 from seal_delivery import delivery_report_contract_version
 
 
@@ -30,6 +31,28 @@ def run(*args):
 
 def run_result(*args):
     return subprocess.run([sys.executable, *map(str, args)], check=False, capture_output=True, text=True)
+
+
+def assert_report_display(path):
+    def split_cells(line):
+        return [cell.replace("\\|", "|").strip() for cell in re.split(r"(?<!\\)\|", line.strip("|"))]
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert not any(line.lstrip().startswith(("`{", "`[")) for line in lines)
+    index = 0
+    while index < len(lines) - 1:
+        header, separator = lines[index], lines[index + 1].strip()
+        cells = split_cells(separator) if separator.startswith("|") else []
+        if header.startswith("|") and cells and all(cell.strip() and set(cell.strip()) <= {"-", ":"} for cell in cells):
+            header_cells = split_cells(header)
+            assert not {"目标", "目标分布", "映射目标"}.intersection(header_cells)
+            columns = len(header_cells)
+            index += 2
+            while index < len(lines) and lines[index].startswith("|"):
+                assert len(split_cells(lines[index])) == columns
+                index += 1
+            continue
+        index += 1
 
 
 def score_case(base, waiver=False, hard_fail=False):
@@ -122,8 +145,21 @@ def component_rtp_target_case(base):
 
 
 def main():
+    assert detail_rows({"min": 0.95, "max": 0.96, "distribution": [0.8, 0.2]}, "目标") == [
+        ["目标.distribution[1]", 0.8],
+        ["目标.distribution[2]", 0.2],
+        ["目标.max", 0.96],
+        ["目标.min", 0.95],
+    ]
     assert delivery_report_contract_version({}) == "slot-alignment.reports.v2.5"
     assert delivery_report_contract_version({"report_contract_version": "slot-alignment.reports.v2.6"}) == "slot-alignment.reports.v2.6"
+    assert delivery_report_contract_version({"report_contract_version": "slot-alignment.reports.v2.7"}) == "slot-alignment.reports.v2.7"
+    assert delivery_report_contract_version({"report_contract_version": "slot-alignment.reports.v2.8"}) == "slot-alignment.reports.v2.8"
+    assert delivery_report_contract_version({"report_contract_version": "slot-alignment.reports.v2.9"}) == "slot-alignment.reports.v2.9"
+    joint_contract = apply_metric_display_metadata({"metrics": [{"metric_id": "cascade_multiplier.joint_distribution", "scope": "feature", "kind": "score", "unit": "distribution", "target": [0.6, 0.4]}]}, {"metrics": [{"metric_id": "cascade_multiplier.joint_distribution", "scope": "feature", "item_labels": ["Cascade深度1 × 实际倍率1x", "Cascade深度1 × 实际倍率2x"]}]})
+    assert metric_item_labels(joint_contract["metrics"][0], 2) == ["Cascade深度1 × 实际倍率1x", "Cascade深度1 × 实际倍率2x"]
+    joint_table = metric_stage2_table(joint_contract["metrics"][0])
+    assert "联合桶" not in joint_table and "60" in joint_table and "%（样本占比）" in joint_table
     assert validate_templates(SKILL_ROOT) == []
     stage1_template = (SKILL_ROOT / TEMPLATE_PATHS[1]).read_text(encoding="utf-8")
     missing_example = stage1_template.replace("- 展示实例：", "- 实例已删除：", 1)
@@ -153,11 +189,14 @@ def main():
     invalid_python_path = json.loads(json.dumps(valid_input_manifest))
     invalid_python_path["script_qualification"]["certified_execution_path"] = "kotlin"
     assert "阶段2至阶段5的已认证执行路径必须是Python" in validate_server_flow_policy(invalid_python_path)
-    dump(artifacts / "01-input-profile/game_profile.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "scope": {}, "mechanics": [{"mechanic_id": "feature.free-spin", "name_zh": "免费旋转", "status": "必需", "scope": "base", "evidence": ["demo"]}], "required_node_count": 1, "semantic_gap_count": 0})
-    dump(artifacts / "01-input-profile/parameter_authority.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "parameters": []})
+    dump(artifacts / "01-input-profile/game_profile.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "scope": {}, "mechanics": [{"mechanic_id": "feature.free-spin", "name_zh": "免费旋转", "status": "必需", "scope": "base", "attributes": {"initial_spins": 10, "retrigger": True}, "evidence": ["demo", {"protocol": "spin"}]}], "required_node_count": 1, "semantic_gap_count": 0})
+    dump(artifacts / "01-input-profile/parameter_authority.json", {"schema_version": "1.0", "task_id": "self-test", "status": "已完成", "parameters": [{"path": "demo.weight", "type": "weight", "current": 1, "authorization_status": "已授权", "affected_metrics": ["demo.a", "demo.b"], "control_cluster": "demo", "constraints": {"min": 1, "max": 10}, "evidence": ["authority.json"]}]})
     run(ROOT / "render_input_profile_report.py", "--artifacts", artifacts, "--output", artifacts / "01-input-profile/阶段1-资料确认与玩法画像.md")
     contract = json.loads((root / "normal/contract.json").read_text(encoding="utf-8"))
     contract.update({"status": "已完成", "scope": {"game_code": "demo", "mode": "base", "rtp_group": "96", "target_rtp": 0.96}, "catalogs": {"hashes": {}}, "coverage": {"mechanic_coverage": 1, "metric_measurability": 1}, "coupling_clusters": [], "waivers": [], "component_rtp_target_policy": {"method": "original_component_share_mapped_to_authoritative_total_rtp", "original_absolute_rtp_as_target": False, "authoritative_total_rtp_required": True, "share_sum_target": 1.0, "legacy_contracts_unchanged": True}})
+    contract["input_hashes"] = {"game_profile": "b" * 64, "parameter_authority": "c" * 64}
+    contract["package_matches"] = [{"mechanic_id": "feature.free-spin", "scope": "base", "package_id": "atomic.free-spin", "owner": "feature", "metric_ids": ["demo.a", "demo.b"], "evidence": {"method": "mechanic_id精确匹配", "catalog": "metrics/index.json"}, "status": "已匹配"}]
+    contract["coupling_clusters"] = [{"cluster_id": "demo", "parameters": ["demo.weight"], "metrics": ["demo.a", "demo.b"], "direction_evidence": {"demo.a": "正向", "demo.b": "负向"}, "sensitivity_evidence": ["sensitivity.json"], "control_type": "耦合", "attainability_status": "可达", "budget_expansion_allowed": True}]
     contract_path = artifacts / "02-metric-matching/metric_contract.json"
     dump(contract_path, contract)
     run(ROOT / "render_metric_matching_report.py", "--contract", contract_path, "--output", artifacts / "02-metric-matching/阶段2-指标匹配报告.md")
@@ -171,9 +210,9 @@ def main():
     assert missing_report.returncode == 1
     run(ROOT / "render_scoring_report.py", "--contract", contract_path, "--scorecard", scorecard_path, "--output", report_path)
     scoring_text = report_path.read_text(encoding="utf-8")
-    bad_header = scoring_text.replace("| 指标 | 作用域 | 目标 | 基线 | 差距 | 方法 |", "| 指标名称 | 作用域 | 目标 | 基线 | 差距 | 方法 |", 1)
+    bad_header = scoring_text.replace("| 目标值 | 单位 | 基线值 | 差距 | 评分/门禁 |", "| 目标 | 单位 | 基线值 | 差距 | 评分/门禁 |", 1)
     field_errors = validate_report_against_template(bad_header, (SKILL_ROOT / TEMPLATE_PATHS[3]).read_text(encoding="utf-8"), 3)
-    assert any("表头名称或顺序" in error for error in field_errors)
+    assert any("不允许的表头" in error for error in field_errors)
     stage1_report = artifacts / "01-input-profile/阶段1-资料确认与玩法画像.md"
     stage1_original = stage1_report.read_text(encoding="utf-8")
     stage1_report.write_text("# 阶段1-资料确认与玩法画像\n\n已完成。\n", encoding="utf-8")
@@ -213,11 +252,16 @@ def main():
     run(ROOT / "validate_stage_transition.py", "--artifacts", artifacts, "--output", gate_path)
     gate_hash = sha(gate_path)
     dump(artifacts / "04-alignment/alignment_manifest.json", {"schema_version": "1.4", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "input_hashes": {}, "server_flow_policy": {"calibration_calls_allowed": False, "formal_calls_allowed": False, "python_only_execution": True, "post_delivery_audit_affects_status": False}, "stage3_gate": {"path": "03-scoring/stage3_gate.json", "sha256": gate_hash, "stage4_allowed": True}, "budget_policy": {"auto_expand": True, "attainability_ceiling": {"enabled": True, "stop_status": "结构不可达", "prohibit_budget_only_expansion": True}}})
-    dump(artifacts / "04-alignment/candidate_archive.json", {"schema_version": "1.3", "task_id": "self-test", "stage3_gate_sha256": gate_hash, "server_flow_call_count": 0, "candidates": [], "stop_reason": "基线通过", "budget": {}, "attainability": {"status": "可达", "evidence_path": "", "evidence_sha256": "", "budget_expansion_allowed": True}})
-    dump(artifacts / "04-alignment/aligned_parameters.json", {"schema_version": "1.0", "task_id": "self-test", "candidate_id": "baseline", "status": "已完成", "parameters": []})
-    dump(artifacts / "04-alignment/formal_result.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "candidate_id": "baseline", "plan_id": "formal-1", "status": "通过", "execution_valid": True, "independent_from_calibration": True, "execution_path": "python", "stage1_server_flow_certification_sha256": certification_sha, "server_flow_call_count": 0, "sample": {"paid_entry_count": 1000}, "scorecard": {"alignment_status": "通过"}, "attempt": 1, "audits": {"long_tail": [], "max_win": "已审计"}})
+    dump(artifacts / "04-alignment/candidate_archive.json", {"schema_version": "1.3", "task_id": "self-test", "stage3_gate_sha256": gate_hash, "server_flow_call_count": 0, "candidates": [{"candidate_id": "baseline", "parent_id": "—", "parameter_summary": {"demo.weight": 2}, "hard_gate_status": "通过", "overall_score": 90, "sample_count": 1000, "risk": "低", "decision_reason": "基线通过", "status": "冻结"}], "stop_reason": "基线通过", "budget": {"calibration_samples": 1000, "formal_samples": 1000}, "attainability": {"status": "可达", "evidence_path": "", "evidence_sha256": "", "budget_expansion_allowed": True}})
+    dump(artifacts / "04-alignment/aligned_parameters.json", {"schema_version": "1.0", "task_id": "self-test", "candidate_id": "baseline", "status": "已完成", "parameters": [{"path": "demo.weight", "before": 1, "after": 2, "delta": 1, "authorization_status": "已授权", "control_cluster": "demo", "affected_metrics": ["demo.a", "demo.b"], "risk": "低"}]})
+    dump(artifacts / "04-alignment/formal_result.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "candidate_id": "baseline", "plan_id": "formal-1", "status": "通过", "execution_valid": True, "independent_from_calibration": True, "execution_path": "python", "stage1_server_flow_certification_sha256": certification_sha, "server_flow_call_count": 0, "input_hashes": {"metric_contract": "e" * 64, "candidate": "f" * 64}, "sample": {"paid_entry_count": 1000}, "scorecard": {"alignment_status": "通过"}, "attempt": 1, "audits": {"long_tail": [], "max_win": {"status": "已审计", "cap": "5000x", "observed": "1200x"}}})
     run(ROOT / "render_alignment_report.py", "--artifacts", artifacts, "--output", artifacts / "04-alignment/阶段4-数值对齐报告.md")
     alignment_report = artifacts / "04-alignment/阶段4-数值对齐报告.md"
+    stage_metric_headings = [
+        [heading for heading, _ in metric_blocks(path.read_text(encoding="utf-8"))]
+        for path in (artifacts / "02-metric-matching/阶段2-指标匹配报告.md", report_path, alignment_report)
+    ]
+    assert stage_metric_headings[0] == stage_metric_headings[1] == stage_metric_headings[2]
     alignment_original = alignment_report.read_text(encoding="utf-8")
     alignment_report.write_text(alignment_original + "\n手工篡改", encoding="utf-8")
     tampered_alignment = run_result(ROOT / "validate_artifacts.py", "--artifacts", artifacts, "--pre-delivery")
@@ -243,6 +287,8 @@ def main():
     dump(archive_path, archive)
     run(ROOT / "seal_delivery.py", "--artifacts", artifacts)
     run(ROOT / "validate_artifacts.py", "--artifacts", artifacts)
+    for report_path in sorted(artifacts.glob("*/*.md")):
+        assert_report_display(report_path)
     delivery_manifest_path = artifacts / "05-delivery/delivery_manifest.json"
     delivery_hash_before_audit = sha(delivery_manifest_path)
     delivery_manifest = json.loads(delivery_manifest_path.read_text(encoding="utf-8"))
@@ -287,7 +333,7 @@ def main():
     assert tampered_delivery.returncode == 1
     delivery_report.write_text(delivery_original, encoding="utf-8")
     run(ROOT / "validate_artifacts.py", "--artifacts", artifacts)
-    print(json.dumps({"status": "通过", "scenarios": ["五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "阶段1单次Server Flow认证", "阶段2至阶段5仅Python", "阶段2至FORMAL禁止Server Flow", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "交付后Server Flow失败只警告且不改交付hash", "空硬指标不得审计通过", "畸形审计数据降级警告", "无效审计JSON降级警告", "完整硬指标审计通过"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
+    print(json.dumps({"status": "通过", "scenarios": ["五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "阶段1单次Server Flow认证", "阶段2至阶段5仅Python", "阶段2至FORMAL禁止Server Flow", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "交付后Server Flow失败只警告且不改交付hash", "空硬指标不得审计通过", "畸形审计数据降级警告", "无效审计JSON降级警告", "完整硬指标审计通过"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 

@@ -1,9 +1,9 @@
 ---
 name: slot-alignment
-description: 根据 Slot 游戏原版采集协议、规则、规格、Runtime、服务端和模拟脚本建立统一玩法画像，匹配版本化指标包，执行结构可达性预检、硬指标门禁、100 分评分、受控 CALIBRATION、独立 FORMAL 验收和中文交付。用于老虎机原版数值对齐、玩法体验对齐、指标规划、参数搜索、候选验收、不可达与豁免审查，或生成阶段1至阶段5固定结构产物及`阶段4-数值对齐报告.md`。
+description: 根据 Slot 游戏原版采集协议、规则、规格、Runtime、服务端和模拟脚本建立统一玩法画像，匹配版本化指标包，执行结构可达性预检、硬指标门禁、100 分评分、受控 CALIBRATION、独立 FORMAL 验收和中文交付，并用通俗解释、真实分布标签和业务单位生成可读报告。用于老虎机原版数值对齐、玩法体验对齐、指标规划、参数搜索、候选验收、不可达与豁免审查，或生成阶段1至阶段5固定结构产物及`阶段4-数值对齐报告.md`。
 ---
 
-# Slot 原版数值对齐v2.6
+# Slot 原版数值对齐v2.9
 
 ## 目标
 
@@ -23,7 +23,12 @@ description: 根据 Slot 游戏原版采集协议、规则、规格、Runtime、
 - 新建任务默认加载`assets/policies/hard_gate_tolerance_policy.v1.json`，在候选结果出现前密封基础容差、指标系数和生效容差；已有任务不得回溯套用。
 - 候选结果出现前密封指标合同、评价合同、权重、样本计划、预算和 FORMAL 计划；不得看结果后放宽标准。
 - 自动连续执行不等于跳过阶段产物。每个阶段必须先生成固定机器结果和中文报告并通过阶段转换门禁，才能开始下一阶段；禁止用`work/`中的临时或候选scorecard替代`artifacts/03-scoring/`固定产物。
-- 阶段1至5中文报告必须使用`assets/templates/artifacts/`对应模板的完整章节顺序和展示契约。每章模板必须明确展示方式、必需字段及顺序、空值规则和Markdown实例；无数据时写“无/不适用”及原因，不得删节。报告必须由确定性生成器生成，并与当前机器JSON逐字一致；手工改写、缺章节、章节错序、字段缺失、表头改名或调序、上游hash变化均阻塞下一阶段或交付。
+- 阶段1至5中文报告必须使用`assets/templates/artifacts/`对应模板的完整章节顺序和展示契约。每章模板必须明确展示方式、必需字段及顺序、空值规则和Markdown实例；无数据时写“无/不适用”及原因，不得删节。报告必须由确定性生成器生成，并与当前机器JSON确定性等价；百分比等阅读转换必须能无损映射回机器值。手工改写、缺章节、章节错序、字段缺失、表头改名或调序、上游hash变化均阻塞下一阶段或交付。
+- 中文报告的主表只展示标量摘要和结论；目标、数组、对象、评价参数、指标列表、审批详情及错误详情必须拆成明细表，禁止直接展示JSON。长路径必须使用稳定ID在摘要表中引用，并在同章路径表中单独展示。
+- 阶段2、3、4的指标展示必须使用同一合同清单、分类、编号、顺序和标题；固定分为硬指标、评分指标、审计指标，每项指标使用独立小章节，并按标量、区间、分布或复合对象选择一张主详情表。阶段2展示目标合同，阶段3增加基线与评分，阶段4增加FORMAL与最终对齐结果。
+- 每项指标必须用通俗中文固定说明“指标说明、使用场景、目标值含义”，并展示业务单位。报告层把`ratio`、`probability`和分布概率转换为百分比，把`bet_multiple`转换为“倍投注额（x）”，不得直接把机器单位当成人类单位展示。
+- 每个分布项必须展示由原版统计脚本、规格或密封结果证明的实际业务区间或维度；联合分布至少写明两个实际维度，例如“Cascade深度1 × 实际倍率2x”。禁止使用“联合桶01、回报桶01、取值桶01、时长桶01、分布项01”等占位标签。缺少可证明标签时停止补证，不自行猜测。
+- 指标合同优先在每项指标的`display`中密封`description_zh`、`usage_scene_zh`、`target_meaning_zh`、`display_unit`、`item_labels`和对象字段单位。旧封存任务可使用只读`--display-metadata`覆盖层生成新版阅读视图；覆盖层只能改变标签、解释、单位和显示精度，不得改变目标、测量、评分或结论。
 - 预算可按密封阶梯自动扩张，但结构不可达一经有效证据密封即触发可达性上限；禁止继续仅靠增加候选数、样本量或运行时间扩张预算。
 - 200x 以下倍率桶默认进入指标；200x 及以上与最大中奖默认只审计，但仍进入总 RTP、Sigma 和风险检查。
 - 用户是指标库扩展和指标豁免的唯一批准者。未经批准不得跳过必需指标。
@@ -87,11 +92,12 @@ target_rtp
 <python_bin> <skill_root>/scripts/render_input_profile_report.py --artifacts <artifacts> --output <artifacts/01-input-profile/阶段1-资料确认与玩法画像.md>
 <python_bin> <skill_root>/scripts/derive_component_rtp_targets.py --input <component_rtp_shares.json> --output <component_rtp_targets.json>
 <python_bin> <skill_root>/scripts/apply_hard_gate_tolerance_policy.py --contract <base_metric_contract.json> --policy <skill_root>/assets/policies/hard_gate_tolerance_policy.v1.json --output <metric_contract.json>
-<python_bin> <skill_root>/scripts/render_metric_matching_report.py --contract <artifacts/02-metric-matching/metric_contract.json> --output <artifacts/02-metric-matching/阶段2-指标匹配报告.md>
+<python_bin> <skill_root>/scripts/render_metric_matching_report.py --contract <artifacts/02-metric-matching/metric_contract.json> [--display-metadata <report_display_metadata.json>] --output <artifacts/02-metric-matching/阶段2-指标匹配报告.md>
 <python_bin> <skill_root>/scripts/score_alignment.py --contract <metric_contract.json> --measurements <measurements.json> --output <scorecard.json>
-<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> --output <阶段3-评分报告.md>
+<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> [--display-metadata <report_display_metadata.json>] --output <阶段3-评分报告.md>
 <python_bin> <skill_root>/scripts/validate_stage_transition.py --artifacts <artifacts> --output <artifacts/03-scoring/stage3_gate.json>
-<python_bin> <skill_root>/scripts/render_alignment_report.py --artifacts <artifacts> --output <阶段4-数值对齐报告.md>
+<python_bin> <skill_root>/scripts/render_alignment_report.py --artifacts <artifacts> [--display-metadata <report_display_metadata.json>] --output <阶段4-数值对齐报告.md>
+<python_bin> <skill_root>/scripts/render_delivery_report.py --manifest <delivery_manifest.json> --checklist <delivery_checklist.json> --output <阶段5-交付清单.md>
 <python_bin> <skill_root>/scripts/validate_artifacts.py --artifacts <artifacts>
 <python_bin> <skill_root>/scripts/seal_delivery.py --artifacts <artifacts>
 <python_bin> <skill_root>/scripts/render_post_delivery_server_flow_report.py --audit <post_delivery_server_flow_audit.json> --delivery-manifest <artifacts/05-delivery/delivery_manifest.json> --formal-result <artifacts/04-alignment/formal_result.json> --scorecard <artifacts/03-scoring/scorecard.json> --output <post-delivery-server-flow/dv####/交付后ServerFlow验证报告.md>
@@ -102,7 +108,7 @@ target_rtp
 ## 完成条件
 
 - 阶段 1～5 固定产物齐全，Schema、引用、版本、hash 和作用域一致。
-- 五份中文报告均通过模板章节顺序、章节非空、展示实例完整、必需字段存在、表头名称与顺序、无占位符、确定性重渲染一致性校验。
+- 五份中文报告均通过模板章节顺序、章节非空、展示实例完整、必需字段存在、表头名称与顺序、无占位符、确定性重渲染一致性校验；阶段2、3、4每项指标均有三类通俗说明、业务单位和真实分布标签。
 - 玩法必需覆盖率与指标可测率均为 100%，或存在用户批准且仍保留审计的有效豁免。
 - 评分可由密封输入确定性复算，中文报告与机器结果一致。
 - 阶段3固定产物完整且转换门禁通过；阶段4的所有候选均绑定同一有效`stage3_gate.json`。

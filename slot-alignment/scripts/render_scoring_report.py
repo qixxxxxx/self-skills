@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from report_common import fmt, table
+from report_common import apply_metric_display_metadata, detail_rows, metric_brief_result, metric_groups, metric_key, metric_meta_lines, metric_result_summary, metric_stage3_table, table
 
 
 def load(path):
@@ -31,9 +31,57 @@ def render(contract, scorecard, contract_hash, scorecard_hash):
     source_paths = scorecard.get("source_paths", {})
     metric_contract = {(x.get("metric_id"), x.get("scope")): x for x in contract.get("metrics", [])}
     coverage = contract.get("coverage", {})
+    hard_results = {metric_key(item): item for item in hard}
+    score_results = {metric_key(item): item for item in scores}
+    grouped_metrics = metric_groups(contract.get("metrics", []))
+
+    def result_for(metric):
+        if metric.get("kind") == "hard":
+            return hard_results.get(metric_key(metric))
+        if metric.get("kind") == "score":
+            return score_results.get(metric_key(metric))
+        return None
+
+    metric_overview_rows = []
+    for _, title, items in grouped_metrics:
+        for number, metric in items:
+            result = result_for(metric)
+            stage_result = metric_brief_result(metric, result, "不参与评分")
+            metric_overview_rows.append([number, metric.get("name_zh", metric.get("metric_id")), title, metric.get("scope"), stage_result])
+
+    def metric_sections(kind):
+        items = next((items for group_kind, _, items in grouped_metrics if group_kind == kind), [])
+        if not items:
+            return "无适用指标。"
+        blocks = []
+        for number, metric in items:
+            result = result_for(metric)
+            blocks.extend([
+                f"#### {number} {metric.get('name_zh', metric.get('metric_id'))}", "",
+                *metric_meta_lines(number, metric), "",
+                metric_stage3_table(metric, result), "",
+                f"阶段3结论：{metric_result_summary(metric, result, '本指标仅审计，不参与阶段3评分')}。", "",
+            ])
+        return "\n".join(blocks).rstrip()
 
     def source(item):
         return metric_contract.get((item.get("metric_id"), item.get("scope")), {})
+
+    source_items = [
+        ["S01", "指标合同", "候选结果出现前密封", source_paths.get("metric_contract"), source_hashes.get("metric_contract", contract_hash)],
+        ["S02", "基线测量", "当前Runtime、合格完整入口", source_paths.get("measurements"), source_hashes.get("measurements")],
+        ["S03", "阶段3机器评分", "本报告唯一评分来源", "artifacts/03-scoring/scorecard.json", scorecard_hash],
+        ["S04", "容差政策", "基础容差×系数=生效容差", contract.get("hard_gate_tolerance_policy", {}).get("source_path"), contract.get("hard_gate_tolerance_policy", {}).get("source_sha256")],
+    ]
+    review_summary_rows, review_evidence_rows = [], []
+    for item in blockers:
+        object_id = item.get("metric_id")
+        review_summary_rows.append([object_id, item.get("scope"), "阻塞", item.get("reason"), item.get("status")])
+        review_evidence_rows.extend([[object_id, field, value] for field, value in detail_rows(item.get("evidence"), "证据")])
+    for item in waivers:
+        object_id = item.get("metric_id")
+        review_summary_rows.append([object_id, item.get("scope"), "豁免", item.get("waiver", {}).get("reason"), item.get("waiver", {}).get("status")])
+        review_evidence_rows.extend([[object_id, field, value] for field, value in detail_rows(item.get("waiver", {}).get("evidence"), "证据")])
 
     lines = [
         "# 阶段3-评分报告", "",
@@ -61,39 +109,24 @@ def render(contract, scorecard, contract_hash, scorecard_hash):
             ["阶段职责", "冻结标准并验证基线可测", "不得在本阶段计算新候选"],
             ["阶段4资格", "待阶段转换门禁校验" if not blockers else "阻塞", "以stage3_gate.json为准"],
         ]), "",
-        "## 二、评分输入与冻结合同", "", table(["对象", "路径", "SHA-256", "资格/用途"], [
-            ["指标合同", source_paths.get("metric_contract"), source_hashes.get("metric_contract", contract_hash), "候选结果出现前密封"],
-            ["基线测量", source_paths.get("measurements"), source_hashes.get("measurements"), "当前Runtime、合格完整入口"],
-            ["阶段3机器评分", "artifacts/03-scoring/scorecard.json", scorecard_hash, "本报告唯一评分来源"],
-            ["容差政策", contract.get("hard_gate_tolerance_policy", {}).get("source_path"), contract.get("hard_gate_tolerance_policy", {}).get("source_sha256"), "基础容差×系数=生效容差"],
-        ]), "",
-        "## 三、硬指标门禁", "",
-        table(["指标", "作用域", "目标", "基线", "差距", "方法", "基础容差", "系数", "生效容差", "样本资格", "状态"], [
-            [item.get("name_zh", item.get("metric_id")), item.get("scope"), item.get("target"), item.get("candidate"), item.get("distance"), source(item).get("hard_gate_profile", {}).get("method"), item.get("base_tolerance"), item.get("tolerance_factor"), item.get("tolerance"), source(item).get("sample_qualification"), item.get("status")]
-            for item in hard
-        ]), "",
-        "> 硬指标只作红线门禁，不进入综合分；基线不通过表示需要阶段4调参，不表示阶段3流程失败。", "",
+        "## 二、评分输入与冻结合同", "", table(["资料ID", "对象", "资格/用途"], [[ref, name, purpose] for ref, name, purpose, _, _ in source_items]), "", table(["资料ID", "路径", "SHA-256"], [[ref, path, hash_value] for ref, _, _, path, hash_value in source_items]), "",
+        "## 三、指标评分详情", "", table(["编号", "指标", "分类", "作用域", "阶段3结果"], metric_overview_rows), "", "指标编号、分类和顺序与阶段2保持一致。", "",
+        "### 3.1 硬指标", "", metric_sections("hard"), "", "> 硬指标只作红线门禁，不进入综合分；基线不通过表示需要阶段4调参。", "",
+        "### 3.2 评分指标", "", metric_sections("score"), "",
+        "### 3.3 审计指标", "", metric_sections("audit"), "",
         "## 四、综合评分组", "",
         table(["评分组", "得分", "档位", "组权重", "有效指标数", "汇总方法"], [[item.get("group"), item.get("score"), item.get("band"), item.get("weight"), item.get("metric_count"), item.get("method", "组内加权后参与综合分")] for item in groups]), "",
-        "## 五、逐项100分评分", "",
-        table(["指标", "作用域", "目标", "基线", "差距", "评价方法/锚点", "评分组", "权重", "得分", "档位", "状态"], [
-            [item.get("name_zh", item.get("metric_id")), item.get("scope"), item.get("target"), item.get("candidate"), item.get("distance"), source(item).get("score_profile"), source(item).get("score_group"), item.get("weight", source(item).get("weight")), item.get("score"), item.get("band"), item.get("status")]
-            for item in scores
-        ]), "",
-        "## 六、低于85分项与差距说明", "", table(["指标", "作用域", "得分", "档位", "目标", "基线", "差距", "主要影响控制簇", "阶段4优先级"], [[item.get("name_zh", item.get("metric_id")), item.get("scope"), item.get("score"), item.get("band"), item.get("target"), item.get("candidate"), item.get("distance"), source(item).get("control_cluster"), source(item).get("priority", "按分数和硬门禁联合排序")] for item in low]), "",
-        "## 七、阻塞、豁免与不可判定项", "", table(["对象", "作用域", "类型", "原因", "批准/恢复状态", "证据"], [[item.get("metric_id"), item.get("scope"), "阻塞", item.get("reason"), item.get("status"), item.get("evidence")] for item in blockers] + [[item.get("metric_id"), item.get("scope"), "豁免", item.get("waiver", {}).get("reason"), item.get("waiver", {}).get("status"), item.get("waiver", {}).get("evidence")] for item in waivers]), "",
-        "## 八、覆盖率与可测性复核", "", table(["检查项", "当前值", "通过标准", "结论"], [
+        "## 五、低于85分项与差距说明", "", table(["指标", "作用域", "得分", "档位", "差距", "主要影响控制簇", "阶段4优先级"], [[item.get("name_zh", item.get("metric_id")), item.get("scope"), item.get("score"), item.get("band"), item.get("distance"), source(item).get("control_cluster"), source(item).get("priority", "按分数和硬门禁联合排序")] for item in low]), "",
+        "## 六、阻塞、豁免与不可判定项", "", table(["对象", "作用域", "类型", "原因", "批准/恢复状态"], review_summary_rows), "", table(["对象", "证据项", "证据"], review_evidence_rows), "",
+        "## 七、覆盖率与可测性复核", "", table(["检查项", "当前值", "通过标准", "结论"], [
             ["必需玩法节点", coverage.get("mechanic_required"), "全部有Owner", "通过" if coverage.get("mechanic_coverage") in {1, 1.0} else "阻塞"],
             ["玩法覆盖率", coverage.get("mechanic_coverage"), "100%", "通过" if coverage.get("mechanic_coverage") in {1, 1.0} else "阻塞"],
             ["必需指标", coverage.get("metric_required"), "全部实例化", "信息"], ["指标可测率", coverage.get("metric_measurability"), "100%", "通过" if coverage.get("metric_measurability") in {1, 1.0} else "阻塞"],
             ["硬指标结果数量", len(hard), len([x for x in contract.get("metrics", []) if x.get("kind") == "hard" and x.get("status") != "不适用"]), "必须一致"],
             ["评分指标结果数量", len(scores), len([x for x in contract.get("metrics", []) if x.get("kind") == "score" and x.get("status") != "不适用"]), "必须一致"],
         ]), "",
-        "## 九、版本、Hash与复算", "", table(["对象", "路径", "SHA-256"], [
-            ["指标合同", source_paths.get("metric_contract"), source_hashes.get("metric_contract", contract_hash)], ["基线测量", source_paths.get("measurements"), source_hashes.get("measurements")],
-            ["阶段3评分", "artifacts/03-scoring/scorecard.json", scorecard_hash], ["生成器", "render_scoring_report.py", "由Skill版本绑定"]
-        ]), "", "```bash", "<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> --output <阶段3-评分报告.md>", "```", "",
-        "## 十、阶段3到阶段4门禁", "", table(["门禁项", "要求", "当前状态/动作"], [
+        "## 八、版本、Hash与复算", "", table(["对象ID", "对象", "SHA-256"], [[ref, name, hash_value] for ref, name, _, _, hash_value in source_items] + [["S05", "生成器", "由Skill版本绑定"]]), "", table(["对象ID", "路径"], [[ref, path] for ref, _, _, path, _ in source_items] + [["S05", "render_scoring_report.py"]]), "", "```bash", "<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> --output <阶段3-评分报告.md>", "```", "",
+        "## 九、阶段3到阶段4门禁", "", table(["门禁项", "要求", "当前状态/动作"], [
             ["固定scorecard", "来自当前合同和基线测量", scorecard.get("status")], ["报告确定性", "与当前JSON重新渲染完全一致", "由validate_stage_transition.py校验"],
             ["评分可判定", "alignment_status不得为无法判定", scorecard.get("alignment_status")], ["阶段4启动", "stage3_gate.json通过且stage4_allowed=true", "未通过前禁止敏感性、CALIBRATION和候选计算"],
         ]), "", "阶段3只冻结评价标准并完成基线验算；不得把候选内部scorecard替代本阶段固定产物。", ""
@@ -105,10 +138,12 @@ def main():
     parser = argparse.ArgumentParser(description="确定性生成阶段3中文评分报告")
     parser.add_argument("--contract", required=True, type=Path)
     parser.add_argument("--scorecard", required=True, type=Path)
+    parser.add_argument("--display-metadata", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
-        contract, scorecard = load(args.contract), load(args.scorecard)
+        contract = apply_metric_display_metadata(load(args.contract), load(args.display_metadata) if args.display_metadata else None)
+        scorecard = load(args.scorecard)
         if contract.get("task_id") != scorecard.get("task_id"):
             raise ValueError("指标合同与评分task_id不一致")
         text = render(contract, scorecard, sha(args.contract), sha(args.scorecard))
