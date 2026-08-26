@@ -1,52 +1,52 @@
-# 项目状态、检查点与恢复规范
+# 项目状态、事务与恢复规范
 
 ## 目录
 
 1. 权威关系
-2. 目录选择与项目身份
+2. 目录与项目身份
 3. 状态包结构
-4. 元数据约定
-5. 初始化
-6. 软检查点
-7. 硬检查点
-8. 两级恢复
-9. 门槛进度
-10. 校验与一致性
-11. 异常保存与回退
-12. 用户状态回执
+4. schema 2 元数据
+5. 讨论项总账
+6. 初始化
+7. 软检查点事务
+8. 硬检查点事务
+9. 恢复、重新打开与迁移
+10. 校验与完成门禁
+11. 用户状态回执
 
 ## 一、权威关系
 
-- 完整现行文件代表当前有效状态。
-- `PROGRESS.md` 是检查点最后提交标记和轻量恢复入口。
-- `ACTIVE.md` 是当前尚未确认讨论的恢复入口。
-- `PROJECT.md` 保存完整正式方案和阶段索引。
-- `DECISIONS.md` 保存正式决定、理由和替代关系。
-- `versions/` 保存不可变快照，只用于审计、比较和回退。
-- 聊天记录、模型记忆和上下文压缩摘要不具有覆盖文件状态的权力。
-- 用户最新明确要求可以提出变更，但必须落档后才能成为新的正式状态。
+- 现行 Markdown 文件保存人类可读的项目状态。
+- `ITEMS.md` 是全部问题、门槛、假设、暂缓项和阻塞项的结构化总账。
+- `.project-state/manifest.json` 保存现行文件哈希、revision、schema 2 历史起始版本、各版本快照 manifest 索引和当前正式快照绑定。
+- `.project-state/journal.json` 保存最后一次已授权事务的完整现行状态和当前版本快照，并在现行文件之前写入。
+- `versions/` 保存硬检查点的不可变完整快照；`audit` 校验 schema 2 基线以来的每个版本，正式规则必须与当前版本快照一致。
+- `PROGRESS.md` 仍最后落盘，但只有 Markdown、manifest、journal 和版本快照同时通过 `audit` 才属于有效提交。
+- 聊天记录、Plan、Goal 和上下文压缩摘要都不能覆盖文件状态。
 
-## 二、目录选择与项目身份
+不要直接编辑现行核心文件。先用 `begin` 或 `reopen` 建立隔离工作区，只编辑命令返回的 `work/`，再由 `commit` 统一校验和提交。
 
-### 目录规则
+## 二、目录与项目身份
 
-1. 用户明确指定状态包目录时使用该绝对路径。
-2. 用户未指定但只有一个明确项目目录时，展示拟使用的绝对路径并在首次写入前确认。
-3. 存在多个候选目录、目标不明确或写入可能影响其他项目时询问。
-4. 不自行改用 Skill 目录、用户主目录、临时目录或其他仓库。
-5. 状态包目录与最终 Skill 创建目录分别确认。
+### 目录选择
 
-### 项目身份
+1. 用户指定状态包目录时使用该绝对路径。
+2. 用户未指定但只有一个明确项目目录时，先展示拟使用的绝对路径并取得确认。
+3. 存在多个候选位置、会影响其他项目或无法判断时询问，不自行猜测。
+4. 状态包目录与目标 Skill 创建目录分别确认。
 
-项目标识使用小写字母、数字和连字符。恢复已有状态包时至少比对：
+### 身份字段
+
+恢复时同时验证：
 
 - `project_id`
 - `project_title`
-- `PROJECT.md` 中的目标摘要
-- 状态包绝对路径
-- 最后已提交检查点
+- `state_id`
+- `state_dir`
+- `PROJECT.md` 的目标摘要
+- 当前检查点和正式版本
 
-身份一致且校验通过时恢复；身份一致但异常时进入恢复事件；身份不一致或无法判断时询问。不得覆盖或删除已有状态包。
+`state_id` 在初始化时生成。`state_dir` 保存已确认的绝对路径；复制到其他目录不会被静默视为同一项目。目录确需移动时，先保存现场，再通过明确迁移操作更新路径和所有哈希。
 
 ## 三、状态包结构
 
@@ -56,6 +56,7 @@
 ├── PROGRESS.md
 ├── ACTIVE.md
 ├── DECISIONS.md
+├── ITEMS.md
 ├── stages/
 ├── versions/
 │   └── v0000/
@@ -63,121 +64,113 @@
 │       ├── PROGRESS.md
 │       ├── ACTIVE.md
 │       ├── DECISIONS.md
-│       └── stages/
-└── recovery/
+│       ├── ITEMS.md
+│       ├── stages/
+│       └── .manifest.json
+├── recovery/
+└── .project-state/
+    ├── manifest.json
+    ├── journal.json
+    ├── finish.json              # 仅最终 finish 通过后存在
+    ├── active-transaction.json
+    ├── state.lock
+    └── transactions/
+        └── TX-0001/
+            ├── before/
+            ├── work/
+            └── transaction.json
 ```
-
-职责：
 
 | 位置 | 职责 |
 |---|---|
-| `PROJECT.md` | 当前正式目标、范围、非目标、顶层流程、术语、评价规则和阶段索引 |
-| `PROGRESS.md` | 当前检查点、版本、软检查点、阶段、门槛、阻塞项、当前问题和下一步 |
-| `ACTIVE.md` | 顶部当前完整快照；底部当前确认点逐轮流水 |
-| `DECISIONS.md` | 决定编号、目的、场景、选项、利弊、选择、理由和替代关系 |
-| `stages/` | 复杂阶段的输入、动作、输出、完成条件、评价、异常和责任边界 |
-| `versions/` | 每个硬检查点的完整不可变快照 |
-| `recovery/` | 异常事件现场，不删除、不覆盖 |
+| `PROJECT.md` | 正式目标、范围、非目标、顶层流程、术语和阶段索引 |
+| `PROGRESS.md` | 当前版本、阶段、状态、计数和唯一下一动作 |
+| `ACTIVE.md` | 当前确认点的完整解释、例子、建议和轮次流水 |
+| `DECISIONS.md` | 已确认决定、理由、替代关系和完整规则 |
+| `ITEMS.md` | 全部讨论项、依赖、状态、责任人和证据索引 |
+| `stages/` | 已确认阶段契约 |
+| `versions/` | 硬检查点完整快照与快照哈希 |
+| `recovery/` | 异常、迁移和恢复现场；不删除、不覆盖 |
+| `.project-state/` | 事务、锁、journal、现行哈希和当前 revision 的最终完成证明；不提交到目标 Skill |
 
-## 四、元数据约定
+## 四、schema 2 元数据
 
-所有核心 Markdown 文件顶部使用简单 YAML frontmatter。字符串使用引号；编号使用固定宽度。
-
-### `PROJECT.md`
+所有核心文件和阶段文件共同保存：
 
 ```yaml
----
-schema_version: "1"
-document_type: "project"
+schema_version: "2"
 project_id: "example-project"
 project_title: "示例项目"
+state_id: "DPS-0123456789ab"
+state_dir: "/absolute/state/path"
 checkpoint: "CP-0000"
 formal_version: "v0000"
----
 ```
 
-### `PROGRESS.md`
+`PROGRESS.md` 另外保存：
 
 ```yaml
----
-schema_version: "1"
-document_type: "progress"
-project_id: "example-project"
-project_title: "示例项目"
-checkpoint: "CP-0000"
-formal_version: "v0000"
 soft_checkpoint: "SC-0000"
 current_level: "project-card"
-current_stage: "stage-1"
+current_stage: "stage-design"
 stage_status: "waiting-confirmation"
+project_status: "active"
 current_question: "Q-0001"
 stage_gates_done: "0"
-stage_gates_total: "1"
+stage_gates_total: "9"
 project_gates_done: "0"
-project_gates_total: "1"
+project_gates_total: "9"
 blocked_count: "0"
----
 ```
 
-### `ACTIVE.md`
+项目状态固定为：`active`、`blocked`、`ready-for-build`、`building`、`awaiting-acceptance`、`completed`。
 
-```yaml
----
-schema_version: "1"
-document_type: "active"
-project_id: "example-project"
-project_title: "示例项目"
-checkpoint: "CP-0000"
-formal_version: "v0000"
-soft_checkpoint: "SC-0000"
-current_level: "project-card"
-current_stage: "stage-1"
-current_question: "Q-0001"
----
+正常前向顺序固定为：`active/blocked → ready-for-build → building → awaiting-acceptance → completed`。进入 `building`、`awaiting-acceptance` 和 `completed` 都必须使用硬事务，且分别只能来自前一个状态；从落地或验收阶段返回设计讨论、以及完成后再次修改，必须使用 `reopen`。
+
+`ACTIVE.md` 另外保存 `explanation_depth: "L1|L2|L3"`。`ITEMS.md`、`ACTIVE.md` 与 `PROGRESS.md` 的软检查点、层级、阶段和当前问题必须一致。`PROGRESS.md` 正文中的“当前确认点、当前阶段、全项目”和 `ACTIVE.md` 正文中的“编号”是固定状态标记，必须与 frontmatter 和总账复算结果一致。
+
+`stage-design` 表示跨目标流程的设计覆盖阶段，初始化的九类门槛全部归入这里；它不代表目标 Skill 的第一业务阶段。用户确认的目标流程阶段才写入 `stages/`，使用各自的 `stage-...` 标识并按需增加对应讨论项和门槛。
+
+完成项目时：
+
+- `project_status` 必须是 `completed`。
+- `current_question` 必须是 `none`。
+- `ITEMS.md` 不得存在活动问题、活动阻塞或未终结的必需项目。
+
+## 五、讨论项总账
+
+`ITEMS.md` 使用固定九列表格：
+
+```markdown
+| ID | 类型 | 必需 | 状态 | 摘要 | 阶段 | 依赖 | 责任人 | 证据或落点 |
+|---|---|---|---|---|---|---|---|---|
+| Q-0001 | question | yes | active | 确认项目目标 | stage-design | - | 用户 | ACTIVE.md |
+| G-01-01 | gate | yes | pending | 项目目标得到确认 | stage-design | Q-0001 | 用户与 AI | 待用户确认 |
 ```
 
-### `DECISIONS.md`
+类型：`question`、`gate`、`assumption`、`deferred`、`blocker`、`fact`、`decision`。
 
-```yaml
----
-schema_version: "1"
-document_type: "decisions"
-project_id: "example-project"
-project_title: "示例项目"
-checkpoint: "CP-0000"
-formal_version: "v0000"
----
-```
+状态：`pending`、`active`、`confirmed`、`completed`、`deferred`、`not-applicable`、`blocked`、`reopened`、`superseded`。
 
-阶段文件使用 `document_type: "stage"`，并增加 `stage_id`。所有参与当前正式状态的文件必须使用相同 `project_id`、`checkpoint` 和 `formal_version`。
+规则：
 
-编号规则：
+- 必须且只能有一个 `active` 问题，并与 `current_question` 一致。
+- 活动问题的阶段必须与 `current_stage` 一致，所有讨论项阶段使用 `stage-...` 标识。
+- 门槛计数从 `gate` 行机械复算，不在 `PROGRESS.md` 手工估算。
+- `blocked_count` 统计所有状态为 `blocked` 的讨论项；存在阻塞项时 `project_status` 必须为 `blocked`。
+- 完成门槛必须有可复核证据，不能写“待补充”。
+- `not-applicable` 和 `superseded` 必须引用 `DECISIONS.md` 中真实存在的决定；用户确认的问题也必须引用对应决定，不能继续指向会被重置的 `ACTIVE.md`。
+- `DECISIONS.md` 中每个 `D-...` 标题都必须在 `ITEMS.md` 有同编号 `type=decision` 条目，反向也必须存在；决定不能只留在正文或只留在总账。
+- 必需门槛只有 `completed`、`not-applicable` 或 `superseded` 才算终结；`confirmed` 只表示规则已确认但门槛尚未完成。
+- `depends_on` 中的所有编号必须存在。
+- 问题进入 `active`，或问题/门槛进入 `confirmed`、`completed`、`not-applicable` 前，其依赖必须已经终结；不能越过未关闭的上层项目。
+- 既有讨论项不得从总账删除；作废内容使用 `superseded` 并保留决定依据。
+- 切换确认点前，把仍有效的假设、暂缓项、阻塞项和后续问题写入总账。
+- `ACTIVE.md` 重置后，任何未确认事项都不能只存在于旧流水或聊天中。
 
-- 硬检查点：`CP-0000`、`CP-0001`……
-- 软检查点：`SC-0000`、`SC-0001`……
-- 正式版本：`v0000`、`v0001`……
-- 决定：`D-001`、`D-002`……
-- 确认点：`Q-0001`、`Q-0002`……
-- 门槛：`G-01-01`、`G-01-02`……
-- 恢复事件：`REC-0001`、`REC-0002`……
+## 六、初始化
 
-固定阶段状态：
-
-| 中文语义 | 元数据值 |
-|---|---|
-| 未开始 | `not-started` |
-| 讨论中 | `discussing` |
-| 等待确认 | `waiting-confirmation` |
-| 已确认 | `confirmed` |
-| 阻塞 | `blocked` |
-| 重新打开 | `reopened` |
-| 已完成 | `completed` |
-
-## 五、初始化
-
-目录获得确认后，可以运行：
-
-先将 `<skill-dir>` 替换为当前 Skill 目录的绝对路径，不依赖调用时的工作目录：
+目录确认后运行：
 
 ```bash
 /Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" init \
@@ -186,198 +179,158 @@ formal_version: "v0000"
   --title "示例项目"
 ```
 
-初始化必须：
+初始化会：
 
-1. 拒绝覆盖已有核心文件。
-2. 创建核心文件、`stages/`、`versions/v0000/` 和 `recovery/`。
-3. 建立 `CP-0000`、`SC-0000`、`v0000` 和首个确认点。
-4. 将初始快照写入 `versions/v0000/`。
-5. 执行结构校验。
+1. 拒绝覆盖非空目录。
+2. 创建 schema 2 核心文件、`ITEMS.md`、版本快照和事务元数据。
+3. 建立 `CP-0000`、`SC-0000`、`v0000`、`Q-0001` 和九类从零设计覆盖门槛；不适用项必须后续用证据关闭。
+4. 写入 journal、manifest 和版本快照清单。
+5. 执行完整 `audit`。
 
-初始化文件只记录已知事实和明确的待确认项，不把 AI 推测写成项目目标。
+## 七、软检查点事务
 
-## 六、软检查点
-
-### 触发条件
-
-本轮新增事实、约束、修正、建议、方案、理由、示例、假设、待确认项、阶段状态、阻塞项或下一步时触发。
-
-### 写入顺序
-
-1. 保持 `checkpoint` 和 `formal_version` 不变。
-2. 递增 `soft_checkpoint`。
-3. 更新 `ACTIVE.md` 顶部完整快照。
-4. 在 `ACTIVE.md` 当前确认点流水中追加轮次记录。
-5. 更新 `PROGRESS.md` 的软检查点、阶段、当前问题、门槛或下一步；`PROGRESS.md` 最后写入。
-6. 运行当前状态结构校验。
-7. 校验通过后再回复用户。
-
-### `ACTIVE.md` 顶部快照内容
-
-- 当前正式版本、硬检查点和软检查点。
-- 当前层级、阶段和唯一确认点。
-- 当前解释深度：L1、L2 或 L3，以及选择该深度的原因。
-- 当前确认点的目的、影响范围和使用场景。
-- 已知事实、用户修正和约束。
-- 候选方案、优缺点、AI 建议和理由。
-- 面向用户的普通语言规则，以及采用后实际先做什么、再做什么、最后得到什么。
-- 与当前项目一致的正常例子；L3 同时保存边界和异常例子。
-- 涉及算法时，保存输入及单位、执行步骤、小数字演算、结果含义、边界、限制，以及放在示例之后的公式。
-- 涉及固定报告、清单或文档模板时，保存逐章展示目的、展示方式、必需字段及顺序、数据来源、空值规则、Markdown实例和一致性检查。
-- 临时假设和替换条件。
-- 本轮确认什么、明确不确认什么，以及用户只需要回答的问题。
-- 确认后的下一步。
-
-流水记录轮次、用户输入摘要、新增或修改内容、AI 方案及本轮状态变化。流水只覆盖当前确认点；确认后将用户确认时看到的完整规则、例子、算法说明和确认边界归档到 `DECISIONS.md`，不得只保留一句结论。
-
-## 七、硬检查点
-
-### 进入条件
-
-用户明确确认当前决定，或直接提供无歧义正式规则。模糊认可、部分接受或附带新条件时继续软检查点，不得自动提交。
-
-### 提交顺序
-
-1. 生成新的决定编号、硬检查点、正式版本和软检查点。
-2. 在 `versions/<new-version>/` 准备完整目标快照，包括核心文件和全部当前阶段文件。
-3. 验证目标快照：
+有新事实、建议、假设、暂缓项、问题、阻塞或解释内容时：
 
 ```bash
-/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" validate \
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" begin \
   --state-dir "/absolute/path" \
-  --snapshot "v0001"
+  --kind soft \
+  --reason "保存本轮讨论"
 ```
 
-4. 更新现行 `DECISIONS.md`。
-5. 更新现行 `PROJECT.md` 和受影响阶段文件。
-6. 将现行 `ACTIVE.md` 初始化为下一个确认点。
-7. 执行结构和语义预提交检查。
-8. 最后更新现行 `PROGRESS.md`，提交新检查点。
-9. 重新验证现行状态：
+命令返回唯一 `work/` 目录。随后：
+
+1. 只修改该工作区内的 `ACTIVE.md`、`ITEMS.md` 和必要的 `PROGRESS.md`。
+2. 不修改现行状态，不修改 `PROJECT.md`、`DECISIONS.md` 或 `stages/`。
+3. 保存当前确认点的完整解释、例子、影响、建议和轮次流水。
+4. 更新总账中新增或变化的讨论项。
+5. 不得把门槛改为 `completed`、`not-applicable` 或 `superseded`，也不得把问题改为 `confirmed`、`completed` 或 `not-applicable`；这些正式终结动作必须进入硬事务。
+6. 运行提交：
+
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" commit \
+  --state-dir "/absolute/path"
+```
+
+`commit` 先校验工作区，再写 journal，随后原子替换目标文件并最后写 `PROGRESS.md` 和 manifest。任一步中断时不得继续讨论，先运行 `resume` 判断现场。
+
+## 八、硬检查点事务
+
+用户明确确认当前规则后运行：
+
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" begin \
+  --state-dir "/absolute/path" \
+  --kind hard \
+  --reason "用户确认 Q-0001"
+```
+
+在返回的工作区内：
+
+1. 把原确认点改为 `confirmed`、`completed`、`not-applicable` 或 `superseded`。
+2. 更新 `DECISIONS.md`、`PROJECT.md` 和受影响阶段文件，并在 `ITEMS.md` 登记同编号决定条目。
+3. 更新门槛证据和计数来源。
+4. 把遗留项写入 `ITEMS.md`。
+5. 除项目最终完成外，准备唯一下一确认点，并在 `ACTIVE.md` 中保存完整说明。
+6. 运行 `commit`。
+
+新决定至少包含“决定、证据、影响”。原确认点为 L2 时，还必须保留“实际过程、正常例子”；为 L3 时继续保留“边界例子、异常例子”。原问题必须引用本次新增决定，不能拿旧决定代替本轮落档。
+
+脚本自动递增 CP、正式版本和软检查点，创建带哈希的目标版本快照，并验证正式规则与快照一致。原问题未关闭、下一问题不唯一、状态跳级、决定解释深度不足、决定引用不存在、门槛计数或正文状态标记不符时拒绝提交。
+
+## 九、恢复、重新打开与迁移
+
+### 每轮恢复门
+
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" resume \
+  --state-dir "/absolute/path"
+```
+
+`resume` 验证结构、正文、总账、现行哈希、journal、正式快照和活动事务，只输出唯一下一动作。
+
+### 异常恢复
+
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" recover \
+  --state-dir "/absolute/path"
+```
+
+恢复前先把现行异常文件保存到新的 `recovery/REC-####/`。journal 候选状态校验通过后才恢复；多余现行文件、损坏的当前快照和未提交的未来快照移动到恢复事件中，不删除，再恢复 journal 保存的现行状态和当前版本快照。旧历史快照损坏时 `audit` 会冻结推进；journal 不保存全部旧版本正文，因此不得伪称已自动修复旧历史。
+
+### journal 修复
+
+如果 journal 缺失、损坏或落后，但 manifest 与现行文件哈希一致、无活动事务、正式规则与当前快照一致，可运行：
+
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" repair \
+  --state-dir "/absolute/path"
+```
+
+`repair` 先把旧 journal 和现行状态保存到新的恢复事件，再由可信 manifest、现行文件和当前快照重建 journal，并执行完整 `audit`。manifest/现行文件不一致、活动事务未收尾或快照损坏时拒绝 repair；journal revision 领先时应使用 `recover`。
+
+### 修改已确认规则
+
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" reopen \
+  --state-dir "/absolute/path" \
+  --reason "用户要求修改 D-001"
+```
+
+`reopen` 创建硬事务。必须把至少一个已终结门槛明确改为 `reopened`，记录被替代决定、影响范围和新的唯一确认点；普通软/硬事务不能重新打开已终结项目，空 `reopen` 也会被拒绝。
+
+### schema 1 迁移
+
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" migrate \
+  --state-dir "/absolute/path"
+```
+
+迁移前完整保存 schema 1 现场；原 `versions/` 条目逐项原样移动到本次恢复事件的 `legacy-versions/`，不修改也不删除，并以迁移产生的新版本作为 schema 2 的 `history_start_version`。无法结构化还原、处于终结状态但缺少依据的门槛改为 `reopened`；原阻塞项恢复为 `project_status=blocked`，不编造证据。
+
+## 十、校验与完成门禁
+
+### `validate`
+
+校验 Markdown 结构、frontmatter、正文栏目、讨论项依赖和门槛计数：
 
 ```bash
 /Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" validate \
   --state-dir "/absolute/path"
 ```
 
-只有 `PROGRESS.md` 标记的检查点属于已提交状态。其他文件编号较新但 `PROGRESS.md` 未提交时，视为部分写入。
+### `audit`
 
-`DECISIONS.md`、正式规则和 `versions/<new-version>/` 必须保留用户确认时看到的解释深度和完整含义，包括适用范围、实际过程、正常/边界/异常例子、影响与代价。涉及算法时还要保留输入、单位、计算顺序、示例数字、结果含义、权重、阈值、公式和异常处理。不得为了缩短快照而压缩成编号加一句摘要。
+在 `validate` 基础上继续校验：
 
-## 八、两级恢复
+- 现行文件与 manifest 哈希一致。
+- journal 与现行 revision 和完整内容一致。
+- 正式规则与当前版本快照一致。
+- 从 `history_start_version` 到当前版本的快照连续、哈希有效且未被事后修改。
+- L2/L3 所需正文栏目存在。
+- 当前问题、讨论项、决定引用、正文状态标记、门槛计数和项目状态一致。
 
-### 轻量恢复门
+### AI 语义检查
 
-每个有效回合读取 `PROGRESS.md` 和 `ACTIVE.md` 顶部，核对：
+机器校验通过后，AI 仍需检查目标偏移、术语冲突、输入输出断裂、循环依赖、评价不可测、异常无负责人、模板字段不一致和最终输出不能证明目标完成。
 
-- 项目标识
-- 硬检查点和正式版本
-- 软检查点
-- 当前层级和阶段
-- 唯一确认点
-- 门槛进度、阻塞项和下一步
+### `finish`
 
-### 完整恢复触发条件
+只有用户最终验收已经通过，并通过硬事务提交 `project_status=completed`、`current_question=none` 后运行：
 
-- 首次打开、跨时段继续或已知发生上下文压缩。
-- 轻量文件不一致或当前问题无法解释。
-- 用户要求修改历史规则。
-- 当前问题依赖项目方案、阶段细则或决定理由。
-- 即将硬提交、阶段切换、全局定稿或 Skill 落地。
+```bash
+/Users/lq/slot_math_env/bin/python "<skill-dir>/scripts/project_state.py" finish \
+  --state-dir "/absolute/path"
+```
 
-完整恢复读取 `PROJECT.md`、完整 `ACTIVE.md`、相关 `DECISIONS.md`、当前和直接依赖阶段文件，必要时读取最近已提交版本。不要加载无关历史。
+`finish` 不替代用户验收，也不自动关闭未决项。脚本只允许 `awaiting-acceptance` 通过用户验收硬事务进入 `completed`；所有必需门槛必须真正完成或有决定依据地排除，且活动问题和阻塞必须为空。通过后写入 `.project-state/finish.json`，绑定当前 `state_id`、revision、版本、检查点、现行文件摘要和正式快照摘要；`resume` 只有在该记录仍与当前状态匹配时才报告“已通过 finish”。
 
-恢复当前确认点时，至少恢复其原有解释深度：原来是 L2，就重新展示背景、过程、正常例子、边界、影响和建议；原来是 L3，就同时恢复正常、边界、异常场景以及算法的可复算例子。不能因为上下文压缩而把完整规则降成几句摘要，也不能根据一句旧摘要重新猜测细节。
+## 十一、用户状态回执
 
-## 九、门槛进度
-
-每个门槛至少记录：
-
-- 稳定唯一编号
-- 所属阶段
-- 完成条件
-- 验收证据
-- 当前状态
-- 关闭依据
-- 责任边界
-- 重开记录
-
-只有具有证据的完成门槛计入完成数。新增范围增加总数；删除或不适用必须有决定记录；重新打开立即移出完成数。进度以“已完成门槛数/已定义总门槛数”表达，不使用主观百分比。
-
-## 十、校验与一致性
-
-### 结构校验
-
-使用 `scripts/project_state.py validate` 检查：
-
-- 核心文件和目录存在。
-- frontmatter 必填字段和编号格式正确。
-- 项目标识、检查点、版本、阶段和确认点一致。
-- 当前版本快照存在并可以解析。
-- 阶段状态、门槛计数和阻塞数合法。
-- 被引用的阶段文件存在。
-
-### 语义检查
-
-AI 检查：
-
-- 目标偏移和范围越界。
-- 术语、状态、对象和单位冲突。
-- 阶段输入输出断裂、职责空白和循环依赖。
-- 决定互相矛盾或隐式替代。
-- 评价指标缺少数据来源或无法验收。
-- 异常缺少负责人、动作或回退点。
-- 最终输出无法证明顶层目标完成。
-- 普通用户无法说明当前要决定什么、采用后会发生什么。
-- 抽象规则缺少项目内例子，或 L3 缺少正常、边界、异常情况。
-- 算法只有公式或最终数字，没有输入、步骤、示例计算、结果含义、边界和限制。
-- 固定输出模板只有章节名，没有逐章展示目的、方式、字段顺序、数据来源、空值规则和Markdown实例；或同类字段的名称、单位、顺序不一致。
-- 恢复后的解释深度低于保存时的深度，或确认内容需要重新猜测。
-
-硬检查点、阶段切换、异常恢复、全局定稿和 Skill 落地前必须同时通过结构与语义检查。
-
-## 十一、异常保存与回退
-
-发现半完成检查点或损坏状态时：
-
-1. 冻结新的讨论和提交。
-2. 创建唯一 `recovery/REC-####/`。
-3. 将每个异常文件分别复制到事件目录，记录来源路径、编号和校验错误；不删除原文件。
-4. 确定最后已提交检查点及其完整版本。
-5. 只有以下条件全部满足时才恢复：
-   - 最后已提交检查点无歧义。
-   - 对应版本完整且通过校验。
-   - 当前异常可证明是部分写入，而非用户有意修改。
-   - 所有异常和未确认内容已经保存。
-   - 不需要猜测用户意图或合并竞争版本。
-6. 恢复后重新执行结构、语义和轻量恢复检查。
-7. 任一条件不满足时停止并询问用户。
-
-不批量删除恢复事件、历史版本或异常文件。
-
-## 十二、用户状态回执
-
-用户可见格式以 `user-interaction-templates.md` 为唯一模板来源，本文件只定义状态数据约束，避免两处模板发生偏差。需要判断说明是否足够易懂，或涉及算法、评分、权重、概率和阈值时，同时按 `human-readable-explanations.md` 检查。
-
-正常状态行必须从 `PROGRESS.md` 读取：
+正常状态行从现行状态读取：
 
 ```text
 状态：<formal_version>｜<checkpoint>｜<soft_checkpoint>｜<current_stage>｜<done>/<total>｜待确认：<current_question>
 ```
 
-总门槛尚未定义时显示“总门槛待定义”，不伪造分母。
-
-事件映射：
-
-- 普通单一确认点：T-02。
-- 多方案比较：T-03。
-- 部分确认或歧义：T-04。
-- 硬检查点完成：T-05。
-- 阶段完成：T-06。
-- 只查询状态：T-07。
-- 完整恢复：T-08。
-- 异常或阻塞：T-09。
-- 请求 Skill 落地授权：T-10。
-- Skill 落地完成：T-11。
-
-输出前必须验证模板中的版本、检查点、阶段、门槛和确认点与现行状态一致。恢复或写入失败时不得使用正常成功模板。
+写入、恢复或 audit 失败时只能使用异常模板。模板编号和事件路由以 `user-interaction-templates.md` 为唯一来源。

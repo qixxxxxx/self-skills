@@ -1,6 +1,6 @@
 interface:
   display_name: "项目流程与 Skill 设计"
-  short_description: "用持久状态、通俗实例和模板契约逐步定稿并落地 Skill"
-  default_prompt: "使用 $design-project-skill 与我逐步讨论项目，用通俗语言和具体例子解释规则、算法与输出模板，持久化记录决定，并在确认后落地为 Skill。"
+  short_description: "用事务状态、讨论总账和用户验收闭环逐步设计并落地 Skill"
+  default_prompt: "使用 $design-project-skill 从模糊需求开始逐步讨论，用事务状态和讨论项总账保存决定，在授权后落地 Skill，并由我最终验收。"
 policy:
   allow_implicit_invocation: false
