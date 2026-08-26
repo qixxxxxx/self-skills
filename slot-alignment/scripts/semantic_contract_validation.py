@@ -11,7 +11,7 @@ from pathlib import Path
 from apply_ordered_distance_policy import validate_policy_source_binding as validate_ordered_distance_policy_binding
 from apply_score_group_weight_policy import validate_policy_source_binding as validate_score_group_weight_policy_binding
 from apply_jackpot_materiality_policy import validate_policy_source_binding as validate_jackpot_materiality_policy_binding
-from catalog_tool import validate_catalogs
+from catalog_tool import CATALOG_DIRECTORY_NAMES, validate_catalogs
 from workspace_paths import task_root
 
 try:
@@ -1108,14 +1108,16 @@ def validate_schema(data, schema_path, label):
 
 
 def indexed_catalogs(skill_root, kind):
-    base = Path(skill_root) / "references" / kind
+    base = Path(skill_root) / "references" / CATALOG_DIRECTORY_NAMES[kind]
     index_path = base / "index.json"
     index = load(index_path)
     catalogs, errors = {}, []
     for entry in index.get("packages", []):
         path = base / entry.get("path", "")
         if not path.is_file():
-            errors.append(f"目录索引引用不存在文件: references/{kind}/{entry.get('path')}")
+            errors.append(
+                f"目录索引引用不存在文件: references/{CATALOG_DIRECTORY_NAMES[kind]}/{entry.get('path')}"
+            )
             continue
         if entry.get("sha256") != sha(path):
             errors.append(f"目录包hash失效: {entry.get('package_id')}")

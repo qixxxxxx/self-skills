@@ -431,17 +431,17 @@ def audit_gate_case(base):
 
 
 def catalog_summary_case(base):
-    for relative in ("references/mechanics", "references/metrics", "assets/schemas", "assets/policies"):
+    for relative in ("references/玩法画像", "references/指标目录", "assets/schemas", "assets/policies"):
         shutil.copytree(SKILL_ROOT / relative, base / relative)
     (base / "scripts").mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "generate_metric_summary.py", base / "scripts/generate_metric_summary.py")
     generator = base / "scripts/generate_metric_summary.py"
-    metrics_index_path = base / "references/metrics/index.json"
-    summary = base / "references/metrics/指标汇总.md"
+    metrics_index_path = base / "references/指标目录/index.json"
+    summary = base / "references/指标目录/指标汇总.md"
 
     def refresh_metric_hash(catalog_path):
         index = json.loads(metrics_index_path.read_text(encoding="utf-8"))
-        relative = catalog_path.relative_to(base / "references/metrics").as_posix()
+        relative = catalog_path.relative_to(base / "references/指标目录").as_posix()
         next(item for item in index["packages"] if item["path"] == relative)["sha256"] = sha(catalog_path)
         dump(metrics_index_path, index)
 
@@ -471,7 +471,7 @@ def catalog_summary_case(base):
     assert "审计/派生目录项数量不属于Primary/Guard正式数值覆盖" in text and "Jackpot命中率、动态奖值" in text
     for responsibility in ("Primary / Guard", "Audit / 派生", "条件命中", "退化 / 不适用", "可测性与100%"):
         assert responsibility in text
-    index_md = (base / "references/metrics/index.md").read_text(encoding="utf-8")
+    index_md = (base / "references/指标目录/index.md").read_text(encoding="utf-8")
     assert "packages[].category" in index_md and "真实玩法语义" in index_md
     assert "目录引用完整不等于某个任务已实际覆盖" in index_md and "只以阶段2任务指标合同为准" in index_md
     for package_row in (
@@ -482,7 +482,7 @@ def catalog_summary_case(base):
     ):
         assert package_row in index_md
     metric_catalogs = [
-        (entry, json.loads((base / "references/metrics" / entry["path"]).read_text(encoding="utf-8")))
+        (entry, json.loads((base / "references/指标目录" / entry["path"]).read_text(encoding="utf-8")))
         for entry in index["packages"]
     ]
     assert all(entry["category"] == catalog["category"] for entry, catalog in metric_catalogs)
@@ -572,7 +572,7 @@ def catalog_summary_case(base):
     regenerated = run_result(ROOT / "catalog_tool.py", "validate", "--skill-root", base)
     assert regenerated.returncode == 0, regenerated.stdout
 
-    first_metric_md = (base / "references/metrics" / index["packages"][0]["path"]).with_name("catalog.md")
+    first_metric_md = (base / "references/指标目录" / index["packages"][0]["path"]).with_name("catalog.md")
     original_metric_md = first_metric_md.read_text(encoding="utf-8")
     first_metric_md.write_text(re.sub(r"^版本：[^\s]+$", "版本：0.0.0", original_metric_md, count=1, flags=re.MULTILINE), encoding="utf-8")
     md_version_failed = run_result(ROOT / "catalog_tool.py", "validate", "--skill-root", base)
@@ -590,7 +590,7 @@ def catalog_summary_case(base):
     run(generator, "--skill-root", base)
 
     index = json.loads(metrics_index_path.read_text(encoding="utf-8"))
-    catalog_path = base / "references/metrics" / index["packages"][0]["path"]
+    catalog_path = base / "references/指标目录" / index["packages"][0]["path"]
     original_catalog_text = catalog_path.read_text(encoding="utf-8")
     malformed = json.loads(original_catalog_text)
     malformed["metrics"][0].pop("name_zh")
@@ -624,7 +624,7 @@ def mainstream_chain_metric_case():
 
     award_metrics = {
         item["metric_id"]: item
-        for item in catalog("references/metrics/atomic/award-draw/catalog.json")["metrics"]
+        for item in catalog("references/指标目录/atomic/award-draw/catalog.json")["metrics"]
     }
     assert "award_draw.outcome_distribution_by_draw_index" not in award_metrics
     award_metric = award_metrics["award_draw.outcome_distribution_given_draw_state"]
@@ -632,7 +632,7 @@ def mainstream_chain_metric_case():
     assert all(value in award_metric["profile_match"]["required_attributes"] for value in (
         "replacement_rule", "draw_dependency_rule", "guarantee_rule", "draw_state_definition"
     ))
-    award_mechanic = catalog("references/mechanics/feature/award-draw/catalog.json")["mechanics"][0]
+    award_mechanic = catalog("references/玩法画像/feature/award-draw/catalog.json")["mechanics"][0]
     assert all(value in award_mechanic["required_attributes"] for value in (
         "stage_graph", "path_signature_definition", "replacement_rule", "draw_dependency_rule",
         "guarantee_rule", "draw_state_definition", "outcome_return_equivalence",
@@ -644,7 +644,7 @@ def mainstream_chain_metric_case():
         "respin.rerolled_position_pattern_given_retained_state_distribution",
         "persistent_state.position_role_share_given_count_transition_distribution",
     }
-    persistent_catalog = catalog("references/metrics/atomic/persistent-state/catalog.json")
+    persistent_catalog = catalog("references/指标目录/atomic/persistent-state/catalog.json")
     persistent_metrics = {item["metric_id"]: item for item in persistent_catalog["metrics"]}
     assert not old_position_ids.intersection(persistent_metrics)
     persistent_position_metric_ids = {
@@ -667,7 +667,7 @@ def mainstream_chain_metric_case():
 
     respin_metrics = {
         item["metric_id"]: item
-        for item in catalog("references/metrics/atomic/respin/catalog.json")["metrics"]
+        for item in catalog("references/指标目录/atomic/respin/catalog.json")["metrics"]
     }
     assert not old_position_ids.intersection(respin_metrics)
     respin_position_ids = {
@@ -688,7 +688,7 @@ def mainstream_chain_metric_case():
     assert respin_metrics["respin.rerolled_position_share_given_counts_distribution"]["score_profile"]["method"] == "grouped_total_variation"
     assert "步骤暴露" in respin_metrics["respin.rerolled_position_share_given_counts_distribution"]["normalization"]
     respin_mechanic = next(
-        item for item in catalog("references/mechanics/feature/respin/catalog.json")["mechanics"]
+        item for item in catalog("references/玩法画像/feature/respin/catalog.json")["mechanics"]
         if item["mechanic_id"] == "feature.respin"
     )
     assert all(value in respin_mechanic["required_attributes"] for value in (
@@ -702,7 +702,7 @@ def mainstream_chain_metric_case():
     assert "position_set" in respin_conditional_packages["atomic.persistent-state"]
 
     hold_spin_mechanic = next(
-        item for item in catalog("references/mechanics/feature/respin/catalog.json")["mechanics"]
+        item for item in catalog("references/玩法画像/feature/respin/catalog.json")["mechanics"]
         if item["mechanic_id"] == "feature.hold-and-spin"
     )
     hold_spin_conditional_packages = {
@@ -715,9 +715,9 @@ def mainstream_chain_metric_case():
 
     settlement_metrics = {
         item["metric_id"]: item
-        for item in catalog("references/metrics/atomic/settlement-diversity/catalog.json")["metrics"]
+        for item in catalog("references/指标目录/atomic/settlement-diversity/catalog.json")["metrics"]
     }
-    settlement_mechanics = catalog("references/mechanics/settlement/standard/catalog.json")["mechanics"]
+    settlement_mechanics = catalog("references/玩法画像/settlement/standard/catalog.json")["mechanics"]
     for mechanic in settlement_mechanics:
         if mechanic["mechanic_id"] == "settlement.effective-ways-capacity":
             continue
@@ -736,12 +736,12 @@ def mainstream_chain_metric_case():
     assert "避免碎块多的盘面被重复加权" in cluster["display"]["usage_scene_zh"]
     assert "settlement.scale_given_symbol_distribution" in cluster["relationships"]["cross_checks_with"]
 
-    multiplier_mechanic = catalog("references/mechanics/modifier/multiplier/catalog.json")["mechanics"][0]
+    multiplier_mechanic = catalog("references/玩法画像/modifier/multiplier/catalog.json")["mechanics"][0]
     assert "value_domain" in multiplier_mechanic["required_attributes"]
     assert "value_domain" not in multiplier_mechanic["optional_attributes"]
     multiplier_metrics = {
         item["metric_id"]: item
-        for item in catalog("references/metrics/atomic/modifier/catalog.json")["metrics"]
+        for item in catalog("references/指标目录/atomic/modifier/catalog.json")["metrics"]
     }
     effective_multiplier = multiplier_metrics["multiplier.effective_value_distribution"]
     assert "value_domain" in effective_multiplier["profile_match"]["required_attributes"]
@@ -749,7 +749,7 @@ def mainstream_chain_metric_case():
 
     cascade_metrics = {
         item["metric_id"]: item
-        for item in catalog("references/metrics/atomic/cascade/catalog.json")["metrics"]
+        for item in catalog("references/指标目录/atomic/cascade/catalog.json")["metrics"]
     }
     capacity = cascade_metrics["cascade.effective_capacity_distribution_by_depth"]
     step_return = cascade_metrics["cascade.step_return_distribution_by_depth"]
@@ -764,7 +764,7 @@ def mainstream_chain_metric_case():
 
     collect_metrics = {
         item["metric_id"]: item
-        for item in catalog("references/metrics/atomic/collect/catalog.json")["metrics"]
+        for item in catalog("references/指标目录/atomic/collect/catalog.json")["metrics"]
     }
     category_output = collect_metrics["collect.output_category_given_input_count_distribution"]
     assert category_output["score_profile"]["method"] == "grouped_total_variation"
@@ -772,7 +772,7 @@ def mainstream_chain_metric_case():
 
     wild_metrics = {
         item["metric_id"]: item
-        for item in catalog("references/metrics/atomic/wild-effect/catalog.json")["metrics"]
+        for item in catalog("references/指标目录/atomic/wild-effect/catalog.json")["metrics"]
     }
     assisting_count = wild_metrics["wild.assisting_cell_count_given_assistance_distribution"]
     assert assisting_count["score_profile"]["method"] == "grouped_wasserstein_1d"
@@ -780,7 +780,7 @@ def mainstream_chain_metric_case():
     assert "盘面Wild总数" in assisting_count["missing_policy"]
 
     all_metrics = {}
-    for path in (SKILL_ROOT / "references/metrics").glob("**/catalog.json"):
+    for path in (SKILL_ROOT / "references/指标目录").glob("**/catalog.json"):
         all_metrics.update({item["metric_id"]: item for item in load_json(path)["metrics"]})
     for metric in all_metrics.values():
         if "deterministically_derived_from_primary" in metric.get("inapplicability_reason_codes", []):
@@ -1571,10 +1571,10 @@ def mode_and_owner_semantic_contract_case():
         data = load_json(SKILL_ROOT / relative)
         return clone(next(item for item in data["metrics"] if item["metric_id"] == metric_id))
 
-    value_source = catalog_metric("references/metrics/atomic/value-symbol/catalog.json", "value_symbol.assignment_value_distribution")
+    value_source = catalog_metric("references/指标目录/atomic/value-symbol/catalog.json", "value_symbol.assignment_value_distribution")
     value_source.update({"source_node_ids": ["value-symbol-main"], "target": {"10x": 0.75, "20x": 0.25}})
     value_source["score_profile"]["bin_positions"] = [10, 20]
-    multiplier_derived = catalog_metric("references/metrics/atomic/modifier/catalog.json", "multiplier.effective_value_distribution")
+    multiplier_derived = catalog_metric("references/指标目录/atomic/modifier/catalog.json", "multiplier.effective_value_distribution")
     multiplier_derived.update({
         "source_node_ids": ["multiplier-value"],
         "status": "不适用",
@@ -1639,21 +1639,21 @@ def mode_and_owner_semantic_contract_case():
     inconsistent_state.update({"multiplier_state_id": "3x", "effective_multiplier": 3})
     assert any("同一实际结算步骤" in error for error in validate_cascade_multiplier_profile_bindings(inconsistent_cascade))
 
-    depth_source = catalog_metric("references/metrics/atomic/cascade/catalog.json", "cascade.depth_distribution")
+    depth_source = catalog_metric("references/指标目录/atomic/cascade/catalog.json", "cascade.depth_distribution")
     depth_source.update({"source_node_ids": ["cascade-main"], "target": {"0次": 0.5, "1次": 0.3, "2次": 0.2}})
     depth_source["score_profile"]["bin_positions"] = [0, 1, 2]
-    occurrence = catalog_metric("references/metrics/atomic/modifier/catalog.json", "multiplier.occurrence_rate")
+    occurrence = catalog_metric("references/指标目录/atomic/modifier/catalog.json", "multiplier.occurrence_rate")
     occurrence.update({"source_node_ids": ["cascade-main", "multiplier-cascade"], "cascade_derivation_binding": clone(cascade_binding), "target": 7 / 17})
-    application = catalog_metric("references/metrics/atomic/modifier/catalog.json", "multiplier.application_rate_given_occurrence")
+    application = catalog_metric("references/指标目录/atomic/modifier/catalog.json", "multiplier.application_rate_given_occurrence")
     application.update({"source_node_ids": ["cascade-main", "multiplier-cascade"], "cascade_derivation_binding": clone(cascade_binding), "target": 1.0})
-    effective = catalog_metric("references/metrics/atomic/modifier/catalog.json", "multiplier.effective_value_distribution")
+    effective = catalog_metric("references/指标目录/atomic/modifier/catalog.json", "multiplier.effective_value_distribution")
     effective.update({
         "source_node_ids": ["cascade-main", "multiplier-cascade"],
         "cascade_derivation_binding": clone(cascade_binding),
         "target": {"2x": 5 / 7, "3x": 2 / 7},
     })
     effective["score_profile"]["bin_positions"] = [2, 3]
-    dependence = catalog_metric("references/metrics/interaction/cascade-multiplier/catalog.json", "cascade_multiplier.dependence_by_depth")
+    dependence = catalog_metric("references/指标目录/interaction/cascade-multiplier/catalog.json", "cascade_multiplier.dependence_by_depth")
     dependence.update({
         "source_node_ids": ["cascade-main", "multiplier-cascade"],
         "cascade_derivation_binding": clone(cascade_binding),
@@ -1676,7 +1676,7 @@ def catalog_semantic_contract_case():
         catalog = json.loads((SKILL_ROOT / relative).read_text(encoding="utf-8"))
         return {item["metric_id"]: item for item in catalog["metrics"]}
 
-    jackpot = metrics("references/metrics/atomic/jackpot/catalog.json")
+    jackpot = metrics("references/指标目录/atomic/jackpot/catalog.json")
     rule_audit = jackpot["jackpot.rule_consistency.audit"]
     rule_profile = rule_audit["audit_profile"]
     assert rule_profile == {
@@ -1724,7 +1724,7 @@ def catalog_semantic_contract_case():
     } <= set(audit_profile_schema["properties"])
     assert len(audit_profile_schema["allOf"]) >= 2
 
-    core = metrics("references/metrics/core/general/catalog.json")
+    core = metrics("references/指标目录/core/general/catalog.json")
     natural = core["core.feature.natural_trigger_rate"]
     assert "count(distinct eligible_paid_entry_id" in natural["measurement"]
     assert "at least one endogenous game-rule entry" in natural["measurement"]
@@ -1752,7 +1752,7 @@ def catalog_semantic_contract_case():
     assert all(text in max_win["missing_policy"] for text in ("无法证明", "不一致", "阻塞FORMAL"))
     assert "复合审计" in max_win["display"]["display_unit"]
 
-    duration = metrics("references/metrics/composite/feature-cycle/catalog.json")["feature_cycle.duration_distribution"]
+    duration = metrics("references/指标目录/composite/feature-cycle/catalog.json")["feature_cycle.duration_distribution"]
     expected_cross_checks = {
         "free_spin.initial_grant_distribution",
         "free_spin.retrigger_grant_distribution",
@@ -1768,11 +1768,11 @@ def catalog_semantic_contract_case():
     assert duration["relationships"]["derived_from"] == []
     assert all(text in duration["relationships"]["overlap_reason_zh"] for text in ("结构化布尔合同", "逐次重触发或延长赠送数量的边际分布不能恢复完整周期总次数", "0.5权重"))
 
-    feature_return = metrics("references/metrics/composite/feature-cycle/catalog.json")["feature_cycle.return_distribution"]
+    feature_return = metrics("references/指标目录/composite/feature-cycle/catalog.json")["feature_cycle.return_distribution"]
     assert feature_return["audit_profile"] == {"method": "deterministic_derivation", "blocking_on_missing": False}
     assert "由上游主指标阻塞FORMAL" in feature_return["missing_policy"] and "不要求独立测量" in feature_return["missing_policy"]
 
-    variable_capacity = metrics("references/metrics/atomic/variable-grid/catalog.json")["variable_grid.capacity_distribution"]
+    variable_capacity = metrics("references/指标目录/atomic/variable-grid/catalog.json")["variable_grid.capacity_distribution"]
     assert variable_capacity["audit_profile"] == {"method": "deterministic_derivation", "blocking_on_missing": False}
     assert "由上游主指标阻塞FORMAL" in variable_capacity["missing_policy"] and "不要求独立测量" in variable_capacity["missing_policy"]
     assert "非确定性续命" in duration["display"]["description_zh"]
@@ -1781,13 +1781,13 @@ def catalog_semantic_contract_case():
     assert "主要动作" in LEGACY_METRIC_DISPLAY_DEFAULTS["feature_cycle.duration_distribution"]["target_meaning_zh"]
     assert "全部合格付费入口" in LEGACY_METRIC_DISPLAY_DEFAULTS["core.long_tail.audit"]["target_meaning_zh"]
 
-    jackpot_text = (SKILL_ROOT / "references/metrics/atomic/jackpot/catalog.md").read_text(encoding="utf-8")
-    prize_text = (SKILL_ROOT / "references/mechanics/award/prize/catalog.md").read_text(encoding="utf-8")
-    core_text = (SKILL_ROOT / "references/metrics/core/general/catalog.md").read_text(encoding="utf-8")
-    duration_text = (SKILL_ROOT / "references/metrics/composite/feature-cycle/catalog.md").read_text(encoding="utf-8")
+    jackpot_text = (SKILL_ROOT / "references/指标目录/atomic/jackpot/catalog.md").read_text(encoding="utf-8")
+    prize_text = (SKILL_ROOT / "references/玩法画像/award/prize/catalog.md").read_text(encoding="utf-8")
+    core_text = (SKILL_ROOT / "references/指标目录/core/general/catalog.md").read_text(encoding="utf-8")
+    duration_text = (SKILL_ROOT / "references/指标目录/composite/feature-cycle/catalog.md").read_text(encoding="utf-8")
     profile_text = (SKILL_ROOT / "references/01-资料确认与玩法画像.md").read_text(encoding="utf-8")
     matching_text = (SKILL_ROOT / "references/02-指标匹配.md").read_text(encoding="utf-8")
-    index_text = (SKILL_ROOT / "references/metrics/index.md").read_text(encoding="utf-8")
+    index_text = (SKILL_ROOT / "references/指标目录/index.md").read_text(encoding="utf-8")
     assert all(text in jackpot_text for text in ("规则一致性门禁", "资料缺失", "置信不足", "正式数值覆盖"))
     assert all(text in prize_text for text in ("机会定义与分母", "奖值来源或固定值", "重置规则", "置信不足", "正式数值覆盖"))
     assert "core.multiplier_distribution.lt200" not in core_text
@@ -3767,7 +3767,7 @@ def main():
         "game_profile": semantic_sha(artifacts / "01-input-profile/game_profile.json"),
         "parameter_authority": semantic_sha(artifacts / "01-input-profile/parameter_authority.json"),
     }
-    contract["package_matches"] = [{"mechanic_id": "feature.free-spin", "scope": "base", "package_id": "atomic.free-spin", "owner": "feature", "metric_ids": ["demo.a", "demo.b"], "evidence": {"method": "mechanic_id精确匹配", "catalog": "metrics/index.json"}, "status": "已匹配"}]
+    contract["package_matches"] = [{"mechanic_id": "feature.free-spin", "scope": "base", "package_id": "atomic.free-spin", "owner": "feature", "metric_ids": ["demo.a", "demo.b"], "evidence": {"method": "mechanic_id精确匹配", "catalog": "references/指标目录/index.json"}, "status": "已匹配"}]
     contract["coupling_clusters"] = [{"cluster_id": "demo", "parameters": ["demo.weight"], "metrics": ["demo.a", "demo.b"], "direction_evidence": {"demo.a": "正向", "demo.b": "负向"}, "sensitivity_evidence": ["sensitivity.json"], "control_type": "耦合", "attainability_status": "可达", "budget_expansion_allowed": True}]
     max_win_target = {"observed_max": 1100, "theoretical_max": 5000, "cap": 5000, "cap_hit_count": 0, "overflow_event_count": 0, "overflow_rule_status": "符合"}
     contract["metrics"].append({

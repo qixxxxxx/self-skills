@@ -32,6 +32,10 @@ ORDERED_METHODS = {"wasserstein_1d", "grouped_wasserstein_1d"}
 GROUPED_DISTRIBUTION_METHODS = {"grouped_total_variation", "grouped_wasserstein_1d"}
 MECHANIC_CATEGORIES = {"settlement", "board", "evolution", "feature", "trigger", "modifier", "award", "state"}
 METRIC_CATEGORIES = MECHANIC_CATEGORIES | {"core", "interaction"}
+CATALOG_DIRECTORY_NAMES = {
+    "mechanics": "玩法画像",
+    "metrics": "指标目录",
+}
 SEMANTIC_ROLES = {"primary", "guard_cross_check", "derived_diagnostic", "audit"}
 SCOPE_AGGREGATIONS = {"weighted_mean", "minimum"}
 CONDITION_KEYS = {"always", "mechanic_id", "mechanic_id_any", "mechanic_id_all", "required_attributes", "attribute_conditions"}
@@ -160,7 +164,8 @@ def validate_with_schema(data, schema, label, errors):
 
 
 def indexed_records(root, kind, errors):
-    base = root / "references" / kind
+    directory_name = CATALOG_DIRECTORY_NAMES[kind]
+    base = root / "references" / directory_name
     index_path, index_md = base / "index.json", base / "index.md"
     files = [index_path, index_md]
     if not index_path.is_file():
@@ -203,9 +208,9 @@ def indexed_records(root, kind, errors):
             continue
         records.append({"entry": entry, "path": path, "md": md, "data": data})
     for relative in sorted(actual_paths - indexed_paths):
-        errors.append(f"存在未写入索引的目录包: references/{kind}/{relative}")
+        errors.append(f"存在未写入索引的目录包: references/{directory_name}/{relative}")
     for relative in sorted(indexed_paths - actual_paths):
-        errors.append(f"索引引用了不存在的目录包: references/{kind}/{relative}")
+        errors.append(f"索引引用了不存在的目录包: references/{directory_name}/{relative}")
     return index, records, files
 
 

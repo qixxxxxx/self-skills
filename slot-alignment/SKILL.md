@@ -33,7 +33,7 @@ description: 根据 Slot 游戏原版采集协议、规则、规格、Runtime、
 - 阶段1至5中文报告必须使用`assets/templates/artifacts/`对应模板的完整章节顺序和展示契约。每章模板必须明确展示方式、必需字段及顺序、空值规则和Markdown实例；无数据时写“无/不适用”及原因，不得删节。报告必须由确定性生成器生成，并与当前机器JSON确定性等价；百分比等阅读转换必须能无损映射回机器值。手工改写、缺章节、章节错序、字段缺失、表头改名或调序、上游hash变化均阻塞下一阶段或交付。
 - 中文报告的主表只展示标量摘要和结论；目标、数组、对象、评价参数、指标列表、审批详情及错误详情必须拆成明细表，禁止直接展示JSON。长路径必须使用稳定ID在摘要表中引用，并在同章路径表中单独展示。
 - 阶段2、3、4的指标展示必须使用同一合同清单、分类、编号、顺序和标题；固定分为硬指标、评分指标、审计指标，每项指标使用独立小章节，并按标量、区间、分布或复合对象选择一张主详情表。阶段2展示目标合同，阶段3增加基线与评分，阶段4增加FORMAL与最终对齐结果。
-- `references/metrics/指标汇总.md`是全部已登记指标的中文阅读入口，必须从玩法和指标JSON目录确定性生成，禁止手工维护。任何玩法画像、指标、关系、单位或评分方法变更后都必须重新生成；缺项、重复、过期或包含机器绝对路径时，目录校验必须失败。
+- `references/指标目录/指标汇总.md`是全部已登记指标的中文阅读入口，必须从玩法和指标JSON目录确定性生成，禁止手工维护。任何玩法画像、指标、关系、单位或评分方法变更后都必须重新生成；缺项、重复、过期或包含机器绝对路径时，目录校验必须失败。
 - 指标按“通用结果与风险、盘面生成与符号结构、中奖结算与构成、玩法触发与入口、盘面演化与连续过程、特色玩法/奖励/状态、修饰器与跨玩法联合”七类阅读；指标自身`category`必须与承接的玩法画像语义一致，不能为了报告方便改放到其他类别。
 - 每个语义变量只能有一个主Owner。可由主指标确定性推出的阅读摘要必须标记为`derived_diagnostic`且不计分；交叉门禁和审计项必须说明重叠理由。多个作用域实例先按同一`score_budget_key`聚合，再进入评分组，禁止靠拆作用域或同义指标增加评分权重。
 - 新任务必须使用`game_profile.schema_version=1.2`、`metric_contract.schema_version=1.3`与`report_contract_version=slot-alignment.reports.v3.2`，并在阶段转换和交付校验中运行画像到合同的动态语义门禁：重算标准属性、目录命中、必需指标、包映射、覆盖率和Owner互斥，不接受合同自报。完成态玩法节点不得使用`可选`隐藏玩法；Core及全部画像命中指标即使退化或不适用也必须保留合同项，不适用必须绑定受控原因码和可核验证据。v2.5～v2.9已密封任务只允许显式`--historical-replay`复算，并校验原版本、四份任务身份、作用域、非空玩法/指标、目录绑定和覆盖率，不得用于新任务或重新进入阶段2。
@@ -78,8 +78,8 @@ target_rtp
 
 ## 五阶段工作流
 
-1. **资料确认与玩法画像**：先读取[92-命名与状态规范.md](references/92-命名与状态规范.md)创建任务工作区，再读取[01-资料确认与玩法画像.md](references/01-资料确认与玩法画像.md)，检查证据、脚本资格、Runtime、作用域和参数权限，执行唯一一次覆盖关键状态链的 server flow 一致性认证批次，生成阶段1三份机器JSON，并运行`render_input_profile_report.py`把完整中文报告写入当前`report_dir`。建立画像前读取`references/mechanics/index.json`及命中的中文目录说明。
-2. **指标匹配**：读取[02-指标匹配.md](references/02-指标匹配.md)、`references/metrics/index.json`和[指标汇总.md](references/metrics/指标汇总.md)，先运行目录校验，再按`mechanic_id + 标准属性`加载 Core、盘面多样性、中奖结构及其他 Atomic、Composite、Interaction；使用原版组件贡献占比生成组件 RTP 目标；完成适用、退化和已批准豁免判定后，严格按“硬指标容差 → Jackpot物质性 → 有序距离 → 评分组权重 → 样本能力”顺序应用五份默认政策并密封来源hash；密封状态拆分、步骤回报Owner完整分区、符号顺序、数量/堆叠/中奖规模分桶，执行结构可达性预检后运行`render_metric_matching_report.py`生成完整中文报告。出现缺口或不可达时读取[02A-可达性与豁免.md](references/02A-可达性与豁免.md)。
+1. **资料确认与玩法画像**：先读取[92-命名与状态规范.md](references/92-命名与状态规范.md)创建任务工作区，再读取[01-资料确认与玩法画像.md](references/01-资料确认与玩法画像.md)，检查证据、脚本资格、Runtime、作用域和参数权限，执行唯一一次覆盖关键状态链的 server flow 一致性认证批次，生成阶段1三份机器JSON，并运行`render_input_profile_report.py`把完整中文报告写入当前`report_dir`。建立画像前读取`references/玩法画像/index.json`及命中的中文目录说明。
+2. **指标匹配**：读取[02-指标匹配.md](references/02-指标匹配.md)、`references/指标目录/index.json`和[指标汇总.md](references/指标目录/指标汇总.md)，先运行目录校验，再按`mechanic_id + 标准属性`加载 Core、盘面多样性、中奖结构及其他 Atomic、Composite、Interaction；使用原版组件贡献占比生成组件 RTP 目标；完成适用、退化和已批准豁免判定后，严格按“硬指标容差 → Jackpot物质性 → 有序距离 → 评分组权重 → 样本能力”顺序应用五份默认政策并密封来源hash；密封状态拆分、步骤回报Owner完整分区、符号顺序、数量/堆叠/中奖规模分桶，执行结构可达性预检后运行`render_metric_matching_report.py`生成完整中文报告。出现缺口或不可达时读取[02A-可达性与豁免.md](references/02A-可达性与豁免.md)。
 3. **评分**：读取[03-评分系统.md](references/03-评分系统.md)、[03A-指标评价合同.md](references/03A-指标评价合同.md)和[03B-硬指标容差系数.md](references/03B-硬指标容差系数.md)，新任务先应用默认容差系数政策，再使用当前基线判全部未豁免硬指标并计算非硬指标 0～100 分和综合分；生成阶段3机器评分、中文报告和`stage3_gate.json`。
 4. **自动对齐与 FORMAL**：只有`stage3_gate.json`为`通过`且`stage4_allowed=true`时，才读取[04-自动对齐与正式验收.md](references/04-自动对齐与正式验收.md)和[04A-搜索效率与预算.md](references/04A-搜索效率与预算.md)，只用`python_bin`执行阶段1已认证的Python模拟脚本，依次完成敏感性、CALIBRATION、候选冻结和独立FORMAL；本阶段server flow调用数必须为0，机器结果写入`artifacts/04-alignment/`，中文报告写入当前`report_dir`。
 5. **交付与交付后审计**：读取[05-交付.md](references/05-交付.md)，验证完整机器产物和中文报告，把FORMAL Runtime四件套复制到`交付物/runtime/`，生成不可变`dv####`机器清单和当前`report_dir/阶段5-交付清单.md`。封存成功后读取[05A-交付后ServerFlow审计.md](references/05A-交付后ServerFlow审计.md)，只执行一次server flow；审计JSON写入`post-delivery-server-flow/dv####/`，中文警告报告写入当前`report_dir`。
@@ -141,7 +141,7 @@ target_rtp
 ## 完成条件
 
 - 阶段 1～5 固定产物齐全，Schema、引用、版本、hash 和作用域一致。
-- 玩法与指标目录通过严格校验；`references/metrics/指标汇总.md`与当前目录及生成器确定性一致，全部指标恰好出现一次，七类目录清楚且不存在重复主Owner或重复评分预算。
+- 玩法与指标目录通过严格校验；`references/指标目录/指标汇总.md`与当前目录及生成器确定性一致，全部指标恰好出现一次，七类目录清楚且不存在重复主Owner或重复评分预算。
 - 任务路径符合`<game_code>/alignments/<mode>/<task_id>/`；不存在Runtime版本和RTP Group目录层级，作用域及Runtime只保留RTP Group 1。
 - `artifacts/`只包含机器JSON；五阶段及交付后中文报告位于同一`交付物/报告文档/rv####/`；FORMAL Runtime四件套位于`交付物/runtime/`且`meta.version=task_id`。
 - 五份中文报告均通过模板章节顺序、章节非空、展示实例完整、必需字段存在、表头名称与顺序、无占位符、确定性重渲染一致性校验；阶段2、3、4每项指标均有三类通俗说明、业务单位和真实分布标签。

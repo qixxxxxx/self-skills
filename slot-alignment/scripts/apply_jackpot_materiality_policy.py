@@ -38,7 +38,7 @@ def score_anchor_threshold(contract, policy, skill_root=None):
             if isinstance(anchor, list) and len(anchor) == 2 and anchor[1] == anchor_score:
                 values.append(positive(anchor[0], f"{metric_id}的{anchor_score}分距离锚点"))
     if not values and skill_root is not None:
-        for path in sorted(Path(skill_root).glob("references/metrics/**/catalog.json")):
+        for path in sorted(Path(skill_root).glob("references/指标目录/**/catalog.json")):
             for metric in load(path).get("metrics", []):
                 if metric.get("metric_id") != metric_id:
                     continue

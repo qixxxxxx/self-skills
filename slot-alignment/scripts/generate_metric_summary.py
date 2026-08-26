@@ -6,8 +6,12 @@ import re
 from pathlib import Path
 
 
-SUMMARY_RELATIVE_PATH = Path("references/metrics/指标汇总.md")
+SUMMARY_RELATIVE_PATH = Path("references/指标目录/指标汇总.md")
 SUMMARY_CONTRACT_VERSION = "slot-alignment.metric-summary.v8"
+CATALOG_DIRECTORY_NAMES = {
+    "mechanics": "玩法画像",
+    "metrics": "指标目录",
+}
 
 KIND_NAMES = {"hard": "硬指标", "score": "评分指标", "audit": "审计指标"}
 ROLE_NAMES = {
@@ -239,7 +243,7 @@ def sha256(path):
 
 
 def indexed_catalogs(skill_root, kind):
-    base = skill_root / "references" / kind
+    base = skill_root / "references" / CATALOG_DIRECTORY_NAMES[kind]
     index_path = base / "index.json"
     index = load(index_path)
     catalogs = []
@@ -708,13 +712,13 @@ def generate_summary(skill_root):
     sample_capability_policy = load(sample_capability_policy_path)
     mechanic_fingerprint, _ = source_fingerprint(
         skill_root,
-        skill_root / "references/mechanics/index.json",
+        skill_root / "references/玩法画像/index.json",
         mechanic_catalogs,
         (mechanic_schema,),
     )
     metric_fingerprint, _ = source_fingerprint(
         skill_root,
-        skill_root / "references/metrics/index.json",
+        skill_root / "references/指标目录/index.json",
         metric_catalogs,
         (
             metric_schema,
