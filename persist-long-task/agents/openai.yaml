@@ -1,0 +1,4 @@
+interface:
+  display_name: "长任务持久化"
+  short_description: "通过状态文件与检查点让长任务在上下文压缩后可靠续跑"
+  default_prompt: "使用 $persist-long-task 为这个长任务建立可恢复状态、检查点并持续执行。"
