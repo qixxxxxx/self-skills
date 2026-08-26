@@ -3,6 +3,1135 @@
   "title": "Game Profile",
   "type": "object",
   "required": ["schema_version", "task_id", "status", "scope", "mechanics", "required_node_count", "semantic_gap_count"],
-  "properties": {"mechanics": {"type": "array"}, "required_node_count": {"type": "integer", "minimum": 0}, "semantic_gap_count": {"type": "integer", "minimum": 0}}
+  "properties": {
+    "schema_version": {"enum": ["1.0", "1.1", "1.2"]},
+    "report_contract_version": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["未开始", "进行中", "已完成", "阻塞"]},
+    "scope": {"type": "object"},
+    "mechanics_catalog": {
+      "type": "object",
+      "required": ["version", "sha256"],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "scope_instances": {"type": "array"},
+    "step_return_partitions": {"type": "array"},
+    "mechanics": {"type": "array"},
+    "mechanic_tree": {"type": "string"},
+    "gaps": {"type": "array"},
+    "required_node_count": {"type": "integer", "minimum": 0},
+    "semantic_gap_count": {"type": "integer", "minimum": 0}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"enum": ["1.1", "1.2"]}}, "required": ["schema_version"]},
+      "then": {
+        "required": ["report_contract_version", "mechanics_catalog", "scope_instances", "mechanic_tree", "gaps"],
+        "properties": {
+          "scope": {
+            "type": "object",
+            "required": ["game_code", "mode", "rtp_group", "mode_contract"],
+            "properties": {
+              "game_code": {"$ref": "#/$defs/nonEmptyString"},
+              "mode": {"$ref": "#/$defs/nonEmptyString"},
+              "rtp_group": {"const": 1},
+              "mode_contract": {"$ref": "#/$defs/modeContract"}
+            }
+          },
+          "scope_instances": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/scopeInstance"}
+          },
+          "mechanics": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/mechanicNode"}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": "1.2"}}, "required": ["schema_version"]},
+      "then": {
+        "required": ["step_return_partitions"],
+        "properties": {
+          "step_return_partitions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/stepReturnPartition"}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mechanics": {
+            "contains": {
+              "type": "object",
+              "properties": {
+                "mechanic_id": {"const": "feature.bonus-sequence"},
+                "status": {"enum": ["必需", "适用"]}
+              },
+              "required": ["mechanic_id", "status"]
+            }
+          }
+        },
+        "required": ["mechanics"]
+      },
+      "then": {"properties": {"schema_version": {"const": "1.2"}}}
+    }
+  ],
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "featureModeSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feature_node_id", "mode_domain", "selected_mode_id", "selection_rule", "player_input_role", "fixed_for_task", "evidence_sha256"],
+      "properties": {
+        "feature_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "mode_domain": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "selected_mode_id": {"$ref": "#/$defs/nonEmptyString"},
+        "selection_rule": {"$ref": "#/$defs/nonEmptyString"},
+        "player_input_role": {"const": "selects_feature_mode"},
+        "fixed_for_task": {"const": true},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "paidConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configuration_id", "configuration_type", "actual_economic_bet_field", "actual_economic_bet_definition", "sample_partition_field", "sample_partition_value", "fixed_for_task", "evidence_sha256"],
+      "properties": {
+        "configuration_id": {"$ref": "#/$defs/nonEmptyString"},
+        "configuration_type": {"enum": ["normal", "ante", "bonus_bet", "enhanced_bet", "other_paid_configuration"]},
+        "actual_economic_bet_field": {"$ref": "#/$defs/nonEmptyString"},
+        "actual_economic_bet_definition": {"$ref": "#/$defs/nonEmptyString"},
+        "sample_partition_field": {"$ref": "#/$defs/nonEmptyString"},
+        "sample_partition_value": {"type": ["string", "number", "boolean"]},
+        "fixed_for_task": {"const": true},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "modeContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode_id", "feature_mode_selections", "paid_configuration", "mixed_sample_forbidden"],
+      "properties": {
+        "mode_id": {"$ref": "#/$defs/nonEmptyString"},
+        "feature_mode_selections": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/featureModeSelection"}
+        },
+        "paid_configuration": {"$ref": "#/$defs/paidConfiguration"},
+        "mixed_sample_forbidden": {"const": true}
+      }
+    },
+    "freeSpinModeSelectionRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection_type", "selection_timing", "fixed_for_task", "evidence_sha256"],
+      "properties": {
+        "selection_type": {"enum": ["single_fixed_mode", "player_choice_before_feature", "reveal_only"]},
+        "selection_timing": {"$ref": "#/$defs/nonEmptyString"},
+        "fixed_for_task": {"const": true},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "valueSymbolEffectiveMultiplierBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value_symbol_node_id", "multiplier_node_id", "shared_semantic_event_set_id", "value_symbol_instance_id_field", "multiplier_application_event_id_field", "event_pairing_bijective", "all_assignments_realized_exactly_once", "same_event_universe", "no_additional_multiplier_source", "value_to_effective_multiplier_mapping", "mapping_total_and_bijective", "primary_owner_metric_id", "rule_evidence_sha256"],
+      "properties": {
+        "value_symbol_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "value_symbol_instance_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_application_event_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "event_pairing_bijective": {"const": true},
+        "all_assignments_realized_exactly_once": {"const": true},
+        "same_event_universe": {"const": true},
+        "no_additional_multiplier_source": {"const": true},
+        "value_to_effective_multiplier_mapping": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": ["string", "number"]}
+        },
+        "mapping_total_and_bijective": {"const": true},
+        "primary_owner_metric_id": {"enum": ["value_symbol.assignment_value_distribution", "multiplier.effective_value_distribution"]},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "valueUpgradeStateBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["persistent_state_id", "initial_assignment_semantic_event_set_id", "shared_semantic_event_set_id", "value_symbol_instance_id_field", "persistent_state_instance_id_field", "upgrade_check_event_id_field", "state_observation_point", "state_transition_event", "same_instance_bijective", "initial_assignment_maps_to_state_initial_value", "each_eligible_upgrade_check_maps_to_one_transition_opportunity", "no_upgrade_outcome_maps_to_self_transition", "initial_assignment_excluded_from_upgrade_observation", "value_domain_equal", "rule_evidence_sha256"],
+      "properties": {
+        "persistent_state_id": {"$ref": "#/$defs/nonEmptyString"},
+        "initial_assignment_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "value_symbol_instance_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "persistent_state_instance_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "upgrade_check_event_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "state_observation_point": {"const": "before_each_eligible_upgrade_check"},
+        "state_transition_event": {"$ref": "#/$defs/nonEmptyString"},
+        "same_instance_bijective": {"const": true},
+        "initial_assignment_maps_to_state_initial_value": {"const": true},
+        "each_eligible_upgrade_check_maps_to_one_transition_opportunity": {"const": true},
+        "no_upgrade_outcome_maps_to_self_transition": {"const": true},
+        "initial_assignment_excluded_from_upgrade_observation": {"const": true},
+        "value_domain_equal": {"const": true},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "layoutCapacityProjectionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_metric_id", "source_layout_to_capacity", "mapping_total_and_deterministic", "rule_evidence_sha256"],
+      "properties": {
+        "source_metric_id": {"enum": ["variable_grid.reel_height_layout_distribution", "variable_grid.valid_cell_layout_distribution"]},
+        "source_layout_to_capacity": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+        },
+        "mapping_total_and_deterministic": {"const": true},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "metricInstanceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_id", "source_node_ids", "instance_dimensions"],
+      "properties": {
+        "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "source_node_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "instance_dimensions": {
+          "type": "object",
+          "additionalProperties": {"type": ["string", "number", "boolean"]}
+        }
+      }
+    },
+    "stepReturnPartition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["partition_id", "universe_scope_instance_id", "step_identity_field", "partition_rule_id"],
+      "properties": {
+        "partition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "universe_scope_instance_id": {"$ref": "#/$defs/nonEmptyString"},
+        "step_identity_field": {"const": "settlement_step_id"},
+        "partition_rule_id": {"const": "complete-step-return-owner-v1"}
+      }
+    },
+    "jackpotTierExposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier_id", "opportunity_set_id", "original_opportunity_count", "original_hit_count", "original_rtp_contribution", "evidence_path", "evidence_sha256", "json_pointer"],
+      "properties": {
+        "tier_id": {"$ref": "#/$defs/nonEmptyString"},
+        "opportunity_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "original_opportunity_count": {"type": "integer", "minimum": 1},
+        "original_hit_count": {"type": "integer", "minimum": 0},
+        "original_rtp_contribution": {"type": "number", "minimum": 0},
+        "evidence_path": {"$ref": "#/$defs/nonEmptyString"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "json_pointer": {"type": "string", "pattern": "^/"}
+      }
+    },
+    "jackpotMaterialOwnerBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opportunity_set_id", "covered_tier_ids", "primary_owner_metric_instance", "projection_validator_id", "shared_semantic_event_set_id", "source_outcome_to_jackpot_tier", "source_support_fully_covered", "mapping_total_and_deterministic", "no_additional_jackpot_source", "rule_evidence_sha256"],
+      "properties": {
+        "opportunity_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "covered_tier_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "primary_owner_metric_instance": {"$ref": "#/$defs/metricInstanceReference"},
+        "projection_validator_id": {"const": "jackpot_material_outcome_projection_v1"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "source_outcome_to_jackpot_tier": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": ["string", "null"]}
+        },
+        "source_support_fully_covered": {"const": true},
+        "mapping_total_and_deterministic": {"const": true},
+        "no_additional_jackpot_source": {"const": true},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "holdSpinCapacityTransitionContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_observation_point", "next_observation_point", "group_separator", "current_capacity_occupancy_to_next_capacity_domain", "all_reachable_groups_covered", "rule_evidence_sha256"],
+      "properties": {
+        "current_observation_point": {"const": "step_start_before_generation"},
+        "next_observation_point": {"const": "after_resolution_as_next_step_start_or_terminal"},
+        "group_separator": {"const": "|"},
+        "current_capacity_occupancy_to_next_capacity_domain": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^(0|[1-9][0-9]*)\\|(0|[1-9][0-9]*)$"},
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "integer", "minimum": 1}
+          }
+        },
+        "all_reachable_groups_covered": {"const": true},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "cascadeStepMultiplierState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["settlement_step_index", "multiplier_state_id", "multiplier_occurred", "multiplier_applied", "effective_multiplier"],
+      "properties": {
+        "settlement_step_index": {"type": "integer", "minimum": 0},
+        "multiplier_state_id": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_occurred": {"type": "boolean"},
+        "multiplier_applied": {"type": "boolean"},
+        "effective_multiplier": {"type": ["number", "null"], "minimum": 0}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"multiplier_applied": {"const": true}}, "required": ["multiplier_applied"]},
+          "then": {
+            "required": ["multiplier_occurred", "effective_multiplier"],
+            "properties": {"multiplier_occurred": {"const": true}, "effective_multiplier": {"type": "number", "minimum": 0}}
+          },
+          "else": {"properties": {"effective_multiplier": {"type": "null"}}}
+        }
+      ]
+    },
+    "cascadeDepthMultiplierBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cascade_node_id", "multiplier_node_id", "shared_semantic_event_set_id", "terminal_depth_semantics", "settlement_step_index_semantics", "terminal_depth_to_step_states", "all_reachable_depths_covered", "mapping_total_and_deterministic", "extra_random_or_state_dependency", "rule_evidence_sha256"],
+      "properties": {
+        "cascade_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "terminal_depth_semantics": {"const": "completed_cascade_settlement_count_0_based"},
+        "settlement_step_index_semantics": {"const": "initial_settlement_0_then_cascade_step_1_based"},
+        "terminal_depth_to_step_states": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^(0|[1-9][0-9]*)$"},
+          "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/cascadeStepMultiplierState"}}
+        },
+        "all_reachable_depths_covered": {"const": true},
+        "mapping_total_and_deterministic": {"const": true},
+        "extra_random_or_state_dependency": {"const": false},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "featureEntrySourceId": {
+      "anyOf": [
+        {"enum": ["natural", "feature_buy", "feature_award", "state_threshold", "direct_award", "forced_test", "test_injection", "operator_override"]},
+        {"type": "string", "pattern": "^other:\\S+$"}
+      ]
+    },
+    "featureEntrySourceSemantic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "source_kind"],
+      "properties": {
+        "origin": {"enum": ["endogenous", "exogenous"]},
+        "source_kind": {
+          "enum": [
+            "symbol_rule",
+            "random_event",
+            "state_threshold",
+            "feature_award",
+            "direct_game_award",
+            "other_game_rule",
+            "feature_buy",
+            "forced_test",
+            "test_injection",
+            "operator_override",
+            "other_external"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"origin": {"const": "endogenous"}}, "required": ["origin"]},
+          "then": {
+            "properties": {
+              "source_kind": {
+                "enum": ["symbol_rule", "random_event", "state_threshold", "feature_award", "direct_game_award", "other_game_rule"]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "source_kind": {"enum": ["feature_buy", "forced_test", "test_injection", "operator_override", "other_external"]}
+            }
+          }
+        }
+      ]
+    },
+    "bonusSequenceBoundaryRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cycle_id_field", "start_event_id", "terminal_event_id", "complete_cycle_semantic_event_set_id", "start_event_occurs_once", "terminal_event_occurs_once", "no_additional_wager_inside_cycle"],
+      "properties": {
+        "cycle_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "start_event_id": {"$ref": "#/$defs/nonEmptyString"},
+        "terminal_event_id": {"$ref": "#/$defs/nonEmptyString"},
+        "complete_cycle_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "start_event_occurs_once": {"const": true},
+        "terminal_event_occurs_once": {"const": true},
+        "no_additional_wager_inside_cycle": {"const": true}
+      }
+    },
+    "bonusSequenceTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_stage", "branch_id", "to_stage"],
+      "properties": {
+        "from_stage": {"$ref": "#/$defs/nonEmptyString"},
+        "branch_id": {"$ref": "#/$defs/nonEmptyString"},
+        "to_stage": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "bonusSequenceStageGraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_stage", "stages", "transitions", "terminal_stages"],
+      "properties": {
+        "entry_stage": {"$ref": "#/$defs/nonEmptyString"},
+        "stages": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "transitions": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/bonusSequenceTransition"}
+        },
+        "terminal_stages": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      }
+    },
+    "nullableNonEmptyString": {
+      "anyOf": [
+        {"$ref": "#/$defs/nonEmptyString"},
+        {"type": "null"}
+      ]
+    },
+    "bonusSequenceStageActionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_id", "stage_role", "action_node_id", "action_mechanic_id", "semantic_event_set_id", "completion_event_id", "random_owner_node_ids", "payout_owner_node_ids"],
+      "properties": {
+        "stage_id": {"$ref": "#/$defs/nonEmptyString"},
+        "stage_role": {"enum": ["control", "typed_action", "terminal"]},
+        "action_node_id": {"$ref": "#/$defs/nullableNonEmptyString"},
+        "action_mechanic_id": {
+          "anyOf": [
+            {"type": "string", "pattern": "^(?!feature\\.)[a-z0-9.-]+$"},
+            {"type": "null"}
+          ]
+        },
+        "semantic_event_set_id": {"$ref": "#/$defs/nullableNonEmptyString"},
+        "completion_event_id": {"$ref": "#/$defs/nullableNonEmptyString"},
+        "random_owner_node_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "payout_owner_node_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"stage_role": {"const": "typed_action"}}, "required": ["stage_role"]},
+          "then": {
+            "properties": {
+              "action_node_id": {"$ref": "#/$defs/nonEmptyString"},
+              "action_mechanic_id": {"type": "string", "pattern": "^(?!feature\\.)[a-z0-9.-]+$"},
+              "semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+              "completion_event_id": {"$ref": "#/$defs/nonEmptyString"}
+            }
+          },
+          "else": {
+            "properties": {
+              "action_node_id": {"type": "null"},
+              "action_mechanic_id": {"type": "null"},
+              "semantic_event_set_id": {"type": "null"},
+              "completion_event_id": {"type": "null"},
+              "random_owner_node_ids": {"maxItems": 0},
+              "payout_owner_node_ids": {"maxItems": 0}
+            }
+          }
+        }
+      ]
+    },
+    "bonusSequenceBranchResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_stage", "branch_id", "to_stage", "resolution_type", "owner_node_id", "outcome_id"],
+      "properties": {
+        "from_stage": {"$ref": "#/$defs/nonEmptyString"},
+        "branch_id": {"$ref": "#/$defs/nonEmptyString"},
+        "to_stage": {"$ref": "#/$defs/nonEmptyString"},
+        "resolution_type": {"enum": ["deterministic_control", "owned_mechanic_outcome"]},
+        "owner_node_id": {"$ref": "#/$defs/nullableNonEmptyString"},
+        "outcome_id": {"$ref": "#/$defs/nullableNonEmptyString"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"resolution_type": {"const": "deterministic_control"}}, "required": ["resolution_type"]},
+          "then": {
+            "properties": {
+              "owner_node_id": {"type": "null"},
+              "outcome_id": {"type": "null"}
+            }
+          },
+          "else": {
+            "properties": {
+              "owner_node_id": {"$ref": "#/$defs/nonEmptyString"},
+              "outcome_id": {"$ref": "#/$defs/nonEmptyString"}
+            }
+          }
+        }
+      ]
+    },
+    "bonusSequenceTransitionResolutionRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anonymous_random_routing", "branch_resolutions"],
+      "properties": {
+        "anonymous_random_routing": {"const": false},
+        "branch_resolutions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/bonusSequenceBranchResolution"}
+        }
+      }
+    },
+    "bonusSequenceCyclicTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_stage", "branch_id", "to_stage", "max_transition_count"],
+      "properties": {
+        "from_stage": {"$ref": "#/$defs/nonEmptyString"},
+        "branch_id": {"$ref": "#/$defs/nonEmptyString"},
+        "to_stage": {"$ref": "#/$defs/nonEmptyString"},
+        "max_transition_count": {"type": "integer", "minimum": 1, "maximum": 1000}
+      }
+    },
+    "bonusSequenceStageLoopContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["termination_measure", "cyclic_transitions"],
+      "properties": {
+        "termination_measure": {"$ref": "#/$defs/nonEmptyString"},
+        "cyclic_transitions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/bonusSequenceCyclicTransition"}
+        }
+      }
+    },
+    "bonusSequencePathSignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_id", "transitions"],
+      "properties": {
+        "path_id": {"$ref": "#/$defs/nonEmptyString"},
+        "transitions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/bonusSequenceTransition"}
+        }
+      }
+    },
+    "bonusSequencePathSignatureDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_id_domain", "included_fields", "excluded_fields", "canonicalization_rule", "path_signatures"],
+      "properties": {
+        "path_id_domain": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "included_fields": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"enum": ["control_stage_id", "branch_id"]}
+        },
+        "excluded_fields": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"},
+          "allOf": [
+            {"contains": {"const": "award_outcome"}},
+            {"contains": {"const": "state_value"}},
+            {"contains": {"const": "duration"}},
+            {"contains": {"const": "return_bucket"}}
+          ]
+        },
+        "canonicalization_rule": {"const": "ordered_control_stage_and_branch_sequence_v1"},
+        "path_signatures": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/bonusSequencePathSignature"}
+        }
+      }
+    },
+    "bonusSequencePathActionCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_id", "typed_action_stage_ids", "primary_action_count"],
+      "properties": {
+        "path_id": {"$ref": "#/$defs/nonEmptyString"},
+        "typed_action_stage_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "primary_action_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "bonusSequenceStageActionCountProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projector_id", "path_action_counts"],
+      "properties": {
+        "projector_id": {"const": "stage_path_to_primary_action_count_v1"},
+        "path_action_counts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/bonusSequencePathActionCount"}
+        }
+      }
+    },
+    "bonusSequencePrimaryActionCountRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["counted_stage_role", "count_unit", "control_stage_count", "terminal_stage_count"],
+      "properties": {
+        "counted_stage_role": {"const": "typed_action"},
+        "count_unit": {"const": "completed_typed_stage_action"},
+        "control_stage_count": {"const": 0},
+        "terminal_stage_count": {"const": 0}
+      }
+    },
+    "bonusSequenceStagePayoutOwnerBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_id", "owner_node_id", "semantic_event_set_id"],
+      "properties": {
+        "stage_id": {"$ref": "#/$defs/nonEmptyString"},
+        "owner_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "bonusSequenceReturnAggregationRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anonymous_payout", "feature_cycle_owner_pays", "stage_payout_owner_bindings", "entry_source_denominators", "all_payouts_covered_exactly_once", "terminal_return_equals_sum_of_stage_payouts"],
+      "properties": {
+        "anonymous_payout": {"const": false},
+        "feature_cycle_owner_pays": {"const": false},
+        "stage_payout_owner_bindings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/bonusSequenceStagePayoutOwnerBinding"}
+        },
+        "entry_source_denominators": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"$ref": "#/$defs/nonEmptyString"},
+          "additionalProperties": {"enum": ["triggering_paid_bet", "actual_purchase_cost", "not_applicable_external_control"]}
+        },
+        "all_payouts_covered_exactly_once": {"const": true},
+        "terminal_return_equals_sum_of_stage_payouts": {"const": true}
+      }
+    },
+    "bonusSequenceExitCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["terminal_stage_ids", "all_paths_terminate"],
+      "properties": {
+        "terminal_stage_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "all_paths_terminate": {"const": true}
+      }
+    },
+    "gridGeneratorPartitions": {
+      "anyOf": [
+        {"const": "none"},
+        {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      ]
+    },
+    "positionDomainByActualCapacity": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[1-9][0-9]*$"},
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "jackpotTierResolutionRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opportunity_id_field", "resolved_tier_field", "no_hit_value", "all_opportunities_resolved", "at_most_one_tier_per_opportunity", "rule_evidence_sha256"],
+      "properties": {
+        "opportunity_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "resolved_tier_field": {"$ref": "#/$defs/nonEmptyString"},
+        "no_hit_value": {"$ref": "#/$defs/nonEmptyString"},
+        "all_opportunities_resolved": {"const": true},
+        "at_most_one_tier_per_opportunity": {"const": true},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "effectiveWaysGeometryLayoutBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["board_node_id", "shared_semantic_event_set_id", "layout_identity_field", "all_observations_bound", "rule_evidence_sha256"],
+      "properties": {
+        "board_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "layout_identity_field": {"$ref": "#/$defs/nonEmptyString"},
+        "all_observations_bound": {"const": true},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "scopeInstance": {
+      "type": "object",
+      "required": ["scope_instance_id", "scope", "scope_role", "source_node_ids", "sample_unit", "semantic_event_set_id", "event_set_path", "event_set_sha256", "event_count", "dimensions"],
+      "properties": {
+        "scope_instance_id": {"$ref": "#/$defs/nonEmptyString"},
+        "scope": {"$ref": "#/$defs/nonEmptyString"},
+        "scope_role": {"enum": ["core", "mechanic"]},
+        "source_node_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "sample_unit": {"$ref": "#/$defs/nonEmptyString"},
+        "semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "event_set_path": {"$ref": "#/$defs/nonEmptyString"},
+        "event_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "event_count": {"type": "integer", "minimum": 1},
+        "dimensions": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": ["string", "number", "boolean"]}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"scope_role": {"const": "mechanic"}}, "required": ["scope_role"]},
+          "then": {"properties": {"source_node_ids": {"minItems": 1}}}
+        }
+      ]
+    },
+    "mechanicNode": {
+      "type": "object",
+      "required": ["node_id", "mechanic_id", "name_zh", "scope", "status", "semantic_event_set_ids", "attributes", "evidence"],
+      "properties": {
+        "node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "mechanic_id": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+        "name_zh": {"$ref": "#/$defs/nonEmptyString"},
+        "parent_id": {"type": ["string", "null"]},
+        "scope": {"$ref": "#/$defs/nonEmptyString"},
+        "semantic_event_set_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "required": {"type": ["boolean", "string"]},
+        "status": {"enum": ["必需", "适用", "不适用", "缺口"]},
+        "inapplicability_reason_code": {"const": "source_evidence_proves_absence"},
+        "inapplicability_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["evidence_path", "evidence_sha256", "json_pointer", "expected_value"],
+            "properties": {
+              "evidence_path": {"$ref": "#/$defs/nonEmptyString"},
+              "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "json_pointer": {"type": "string", "pattern": "^/"},
+              "expected_value": {}
+            }
+          }
+        },
+        "confidence": {"type": ["string", "number"]},
+        "confidence_status": {"type": "string"},
+        "attributes": {"type": "object"},
+        "evidence": {"type": "array", "minItems": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]},
+          "then": {"required": ["inapplicability_reason_code", "inapplicability_evidence"]}
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "feature.free-spin"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "type": "object",
+                "required": ["feature_mode_domain", "selected_feature_mode_id", "mode_selection_rule", "player_input_role"],
+                "properties": {
+                  "feature_mode_domain": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {"$ref": "#/$defs/nonEmptyString"}
+                  },
+                  "selected_feature_mode_id": {"$ref": "#/$defs/nonEmptyString"},
+                  "mode_selection_rule": {"$ref": "#/$defs/freeSpinModeSelectionRule"},
+                  "player_input_role": {"enum": ["none", "selects_feature_mode", "reveal_only"]}
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "mode_selection_rule": {
+                          "properties": {"selection_type": {"const": "player_choice_before_feature"}},
+                          "required": ["selection_type"]
+                        }
+                      },
+                      "required": ["mode_selection_rule"]
+                    },
+                    "then": {
+                      "properties": {
+                        "feature_mode_domain": {"minItems": 2},
+                        "player_input_role": {"const": "selects_feature_mode"}
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "mode_selection_rule": {
+                          "properties": {"selection_type": {"const": "single_fixed_mode"}},
+                          "required": ["selection_type"]
+                        }
+                      },
+                      "required": ["mode_selection_rule"]
+                    },
+                    "then": {
+                      "properties": {
+                        "feature_mode_domain": {"maxItems": 1},
+                        "player_input_role": {"const": "none"}
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "mode_selection_rule": {
+                          "properties": {"selection_type": {"const": "reveal_only"}},
+                          "required": ["selection_type"]
+                        }
+                      },
+                      "required": ["mode_selection_rule"]
+                    },
+                    "then": {
+                      "properties": {
+                        "feature_mode_domain": {"maxItems": 1},
+                        "player_input_role": {"const": "reveal_only"}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "feature.bonus-sequence"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "type": "object",
+                "required": ["entry_sources", "entry_source_semantics", "feature_cycle_owner_node_id", "sequence_boundary_rule", "stage_graph", "stage_action_bindings", "transition_resolution_rule", "path_signature_definition", "return_aggregation_rule", "primary_action_count_rule", "stage_action_count_projection", "exit_condition", "player_input_role"],
+                "properties": {
+                  "entry_sources": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {"$ref": "#/$defs/featureEntrySourceId"}
+                  },
+                  "entry_source_semantics": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "propertyNames": {"$ref": "#/$defs/featureEntrySourceId"},
+                    "additionalProperties": {"$ref": "#/$defs/featureEntrySourceSemantic"}
+                  },
+                  "feature_cycle_owner_node_id": {"$ref": "#/$defs/nonEmptyString"},
+                  "sequence_boundary_rule": {"$ref": "#/$defs/bonusSequenceBoundaryRule"},
+                  "stage_graph": {"$ref": "#/$defs/bonusSequenceStageGraph"},
+                  "stage_action_bindings": {
+                    "type": "array",
+                    "minItems": 3,
+                    "items": {"$ref": "#/$defs/bonusSequenceStageActionBinding"}
+                  },
+                  "transition_resolution_rule": {"$ref": "#/$defs/bonusSequenceTransitionResolutionRule"},
+                  "stage_loop_contract": {"$ref": "#/$defs/bonusSequenceStageLoopContract"},
+                  "path_signature_definition": {"$ref": "#/$defs/bonusSequencePathSignatureDefinition"},
+                  "stage_action_count_projection": {"$ref": "#/$defs/bonusSequenceStageActionCountProjection"},
+                  "primary_action_count_rule": {"$ref": "#/$defs/bonusSequencePrimaryActionCountRule"},
+                  "return_aggregation_rule": {"$ref": "#/$defs/bonusSequenceReturnAggregationRule"},
+                  "exit_condition": {"$ref": "#/$defs/bonusSequenceExitCondition"},
+                  "player_input_role": {"enum": ["none", "reveal_only"]},
+                  "buy_available": {"type": "boolean"},
+                  "persistent_state_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {"$ref": "#/$defs/nonEmptyString"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "board.fixed-grid"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "required": ["generator_partitions", "stack_axis"],
+                "properties": {
+                  "generator_partitions": {"$ref": "#/$defs/gridGeneratorPartitions"},
+                  "stack_axis": {"$ref": "#/$defs/nonEmptyString"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "board.variable-grid"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "required": ["generator_partitions", "stack_axis", "ways_capacity_mode"],
+                "properties": {
+                  "generator_partitions": {"$ref": "#/$defs/gridGeneratorPartitions"},
+                  "stack_axis": {"$ref": "#/$defs/nonEmptyString"},
+                  "ways_capacity_mode": {"enum": ["none", "layout_only", "layout_plus_non_layout"]},
+                  "layout_capacity_projection_bindings": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 2,
+                    "items": {"$ref": "#/$defs/layoutCapacityProjectionBinding"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "settlement.ways"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "required": ["variable_ways"],
+                "properties": {"variable_ways": {"type": "boolean"}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "settlement.cluster-pay"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "required": ["near_miss_structure_relevant"],
+                "properties": {"near_miss_structure_relevant": {"type": "boolean"}}
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mechanic_id": {"const": "state.persistent-state"}}, "required": ["mechanic_id"]},
+          "then": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "position_domain_by_actual_capacity": {"$ref": "#/$defs/positionDomainByActualCapacity"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "settlement.effective-ways-capacity"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "required": ["geometry_layout_binding"],
+                "properties": {
+                  "geometry_layout_binding": {"$ref": "#/$defs/effectiveWaysGeometryLayoutBinding"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mechanic_id": {"const": "award.value-symbol"}}, "required": ["mechanic_id"]},
+          "then": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "linked_multiplier_node_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {"$ref": "#/$defs/nonEmptyString"}
+                  },
+                  "value_upgrade_state_binding": {"$ref": "#/$defs/valueUpgradeStateBinding"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mechanic_id": {"const": "award.jackpot"},
+              "status": {"enum": ["必需", "适用"]}
+            },
+            "required": ["mechanic_id", "status"]
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "type": "object",
+                "required": ["tier_resolution_rule", "jackpot_tier_exposure"],
+                "properties": {
+                  "tier_resolution_rule": {"$ref": "#/$defs/jackpotTierResolutionRule"},
+                  "jackpot_tier_exposure": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"$ref": "#/$defs/jackpotTierExposure"}
+                  },
+                  "jackpot_material_owner_bindings": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"$ref": "#/$defs/jackpotMaterialOwnerBinding"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mechanic_id": {"const": "feature.hold-and-spin"}}, "required": ["mechanic_id"]},
+          "then": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "capacity_transition_contract": {"$ref": "#/$defs/holdSpinCapacityTransitionContract"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mechanic_id": {"const": "modifier.win-multiplier"}}, "required": ["mechanic_id"]},
+          "then": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "value_symbol_effective_multiplier_binding": {"$ref": "#/$defs/valueSymbolEffectiveMultiplierBinding"},
+                  "cascade_depth_multiplier_binding": {"$ref": "#/$defs/cascadeDepthMultiplierBinding"}
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
 }
-

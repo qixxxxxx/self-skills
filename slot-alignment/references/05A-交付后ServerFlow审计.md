@@ -7,7 +7,7 @@
 ## 单次调用规则
 
 - 每个交付版本只执行一个 server flow 验证批次，`attempt_count`固定为 1，不自动重试。
-- 只测量总 RTP、完整付费入口中奖率、各类 Feature 自然触发概率、200x 以下倍率分布、适用 Sigma、Base/Feature/其他组件 RTP 贡献等硬指标。
+- 只测量总 RTP、完整付费入口中奖率、各类 Feature 自然触发概率、200x 以下付费入口回报分布、适用 Sigma、Base/Feature/其他组件 RTP 贡献等硬指标。
 - 不重新执行 CALIBRATION、FORMAL、评分、候选冻结或交付封存。
 - 不因 server flow 样本量较小而扩大为第二批；样本不足直接记录警告。
 

@@ -1,9 +1,9 @@
 {
   "schema_version": "1.1",
-  "report_contract_version": "slot-alignment.reports.v2.9",
+  "report_contract_version": "slot-alignment.reports.v3.2",
   "task_id": "",
   "status": "未开始",
-  "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},
+  "scope": {"game_code": "", "mode": "", "rtp_group": 1, "target_rtp": null},
   "paths": {"workspace_root": "", "slot_docs_root": "", "server_root": "", "runtime": "", "simulation_script": ""},
   "evidence": [],
   "excluded_evidence": [],

@@ -1,15 +1,105 @@
 {
   "schema_version": "1.0",
   "catalog_type": "mechanic_index",
-  "version": "1.0.0",
+  "version": "2.6.0",
   "packages": [
-    {"package_id": "settlement.standard", "category": "settlement", "path": "settlement/standard/catalog.json", "version": "1.0.0", "sha256": "a00f8a4ea06242a469fe9e303e1a89211338d934b043e2d5673056b9e08613d7"},
-    {"package_id": "board.grid", "category": "board", "path": "board/grid/catalog.json", "version": "1.0.0", "sha256": "718f4dcaec0f87226815aed4932cfdfc8ebd97c587c4f30c43293dfec7a3b04e"},
-    {"package_id": "evolution.cascade", "category": "evolution", "path": "evolution/cascade/catalog.json", "version": "1.0.0", "sha256": "51f8b25f53541f0cfb4a55dd17a40d05adb89cfe2ee75e31a5ecf230be62d3d4"},
-    {"package_id": "feature.free-spin", "category": "feature", "path": "feature/free-spin/catalog.json", "version": "1.0.0", "sha256": "34ae9a8fe7fb72e6dc2ad51ba790eb2f36e6137740bf27fa38aec77adfc7f8a0"},
-    {"package_id": "feature.respin", "category": "feature", "path": "feature/respin/catalog.json", "version": "1.0.0", "sha256": "e3c1b848a18a6a83bd4dcf72b44617aba40874246241edc8548caf7d02894468"},
-    {"package_id": "trigger.scatter", "category": "trigger", "path": "trigger/scatter/catalog.json", "version": "1.0.0", "sha256": "7b09f299bb24d6ee1ac5f508be82c1f1ca75fef2182c4c80c0b55d66da4d3b6c"},
-    {"package_id": "modifier.wild", "category": "modifier", "path": "modifier/wild/catalog.json", "version": "1.0.0", "sha256": "bede326219a0f35204685df58c7f270f57f5ad39c71add812446652831d9a125"},
-    {"package_id": "modifier.multiplier", "category": "modifier", "path": "modifier/multiplier/catalog.json", "version": "1.0.0", "sha256": "aacfab04729b2bf3051af26a2e08421e36f66dd51b76fe5b78e205e7308370b7"}
+    {
+      "package_id": "board.grid",
+      "category": "board",
+      "path": "board/grid/catalog.json",
+      "version": "2.5.0",
+      "sha256": "81827d5117f44cd70e50f6fc2041ab158680f6bb87f612d756aa0cbf694e8a82"
+    },
+    {
+      "package_id": "settlement.standard",
+      "category": "settlement",
+      "path": "settlement/standard/catalog.json",
+      "version": "2.4.0",
+      "sha256": "99a6d5497b217c079584cc111687c76105ff464ab293402efa0adb7e99771ead"
+    },
+    {
+      "package_id": "evolution.cascade",
+      "category": "evolution",
+      "path": "evolution/cascade/catalog.json",
+      "version": "2.4.0",
+      "sha256": "76827448cc87c8c873822974bce78371c2ee26a57dcb6467cc59dec120794bab"
+    },
+    {
+      "package_id": "feature.free-spin",
+      "category": "feature",
+      "path": "feature/free-spin/catalog.json",
+      "version": "2.7.0",
+      "sha256": "0f865c3191af9070acf290272196610522bcadb77b97a022e155856d820f1551"
+    },
+    {
+      "package_id": "feature.respin",
+      "category": "feature",
+      "path": "feature/respin/catalog.json",
+      "version": "3.1.0",
+      "sha256": "f719fcbc31cdc1dcafe9f1cfb8c0de8dfabf93b234e1aabef843534ee9f6ac8c"
+    },
+    {
+      "package_id": "feature.award-draw",
+      "category": "feature",
+      "path": "feature/award-draw/catalog.json",
+      "version": "2.2.0",
+      "sha256": "4320f08b2936bae5f8ce21b3ff171f5f6793aadf04f9493963634727cbbec36a"
+    },
+    {
+      "package_id": "feature.bonus-sequence",
+      "category": "feature",
+      "path": "feature/bonus-sequence/catalog.json",
+      "version": "1.1.0",
+      "sha256": "a0a840b647a4147a09174b2786b54e2d11d98389ddac95dda6c682a091f5f76e"
+    },
+    {
+      "package_id": "trigger.standard",
+      "category": "trigger",
+      "path": "trigger/scatter/catalog.json",
+      "version": "2.1.0",
+      "sha256": "fb7f3f36ff3a5e6a294a88cfc6f3be19021ee7f09c7cd7be518e1c971f41ab23"
+    },
+    {
+      "package_id": "modifier.wild",
+      "category": "modifier",
+      "path": "modifier/wild/catalog.json",
+      "version": "2.4.0",
+      "sha256": "de05df9728992053e9ea35f8dd4f1aaf17ee776a441bcfedcc3c0f23adcad8b8"
+    },
+    {
+      "package_id": "modifier.multiplier",
+      "category": "modifier",
+      "path": "modifier/multiplier/catalog.json",
+      "version": "2.5.0",
+      "sha256": "657ff224816793f3de71ccca95f451a0337ad2e323ebc747b09e2ab71eb2c9db"
+    },
+    {
+      "package_id": "modifier.collect",
+      "category": "modifier",
+      "path": "modifier/collect/catalog.json",
+      "version": "2.2.0",
+      "sha256": "95d502c7bb5d2fc42a6dbd94db7da076f69d9f47bbe837e13db46a9d61d8518a"
+    },
+    {
+      "package_id": "modifier.symbol-transform",
+      "category": "modifier",
+      "path": "modifier/symbol-transform/catalog.json",
+      "version": "2.2.0",
+      "sha256": "7ca931d38bb0403d861ed199d0086b897ac732ff80f63a5f11bd6ac56aa14546"
+    },
+    {
+      "package_id": "award.prize",
+      "category": "award",
+      "path": "award/prize/catalog.json",
+      "version": "2.5.0",
+      "sha256": "ea9ee27f206838df4d26f7004ea425dca7e84811590a1125785cd6ff7b1afb54"
+    },
+    {
+      "package_id": "state.persistent",
+      "category": "state",
+      "path": "state/persistent/catalog.json",
+      "version": "2.9.0",
+      "sha256": "ebcaa92c89feb0d5c5c0bf5af8672d7b41210b798ca7ee0b9b9cdb7b23289934"
+    }
   ]
 }

@@ -1,0 +1,48 @@
+{
+  "schema_version": "slot-alignment.sample-capability-policy.v1",
+  "policy_id": "distribution-sample-capability-v1",
+  "version": "1.0.0",
+  "status": "默认政策",
+  "source_path": "assets/policies/sample_capability_policy.v1.json",
+  "applies_to": "采用本政策后新建并在候选结果出现前密封的对齐任务",
+  "legacy_contracts_unchanged": true,
+  "confidence_level": 0.99,
+  "covered_methods": [
+    "grouped_mean_absolute_error",
+    "grouped_total_variation",
+    "grouped_wasserstein_1d",
+    "mean_absolute_error",
+    "total_variation",
+    "wasserstein_1d"
+  ],
+  "noise_budget": {
+    "score_source": "minimum_positive_distance_anchor_at_score_95",
+    "hard_source": "effective_tolerance",
+    "hard_tolerance_factor": 0.5,
+    "per_side_factor": 0.5
+  },
+  "bounds": {
+    "total_variation": "bretagnolle_huber_carol",
+    "wasserstein_1d": "dkw",
+    "mean_absolute_residual": "coordinate_hoeffding_union_bound",
+    "residual_coordinate_range_width": 2.0
+  },
+  "multiple_testing": {
+    "sides": ["original", "formal"],
+    "grouped_adjustment": "bonferroni_across_sides_and_active_groups"
+  },
+  "formulas": {
+    "total_variation": "ceil((support_count*ln(2)+ln(1/delta))/(2*epsilon^2))",
+    "wasserstein_1d": "ceil(normalized_span^2*ln(2/delta)/(2*epsilon^2))",
+    "mean_absolute_residual": "ceil(range_width^2*ln(2*coordinate_count/delta)/(2*epsilon^2))"
+  },
+  "rules": {
+    "active_reachable_support_only": true,
+    "zero_probability_reachable_cells_count": true,
+    "original_and_formal_must_both_pass": true,
+    "candidate_may_not_change_support": true,
+    "candidate_frequency_may_not_define_groups_or_samples": true,
+    "insufficient_capacity_blocks": true,
+    "insufficient_capacity_may_not_become_inapplicable": true
+  }
+}

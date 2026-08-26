@@ -1,0 +1,425 @@
+{
+  "schema_version": "2.0",
+  "catalog_type": "metric_package",
+  "package_id": "atomic.jackpot",
+  "type": "atomic",
+  "category": "award",
+  "version": "2.3.0",
+  "applies_when": {
+    "mechanic_id": "award.jackpot"
+  },
+  "metrics": [
+    {
+      "metric_id": "jackpot.rule_consistency.audit",
+      "name_zh": "Jackpot规则一致性审计",
+      "owner": "atomic.jackpot",
+      "category": "award",
+      "display_order": 5,
+      "kind": "audit",
+      "unit": "status_object",
+      "scope_template": "award.jackpot×mode×jackpot_opportunity_set",
+      "measurement": "field consistency statuses for tier_domain, trigger_rule, tier_resolution_rule, opportunity_definition_and_denominator, value_model_and_source_or_fixed_value, payout_scope, reset_rule, external_pool_contract, and award_cap_rule",
+      "sample_unit": "jackpot_rule_field",
+      "condition_on": "每个声明Jackpot层级及其mode；external_pool_contract与award_cap_rule仅在对应机制适用时要求符合，不适用必须有权威证据",
+      "normalization": "不归一；每个适用字段逐项输出符合、不符合或无法证明，门禁要求全部适用字段为符合",
+      "applicability_rule": "存在award.jackpot时必需；固定、Mystery、Progressive及外部网络池统一使用，按适用字段审计。",
+      "missing_policy": "层级、触发规则、机会到唯一统计层级的解析规则、机会定义与分母、奖值模型、奖值来源或固定值、派奖作用域、重置规则，以及适用的外部池合同或封顶规则任一缺证、无法证明或与Runtime/实现不一致时阻塞FORMAL。",
+      "capability_ids": [
+        "award.jackpot"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "award.jackpot"
+        ],
+        "required_attributes": [
+          "tier_domain",
+          "trigger_rule",
+          "tier_resolution_rule",
+          "value_model",
+          "payout_scope",
+          "reset_rule"
+        ]
+      },
+      "semantic_variable_id": "jackpot.rule_consistency",
+      "semantic_group": "jackpot",
+      "semantic_role": "audit",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "jackpot.material_hit_rate",
+          "jackpot.material_tier_distribution_given_hit",
+          "jackpot.hit_rate_by_tier",
+          "jackpot.award_value_distribution_by_tier"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "本指标负责规则、配置与实现的一致性门禁；命中率和动态奖值分布只负责低频数值审计，不能替代固定值、重置、外部池和封顶规则核对。"
+      },
+      "display": {
+        "description_zh": "逐项核对Jackpot层级、触发、每机会唯一层级解析、机会口径、奖值来源或固定值、派奖作用域、重置、外部池合同和封顶规则是否与权威定义一致。",
+        "usage_scene_zh": "用于在低频命中样本不足时仍以规则、配置和实现证据阻止错误Jackpot进入FORMAL。",
+        "target_meaning_zh": "目标对象要求全部适用字段为“符合”；外部池或封顶确实不适用时必须以权威证据标记不适用，不得留空。",
+        "display_unit": "状态（符合/不符合/无法证明/有证据不适用）",
+        "object_labels": {
+          "tier_domain_status": "命名层级",
+          "trigger_rule_status": "触发规则",
+          "tier_resolution_rule_status": "每机会唯一层级解析规则",
+          "opportunity_definition_and_denominator_status": "机会定义与分母",
+          "value_model_and_source_or_fixed_value_status": "奖值模型及来源或固定值",
+          "payout_scope_status": "派奖作用域",
+          "reset_rule_status": "中奖后重置规则",
+          "external_pool_contract_status": "外部池合同",
+          "award_cap_rule_status": "Jackpot封顶规则"
+        },
+        "object_units": {
+          "tier_domain_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "trigger_rule_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "tier_resolution_rule_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "opportunity_definition_and_denominator_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "value_model_and_source_or_fixed_value_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "payout_scope_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "reset_rule_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "external_pool_contract_status": "状态（符合/不符合/无法证明/有证据不适用）",
+          "award_cap_rule_status": "状态（符合/不符合/无法证明/有证据不适用）"
+        }
+      },
+      "score_weight": 0,
+      "audit_profile": {
+        "method": "field_consistency_gate",
+        "blocking_on_missing": true,
+        "blocking_on_mismatch": true,
+        "required_result_status": "符合"
+      }
+    },
+    {
+      "metric_id": "jackpot.material_hit_rate",
+      "name_zh": "物质性Jackpot总体命中率",
+      "owner": "atomic.jackpot",
+      "category": "award",
+      "display_order": 10,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "award.jackpot×mode×jackpot_opportunity_set",
+      "measurement": "material_jackpot_hit_count/eligible_jackpot_opportunity_count",
+      "sample_unit": "jackpot_opportunity",
+      "condition_on": "指定jackpot_opportunity_set的全部合格机会；命中任一由物质性政策在候选出现前密封的层级记为1，否则记为0",
+      "normalization": "得到[0,1]概率；每个机会先按tier_resolution_rule归入不命中或至多一个统计层级，因此命中任一物质性层级恰好计1次",
+      "applicability_rule": "award.jackpot的某机会集至少包含一个物质性层级时必需。若完整机会结果已由同事件域活动Primary经结构化总映射唯一确定，则本项确定性派生；该机会集没有物质性层级时按版本化政策标记不适用。",
+      "missing_policy": "机会集、逐层原版暴露、物质性政策、合格机会分母或总体命中标记任一缺失时阻塞FORMAL。物质性层级存在但既无合法上游投影、又不能通过统一样本能力门禁时按指标扩展缺口阻塞，不得降为审计。",
+      "inapplicability_reason_codes": [
+        "below_materiality_resolution",
+        "deterministically_derived_from_primary"
+      ],
+      "capability_ids": [
+        "award.jackpot",
+        "award.value-symbol",
+        "feature.award-draw"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "award.jackpot"
+        ],
+        "required_attributes": [
+          "jackpot_tier_exposure",
+          "tier_resolution_rule"
+        ]
+      },
+      "semantic_variable_id": "jackpot.material_hit_occurrence",
+      "semantic_group": "jackpot",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "award_draw.outcome_distribution_given_draw_state",
+          "value_symbol.assignment_value_distribution"
+        ],
+        "cross_checks_with": [
+          "jackpot.hit_rate_by_tier",
+          "core.rtp.component_contribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "本指标只拥有同一机会集中是否命中任一物质性层级的总体边际；命中后的层级构成由条件分布承接，全层级逐层命中率和组件RTP仅作交叉检查。存在完整上游Primary投影时本项不重复评分。"
+      },
+      "display": {
+        "description_zh": "衡量一个合格Jackpot机会中，玩家命中任一对体验或RTP有实际影响的Jackpot层级有多常见。",
+        "usage_scene_zh": "用于对齐Jackpot是否整体过于频繁或过于稀少，同时避免把极冷门层级逐个拉进正式评分。",
+        "target_meaning_zh": "目标值统计物质性Jackpot命中机会数除以同一机会集全部合格机会数。",
+        "display_unit": "%（合格Jackpot机会占比）"
+      },
+      "score_group": "award",
+      "score_budget_key": "jackpot.material_hit_rate",
+      "scope_aggregation": "minimum",
+      "default_weight": 0.5,
+      "score_profile": {
+        "method": "absolute_error",
+        "anchors": [
+          [0, 100],
+          [0.005, 95],
+          [0.015, 85],
+          [0.04, 70],
+          [0.08, 50],
+          [0.25, 0]
+        ]
+      }
+    },
+    {
+      "metric_id": "jackpot.material_tier_distribution_given_hit",
+      "name_zh": "物质性Jackpot命中层级构成",
+      "owner": "atomic.jackpot",
+      "category": "award",
+      "display_order": 20,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "award.jackpot×mode×jackpot_opportunity_set",
+      "measurement": "P(material_jackpot_tier | material_jackpot_hit)",
+      "sample_unit": "material_jackpot_hit_event",
+      "condition_on": "指定机会集已经命中任一物质性Jackpot层级的事件",
+      "normalization": "物质性层级支持集上的概率合计为1；非物质性层级不进入本条件分布但继续保留全层级审计",
+      "applicability_rule": "同一机会集至少包含两个物质性层级时评分；只有一个物质性层级时按退化支持不计分。若完整机会结果已由同事件域活动Primary经结构化总映射唯一确定，则本项确定性派生。",
+      "missing_policy": "物质性层级清单、命中事件到真实层级的绑定或完整条件支持缺失时阻塞FORMAL。物质性层级存在但既无合法投影、又不能通过统一样本能力门禁时按指标扩展缺口阻塞。",
+      "inapplicability_reason_codes": [
+        "below_materiality_resolution",
+        "degenerate_reachable_support",
+        "deterministically_derived_from_primary"
+      ],
+      "capability_ids": [
+        "award.jackpot",
+        "award.value-symbol",
+        "feature.award-draw"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "award.jackpot"
+        ],
+        "required_attributes": [
+          "jackpot_tier_exposure",
+          "tier_resolution_rule"
+        ]
+      },
+      "semantic_variable_id": "jackpot.material_tier_given_hit",
+      "semantic_group": "jackpot",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "award_draw.outcome_distribution_given_draw_state",
+          "value_symbol.assignment_value_distribution"
+        ],
+        "cross_checks_with": [
+          "jackpot.hit_rate_by_tier"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "jackpot.material_hit_rate"
+        ],
+        "overlap_reason_zh": "它只比较已经命中物质性Jackpot后的层级构成，与总体命中率组成非重叠分解；全层级逐层审计仍用于观察冷门层级。存在完整上游Primary投影时本项不重复评分。"
+      },
+      "display": {
+        "description_zh": "衡量物质性Jackpot已经发生时，实际命中各个重要层级的比例。",
+        "usage_scene_zh": "用于发现Jackpot总体频率接近，但MINI、MAJOR、GRAND等重要层级之间的构成明显错误。",
+        "target_meaning_zh": "每个目标值统计指定物质性层级命中次数除以全部物质性Jackpot命中次数。",
+        "display_unit": "%（物质性Jackpot命中事件占比）"
+      },
+      "score_group": "award",
+      "score_budget_key": "jackpot.material_tier_distribution_given_hit",
+      "scope_aggregation": "minimum",
+      "default_weight": 0.5,
+      "score_profile": {
+        "method": "total_variation",
+        "anchors": [
+          [0, 100],
+          [0.02, 95],
+          [0.05, 85],
+          [0.1, 70],
+          [0.2, 50],
+          [0.5, 0]
+        ]
+      }
+    },
+    {
+      "metric_id": "jackpot.hit_rate_by_tier",
+      "name_zh": "各等级Jackpot命中率审计",
+      "owner": "atomic.jackpot",
+      "category": "award",
+      "display_order": 30,
+      "kind": "audit",
+      "unit": "probability",
+      "scope_template": "award.jackpot×mode",
+      "measurement": "jackpot_hit_count(tier)/eligible_jackpot_opportunity_count",
+      "sample_unit": "jackpot_opportunity",
+      "condition_on": "指定jackpot_opportunity_set内各Jackpot等级的合格命中机会",
+      "normalization": "每个等级独立得到[0,1]概率，不要求等级合计为1",
+      "applicability_rule": "存在award.jackpot时按jackpot_opportunity_set分别审计每个声明层级；单层级Jackpot也保留该层级实例，不同机会集不得合并分母。",
+      "missing_policy": "tier_domain、trigger_rule、每层合格机会定义、机会分母或命中层级映射任一缺失时阻塞FORMAL；上述证据完整但低频命中样本不足时只标记“置信不足”，不作为资料缺失且不阻塞FORMAL。",
+      "capability_ids": [
+        "award.jackpot",
+        "award.value-symbol",
+        "feature.award-draw",
+        "feature.hold-and-spin"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "award.jackpot"
+        ],
+        "required_attributes": [
+          "tier_domain",
+          "trigger_rule",
+          "tier_resolution_rule"
+        ]
+      },
+      "semantic_variable_id": "jackpot.hit_rate_by_tier",
+      "semantic_group": "jackpot",
+      "semantic_role": "audit",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "jackpot.material_hit_rate",
+          "jackpot.material_tier_distribution_given_hit",
+          "core.rtp.component_contribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "Jackpot贡献由组件RTP硬门禁交叉检查，规则一致性由jackpot.rule_consistency.audit门禁；本指标只作低频数值审计，不构成Primary或Guard正式数值覆盖。"
+      },
+      "display": {
+        "description_zh": "记录每个Jackpot等级实际命中的频率。",
+        "usage_scene_zh": "用于观察不同奖池等级是否异常频繁或长期缺席；不进入综合分，也不得被计作Primary或Guard正式数值覆盖。",
+        "target_meaning_zh": "每个值统计对应等级命中次数除以该等级合格机会数。",
+        "display_unit": "%（Jackpot机会占比）"
+      },
+      "score_weight": 0,
+      "audit_profile": {
+        "method": "report_only",
+        "blocking_on_missing": true,
+        "insufficient_sample_status": "置信不足",
+        "insufficient_sample_blocks_formal": false
+      }
+    },
+    {
+      "metric_id": "jackpot.award_value_distribution_by_tier",
+      "name_zh": "各等级Jackpot奖值分布审计",
+      "owner": "atomic.jackpot",
+      "category": "award",
+      "display_order": 40,
+      "kind": "audit",
+      "unit": "probability",
+      "scope_template": "award.jackpot×mode×jackpot_opportunity_set",
+      "measurement": "P(award_value_bucket | jackpot_tier), fields tier::value_bucket",
+      "sample_unit": "jackpot_hit_event",
+      "condition_on": "指定jackpot_opportunity_set内已经命中指定Jackpot等级的事件",
+      "normalization": "每个tier组分别归一化为1",
+      "applicability_rule": "按jackpot_opportunity_set分别判断；仅当权威value_model证明同一机会集内某Jackpot等级存在两个及以上可达实际奖值，例如累进奖池或动态金额时审计。每等级单一固定常量不实例化统计分布，由规则与配置一致性检查负责。",
+      "missing_policy": "tier_domain、value_model、奖值来源或命中事件到层级与实际奖值的绑定任一缺失时阻塞FORMAL；权威证据完整且已证明动态，但低频命中样本不足时只标记“置信不足”，不作为资料缺失且不阻塞FORMAL；权威value_model证明每等级为单一固定常量时不适用，不自行猜测奖值桶。",
+      "inapplicability_reason_codes": ["deterministic_rule_result"],
+      "capability_ids": [
+        "award.jackpot",
+        "award.value-symbol",
+        "feature.award-draw",
+        "feature.hold-and-spin"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "award.jackpot"
+        ],
+        "required_attributes": [
+          "tier_domain",
+          "value_model"
+        ]
+      },
+      "semantic_variable_id": "jackpot.award_value_given_tier",
+      "semantic_group": "jackpot",
+      "semantic_role": "audit",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "jackpot.hit_rate_by_tier"
+        ],
+        "overlap_reason_zh": "以已命中等级为条件，只审计动态奖值形状；固定值与奖值来源一致性由jackpot.rule_consistency.audit门禁，本指标不构成Primary或Guard正式数值覆盖。"
+      },
+      "display": {
+        "description_zh": "记录动态Jackpot在命中某个等级后实际得到哪些奖值。",
+        "usage_scene_zh": "用于核对累进奖池或同等级动态金额的实际范围和形状；固定常量奖值不重复建立统计分布，本指标不进入正式数值覆盖。",
+        "target_meaning_zh": "每组目标值统计指定Jackpot等级条件下，各实际奖值档位所占比例。",
+        "display_unit": "%（指定等级命中事件占比）"
+      },
+      "score_weight": 0,
+      "audit_profile": {
+        "method": "report_only",
+        "blocking_on_missing": true,
+        "insufficient_sample_status": "置信不足",
+        "insufficient_sample_blocks_formal": false
+      }
+    },
+    {
+      "metric_id": "jackpot.hold_spin_binding_consistency.audit",
+      "name_zh": "Hold & Spin与Jackpot绑定一致性审计",
+      "owner": "atomic.jackpot",
+      "category": "award",
+      "display_order": 50,
+      "kind": "audit",
+      "unit": "status_object",
+      "scope_template": "feature.hold-and-spin×award.jackpot×mode",
+      "measurement": "field consistency statuses for terminal_state_trigger_binding, locked_item_or_tier_binding, terminal_aggregation_inclusion, feature_return_inclusion, reset_and_cap_behavior, and duplicate_settlement_prevention",
+      "sample_unit": "hold_spin_jackpot_binding_rule_field",
+      "condition_on": "同一Hold & Spin终局链中可授予命名Jackpot层级",
+      "normalization": "不归一；全部绑定字段逐项输出符合、不符合或无法证明",
+      "applicability_rule": "Hold & Spin通过锁定对象、终局占用或终局聚合授予award.jackpot时必需。",
+      "missing_policy": "Jackpot触发到锁定对象或终局状态的绑定、终局聚合、Feature回报纳入、重置封顶或防重复结算任一缺证或不一致时阻塞FORMAL。",
+      "capability_ids": ["feature.hold-and-spin", "award.jackpot"],
+      "profile_match": {
+        "mechanic_id_all": ["feature.hold-and-spin", "award.jackpot"],
+        "required_attributes": ["terminal_award_binding_rule", "tier_domain", "trigger_rule", "reset_rule"]
+      },
+      "semantic_variable_id": "jackpot.hold_spin_binding_consistency",
+      "semantic_group": "jackpot",
+      "semantic_role": "audit",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": ["jackpot.rule_consistency.audit", "hold_spin.return_dependence_by_terminal_occupancy", "feature_cycle.return_distribution_by_stage_path"],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "本项只审计H&S终局状态与Jackpot规则的事件绑定和防重复结算，不新增Jackpot命中率、奖值或RTP评分。"
+      },
+      "display": {
+        "description_zh": "核对Hold & Spin满足什么终局条件时发哪个Jackpot，以及该奖项是否正确计入终局和完整Feature回报。",
+        "usage_scene_zh": "用于发现满盘或特定锁定对象触发层级错误、漏算、重复算或重置时点错误。",
+        "target_meaning_zh": "目标对象要求终局触发、锁定对象或层级映射、终局聚合、Feature回报纳入、重置封顶和防重复结算全部一致。",
+        "display_unit": "状态（符合/不符合/无法证明）",
+        "object_labels": {
+          "terminal_state_trigger_binding_status": "终局状态触发绑定",
+          "locked_item_or_tier_binding_status": "锁定对象或层级映射",
+          "terminal_aggregation_inclusion_status": "终局聚合纳入",
+          "feature_return_inclusion_status": "完整Feature回报纳入",
+          "reset_and_cap_behavior_status": "重置与封顶行为",
+          "duplicate_settlement_prevention_status": "防重复结算"
+        },
+        "object_units": {
+          "terminal_state_trigger_binding_status": "状态",
+          "locked_item_or_tier_binding_status": "状态",
+          "terminal_aggregation_inclusion_status": "状态",
+          "feature_return_inclusion_status": "状态",
+          "reset_and_cap_behavior_status": "状态",
+          "duplicate_settlement_prevention_status": "状态"
+        }
+      },
+      "score_weight": 0,
+      "audit_profile": {
+        "method": "field_consistency_gate",
+        "blocking_on_missing": true,
+        "blocking_on_mismatch": true,
+        "required_result_status": "符合",
+        "exact_match_fields": [
+          "terminal_state_trigger_binding_status",
+          "locked_item_or_tier_binding_status",
+          "terminal_aggregation_inclusion_status",
+          "feature_return_inclusion_status",
+          "reset_and_cap_behavior_status",
+          "duplicate_settlement_prevention_status"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,595 @@
+{
+  "schema_version": "2.0",
+  "catalog_type": "metric_package",
+  "package_id": "atomic.settlement-diversity",
+  "type": "atomic",
+  "category": "settlement",
+  "version": "2.3.0",
+  "applies_when": {
+    "mechanic_id_any": [
+      "settlement.payline",
+      "settlement.ways",
+      "settlement.count-pay",
+      "settlement.cluster-pay"
+    ]
+  },
+  "metrics": [
+    {
+      "metric_id": "settlement.winning_symbol_distribution",
+      "name_zh": "中奖符号构成",
+      "owner": "atomic.settlement-diversity",
+      "category": "settlement",
+      "display_order": 10,
+      "kind": "score",
+      "unit": "distribution",
+      "scope_template": "component×state×board_phase×settlement_type",
+      "measurement": "P(winning_symbol_id | independent_paid_result_block)",
+      "sample_unit": "independent_paid_result_block",
+      "condition_on": "实际产生正派奖的独立结算块：固定线按aggregation_unit取逐线派奖块或同一步骤同一中奖符号聚合线组，Ways按实际符号结算块，Count Pay按符号计数派奖块，Cluster按实际中奖连片",
+      "normalization": "全部合格独立派奖块上的中奖符号概率合计为1",
+      "applicability_rule": "能够从结算事实识别实际中奖符号时必需。",
+      "missing_policy": "中奖组合、实际中奖符号或固定线aggregation_unit与winning_scale_dimension合法组合缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "deterministically_derived_from_primary"],
+      "capability_ids": [
+        "settlement.payline",
+        "settlement.ways",
+        "settlement.count-pay",
+        "settlement.cluster-pay"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "settlement.payline",
+          "settlement.ways",
+          "settlement.count-pay",
+          "settlement.cluster-pay"
+        ]
+      },
+      "semantic_variable_id": "settlement.winning_symbol",
+      "semantic_group": "settlement_source",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "board.symbol_count_per_board_distribution"
+        ],
+        "cross_checks_with": [
+          "board.symbol_count_per_board_distribution",
+          "trigger.symbol_count_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "本指标拥有固定线、Ways和Cluster实际独立派奖块的中奖符号边际。Count Pay若由同一完整盘面的可见精确符号数量与确定性派奖聚合规则直接产生，则中奖符号边际可由board数量目标复算，对应实例必须派生展示或标记不适用。"
+      },
+      "display": {
+        "description_zh": "衡量实际中奖主要由哪些符号产生。",
+        "usage_scene_zh": "用于发现总体中奖率正常但中奖长期集中在少数符号。",
+        "target_meaning_zh": "每个值统计对应符号的独立正派奖块占全部合格独立派奖块的比例。",
+        "display_unit": "%（独立派奖块占比）"
+      },
+      "score_group": "settlement_diversity",
+      "score_budget_key": "settlement.winning_symbol_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "total_variation",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "settlement.scale_given_symbol_distribution",
+      "name_zh": "指定中奖符号下的中奖规模分布",
+      "owner": "atomic.settlement-diversity",
+      "category": "settlement",
+      "display_order": 20,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "component×state×board_phase×settlement_type",
+      "measurement": "P(sealed actual winning_scale_bucket | winning_symbol_id), fields symbol_id::scale_bucket",
+      "sample_unit": "independent_paid_result_block",
+      "condition_on": "指定实际中奖符号的独立派奖块；固定线per_line使用该线实际连中轴数，per_step_symbol使用同一步骤同一符号聚合线组的实际中奖线数；Ways用实际中奖Ways，Count Pay用实际计数，Cluster用实际中奖连片大小",
+      "normalization": "每个symbol_id组分别归一化为1；中奖规模轴语义由settlement mechanic winning_scale_axis_semantics在候选出现前解析",
+      "applicability_rule": "固定线、Ways、Count Pay或Cluster必需；画像必须先密封实际中奖规模维度，固定线还必须使用合法aggregation_unit组合。局部退化的symbol_id组移除并按原版活动组权重重新归一；全部条件组只有一个可达规模时整项按退化支持标记不适用而不能漏载。",
+      "missing_policy": "画像未密封规模维度、固定线aggregation_unit组合非法，或分桶、符号到结算映射缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "deterministically_derived_from_primary"],
+      "capability_ids": [
+        "settlement.payline",
+        "settlement.ways",
+        "settlement.count-pay",
+        "settlement.cluster-pay"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "settlement.payline",
+          "settlement.ways",
+          "settlement.count-pay",
+          "settlement.cluster-pay"
+        ],
+        "required_attributes": [
+          "winning_scale_dimension",
+          "winning_scale_axis_semantics"
+        ]
+      },
+      "semantic_variable_id": "settlement.scale_given_winning_symbol",
+      "semantic_group": "settlement_scale",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "board.symbol_count_per_board_distribution"
+        ],
+        "cross_checks_with": [
+          "board.symbol_count_per_board_distribution",
+          "trigger.symbol_count_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "settlement.winning_symbol_distribution"
+        ],
+        "overlap_reason_zh": "与中奖符号边际构成联合体验的条件分解，不再重复评分原始联合分布。Count Pay若按同一完整盘面、同一symbol_id的可见精确数量直接派奖，则实际计数尾部可由board数量边际确定性推出，对应规模实例必须派生展示或标记不适用；固定线、Ways、Cluster及不可由盘面数量推出的计数范围仍独立评分。"
+      },
+      "display": {
+        "description_zh": "衡量某个符号中奖时通常形成多大规模。",
+        "usage_scene_zh": "用于区分谁在中奖与该独立派奖块以多少Ways、线数、计数或连片格数中奖。",
+        "target_meaning_zh": "每组目标值统计指定中奖符号条件下，各实际中奖规模档位的比例。",
+        "display_unit": "%（指定中奖符号条件占比）"
+      },
+      "score_group": "settlement_diversity",
+      "score_budget_key": "settlement.scale_given_symbol_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "axis_semantics_source": "settlement mechanic winning_scale_axis_semantics",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "settlement.symbol_rtp_contribution_distribution",
+      "name_zh": "各中奖符号RTP贡献审计",
+      "owner": "atomic.settlement-diversity",
+      "category": "settlement",
+      "display_order": 30,
+      "kind": "audit",
+      "unit": "distribution",
+      "scope_template": "component×state×settlement_type",
+      "measurement": "symbol_attributed_win/sum(real_bet) by winning_symbol_id",
+      "sample_unit": "paid_entry_and_winning_symbol_event",
+      "condition_on": "每笔符号派奖按结算事实唯一归属，分母为全部真实投注",
+      "normalization": "各符号字段为占总投注贡献；合计还原对应标准符号结算RTP",
+      "applicability_rule": "符号级派奖可唯一归属时审计。",
+      "missing_policy": "归属不唯一时报告不可复算原因，不进入综合分。",
+      "capability_ids": [
+        "settlement.payline",
+        "settlement.ways",
+        "settlement.count-pay",
+        "settlement.cluster-pay"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "settlement.payline",
+          "settlement.ways",
+          "settlement.count-pay",
+          "settlement.cluster-pay"
+        ]
+      },
+      "semantic_variable_id": "settlement.symbol_rtp_contribution",
+      "semantic_group": "settlement_source",
+      "semantic_role": "audit",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "core.rtp.component_contribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "与组件RTP贡献交叉复核派奖归属，但只作符号级诊断。"
+      },
+      "display": {
+        "description_zh": "记录每个中奖符号分别贡献了多少RTP。",
+        "usage_scene_zh": "用于发现中奖次数接近但奖金金额过度集中在某一符号。",
+        "target_meaning_zh": "每个值是对应符号累计派奖除以全部真实投注。",
+        "display_unit": "%（占总投注）"
+      },
+      "score_weight": 0,
+      "audit_profile": {
+        "method": "report_only",
+        "blocking_on_missing": false
+      }
+    },
+    {
+      "metric_id": "settlement.step_return_distribution",
+      "name_zh": "完整非Cascade结算步骤总回报分布",
+      "owner": "atomic.settlement-diversity",
+      "category": "settlement",
+      "display_order": 40,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "component×state×board_phase",
+      "measurement": "P(complete_step_total_return_bucket | unique eligible non-cascade settlement step), including 0x and summing every settlement type resolved in that step exactly once",
+      "sample_unit": "complete_non_cascade_settlement_step",
+      "condition_on": "指定组件、状态和盘面阶段下的每个唯一完整非Cascade结算步骤；同一步骤混合Payline、Ways、Count Pay、Cluster或其他已登记结算时，先汇总该步骤全部实际派奖再计一次，无任何正派奖时记0x。已由更窄条件回报Owner覆盖的完整步骤整体排除",
+      "normalization": "每个component×state×board_phase作用域内，从0x起的密封有序完整步骤总回报桶概率合计为1；禁止按settlement_type复制同一步骤",
+      "applicability_rule": "非Cascade且完整步骤未由其他更窄条件回报主Owner承接时必需；同一步骤存在一个或多个结算类型都只保留一个总回报实例。Cascade层级回报由cascade.step_return_distribution_by_depth负责，可变网格容量回报由variable_grid.return_distribution_by_capacity负责，固定布局动态有效Ways容量回报由effective_ways.return_distribution_by_capacity负责。",
+      "missing_policy": "唯一完整结算步骤边界、步骤内全部结算类型的实际派奖、跨类型去重键、0派奖步骤、投注分母或与更窄条件回报Owner的完整步骤互斥边界任一无法证明时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "semantic_owner_exclusive"],
+      "capability_ids": [
+        "settlement.payline",
+        "settlement.ways",
+        "settlement.count-pay",
+        "settlement.cluster-pay"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "settlement.payline",
+          "settlement.ways",
+          "settlement.count-pay",
+          "settlement.cluster-pay"
+        ]
+      },
+      "semantic_variable_id": "settlement.non_cascade_step_return",
+      "semantic_group": "settlement_outcome",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "core.return_distribution.lt200"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "exclusive_with": [
+          "cascade.step_return_distribution_by_depth",
+          "variable_grid.return_distribution_by_capacity",
+          "effective_ways.return_distribution_by_capacity"
+        ],
+        "overlap_reason_zh": "本指标是每个普通非Cascade完整结算步骤总回报的唯一Owner：同一步骤即使混合Payline、Ways、Count Pay或Cluster也只汇总并统计一次。中奖符号、中奖规模、并发派奖块和线路几何仍可按settlement_type拆分，但不得复制完整步骤总回报。Cascade、可变网格容量Ways和固定布局动态有效Ways已有更窄条件回报Owner时按完整步骤互斥。"
+      },
+      "display": {
+        "description_zh": "衡量每个完整非Cascade结算步骤汇总全部结算类型后，通常是0x、小奖、中等奖还是较高总回报。",
+        "usage_scene_zh": "用于发现总体RTP、中奖符号和中奖规模接近，但完整摇奖步骤的总中奖金额档位仍然单一或偏移；混合结算不会重复加权。",
+        "target_meaning_zh": "每个目标值统计指定组件、状态和盘面阶段下，唯一完整结算步骤的全部实际派奖总和落入对应倍率桶的比例，0x步骤必须计入且同一步骤只能出现一次。",
+        "display_unit": "%（完整非Cascade结算步骤占比）"
+      },
+      "score_group": "settlement_diversity",
+      "score_budget_key": "settlement.step_return_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "axis_semantics": "nonnegative_multiplicative",
+        "position_transform": "log10_1p",
+        "distance_normalization": "fixed_transform_unit",
+        "distance_scale": 1,
+        "distance_unit": "log10_decade",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "settlement.paid_result_block_count_per_winning_step_distribution",
+      "name_zh": "单个中奖步骤的独立派奖块数量分布",
+      "owner": "atomic.settlement-diversity",
+      "category": "settlement",
+      "display_order": 50,
+      "kind": "score",
+      "unit": "distribution",
+      "scope_template": "component×state×board_phase×settlement_type",
+      "measurement": "distribution of independent positive paid-result block count per winning settlement step",
+      "sample_unit": "winning_settlement_step",
+      "condition_on": "总派奖大于0的单个结算步骤；按结算玩法的独立派奖块定义计数",
+      "normalization": "结果种类数有序桶概率合计为1",
+      "applicability_rule": "一步可能同时产生一个或多个独立中奖结果时必需。",
+      "missing_policy": "无法区分独立结算结果或步骤边界时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "settlement.payline",
+        "settlement.ways",
+        "settlement.count-pay",
+        "settlement.cluster-pay"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "settlement.payline",
+          "settlement.ways",
+          "settlement.count-pay",
+          "settlement.cluster-pay"
+        ]
+      },
+      "semantic_variable_id": "settlement.paid_result_block_count_per_winning_step",
+      "semantic_group": "settlement_cooccurrence",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "无；本指标为该语义变量的唯一Owner。"
+      },
+      "display": {
+        "description_zh": "衡量一次中奖步骤中同时结算了多少个独立正派奖块。",
+        "usage_scene_zh": "用于区分总是单一派奖与多条线、多符号或多个Cluster同时派奖的体验。",
+        "target_meaning_zh": "每个值统计正回报结算步骤的独立派奖块数量恰好落入对应整数档位的比例。",
+        "display_unit": "%（中奖结算步骤占比）"
+      },
+      "score_group": "settlement_diversity",
+      "score_budget_key": "settlement.paid_result_block_count_per_winning_step_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "distance_normalization": "sealed_support_span",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "payline.winning_line_geometry_distribution",
+      "name_zh": "中奖线几何路径分布",
+      "owner": "atomic.settlement-diversity",
+      "category": "settlement",
+      "display_order": 60,
+      "kind": "score",
+      "unit": "distribution",
+      "scope_template": "component×state×board_phase",
+      "measurement": "P(canonical_payline_geometry_key | winning_line_event), where key = actual_settlement_direction + coordinates ordered by that direction and raw line_id is used only to resolve sealed line_definitions",
+      "sample_unit": "winning_line_event",
+      "condition_on": "实际产生正派奖的固定赔付线事件；Both Ways必须逐事件保留本次实际结算方向",
+      "normalization": "先把每个实际line_id映射到密封线路定义，再用实际结算方向和按该方向排列的(reel,row)坐标序列生成不含line_id的规范键；全部中奖线事件上的规范几何键概率合计为1",
+      "applicability_rule": "固定线定义及逐线结算可观测，每个实际中奖line_id都能唯一映射到规范几何路径，且同一作用域不存在重复规范几何定义时必需。",
+      "missing_policy": "赔付线定义、实际中奖线ID、Both Ways实际方向或编号到规范坐标路径的唯一映射缺失时阻塞FORMAL；同一作用域两个line_id映射为同一规范几何键时fail fast，禁止静默合并或直接跨实现比较line_id。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "settlement.payline"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "settlement.payline"
+        ],
+        "required_attributes": [
+          "line_count",
+          "line_definitions"
+        ]
+      },
+      "semantic_variable_id": "payline.winning_line_canonical_geometry",
+      "semantic_group": "settlement_spatial_path",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "无；本指标为中奖线路空间几何的唯一Owner，协议编号只作本游戏内映射键。"
+      },
+      "display": {
+        "description_zh": "衡量实际中奖更常发生在哪些固定线路几何上，不受不同实现的线路编号影响。",
+        "usage_scene_zh": "用于发现某些上、中、下或折线路径被过度使用，或同一几何线路在候选中长期无法中奖。",
+        "target_meaning_zh": "每个值统计一条由实际结算方向与各轴(reel,row)坐标序列组成的规范线路路径，占全部实际中奖线事件的比例；原始线路编号不进入目标键。",
+        "display_unit": "%（中奖线事件占比）"
+      },
+      "score_group": "settlement_diversity",
+      "score_budget_key": "payline.winning_line_geometry_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "total_variation",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "cluster.nonwinning_connected_group_size_given_symbol_distribution",
+      "name_zh": "指定符号与总数量下的单盘最大未中奖连通块大小分布",
+      "owner": "atomic.settlement-diversity",
+      "category": "settlement",
+      "display_order": 70,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "component×state×board_phase",
+      "measurement": "P(max_nonwinning_component_size_in_board | symbol_id, exact_total_symbol_count), including 0 when no nonwinning component exists, fields symbol_id|total_count::max_component_size",
+      "sample_unit": "eligible_board_snapshot×declared_cluster_symbol",
+      "condition_on": "每个合格盘面、每个声明Cluster符号及该符号全盘精确总数量；按画像邻接规则识别全部彼此独立且不可继续扩展的同符号连通块，排除已形成独立正派奖的连通块后取剩余连通块的实际最大格数，没有剩余连通块时记0",
+      "normalization": "每个symbol_id|total_count组按合格盘面归一化为1，0格与各实际未达门槛大小均进入有序支持；条件组权重由任务合同密封，退化组不进入评分",
+      "applicability_rule": "Cluster Pays画像明确密封near_miss_structure_relevant时加载；局部退化的symbol_id|total_count组移除并按原版活动组权重重新归一。全部条件组都只有一个结构可达最大未中奖大小（包括恒为0）时，整项按退化支持标记不适用。",
+      "missing_policy": "合格盘面分母、邻接规则、符号实际派奖门槛、独立派奖归属或逐盘连通块格数缺失时阻塞FORMAL；已派奖连通块不得参与最大未中奖连通块计算。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "settlement.cluster-pay"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "settlement.cluster-pay"
+        ],
+        "required_attributes": [
+          "adjacency_rule",
+          "minimum_cluster_size",
+          "near_miss_structure_relevant"
+        ]
+      },
+      "semantic_variable_id": "cluster.max_nonwinning_connected_group_size_per_board_given_symbol_and_total_count",
+      "semantic_group": "cluster_near_miss_structure",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "settlement.scale_given_symbol_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "board.symbol_count_per_board_distribution"
+        ],
+        "overlap_reason_zh": "全盘符号数量边际由board.symbol_count_per_board_distribution负责；本指标只评价给定精确总数量后的逐盘最大未中奖连通结构并包含0。settlement.scale_given_symbol_distribution只评价已独立派奖的Cluster规模，同一连通块不能同时进入两项。"
+      },
+      "display": {
+        "description_zh": "在指定符号总数量相同的盘面中，衡量离实际Cluster派奖门槛最近的未中奖连片有多大，并记录完全没有未中奖连片的盘面。",
+        "usage_scene_zh": "只用于原版把近门槛连片作为重要可见体验的Cluster游戏，发现已中奖规模正确但临门连片过少、过碎或失真，同时避免碎块多的盘面被重复加权。",
+        "target_meaning_zh": "每组目标值统计指定符号与全盘精确总数量条件下，最大未中奖连通块为0格或各实际未达门槛格数的盘面比例。",
+        "display_unit": "%（指定符号与总数量条件盘面占比）"
+      },
+      "score_group": "settlement_diversity",
+      "score_budget_key": "cluster.nonwinning_connected_group_size_given_symbol_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 0.5,
+      "score_profile": {
+        "method": "grouped_wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "distance_normalization": "sealed_support_span",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -120,7 +120,9 @@ REPORT_CONTRACT_V26 = "slot-alignment.reports.v2.6"
 REPORT_CONTRACT_V27 = "slot-alignment.reports.v2.7"
 REPORT_CONTRACT_V28 = "slot-alignment.reports.v2.8"
 REPORT_CONTRACT_V29 = "slot-alignment.reports.v2.9"
-STRICT_REPORT_CONTRACTS = {REPORT_CONTRACT_V26, REPORT_CONTRACT_V27, REPORT_CONTRACT_V28, REPORT_CONTRACT_V29}
+REPORT_CONTRACT_V31 = "slot-alignment.reports.v3.1"
+REPORT_CONTRACT_V32 = "slot-alignment.reports.v3.2"
+STRICT_REPORT_CONTRACTS = {REPORT_CONTRACT_V26, REPORT_CONTRACT_V27, REPORT_CONTRACT_V28, REPORT_CONTRACT_V29, REPORT_CONTRACT_V31, REPORT_CONTRACT_V32}
 METRIC_HEADING_PATTERN = re.compile(r"^#### M\d{2,}\s+.+$")
 METRIC_GROUPS = (
     ("hard", "硬指标"),
@@ -153,11 +155,23 @@ METRIC_TABLE_HEADERS = {
     },
 }
 
+SAMPLE_CAPABILITY_TABLE_HEADERS = {
+    2: ("条件组", "支持项数", "侧别", "计划样本", "所需样本", "缺口", "状态"),
+    3: ("条件组", "支持项数", "侧别", "计划样本", "所需样本", "缺口", "状态"),
+    4: ("条件组", "支持项数", "侧别", "合同计划", "FORMAL实际", "所需样本", "缺口", "状态"),
+}
+
 METHOD_NAMES = {
     "absolute_error": "绝对差",
     "relative_error": "相对误差",
     "range_error": "目标区间判定",
     "total_variation": "总变差距离（比较整组分布）",
+    "mean_absolute_error": "平均绝对差（逐项比较后取平均）",
+    "max_absolute_error": "最大绝对差（最偏离字段优先）",
+    "grouped_mean_absolute_error": "分组平均绝对差（组内逐项平均后按密封权重汇总）",
+    "grouped_total_variation": "分组总变差距离（组内比较后按密封权重汇总）",
+    "wasserstein_1d": "一维Wasserstein距离（考虑有序档位相邻程度）",
+    "grouped_wasserstein_1d": "分组一维Wasserstein距离（各条件组按密封权重汇总）",
     "audit": "审计核对",
 }
 
@@ -167,6 +181,8 @@ UNIT_NAMES = {
     "distribution": "%（样本占比）",
     "bet_multiple": "倍投注额（x）",
     "spins": "次免费旋转",
+    "respins": "次重转",
+    "feature_actions": "次主要动作",
     "count": "次",
 }
 
@@ -176,7 +192,7 @@ SOURCE_NAMES = {
     "task_contract": "任务目标合同",
 }
 
-METRIC_DISPLAY_DEFAULTS = {
+LEGACY_METRIC_DISPLAY_DEFAULTS = {
     "core.rtp.total": {
         "description_zh": "衡量玩家每投入100单位投注，长期平均返还多少单位奖金。",
         "usage_scene_zh": "用于确认整款模式的总体返还水平是否落在权威RTP范围内。",
@@ -248,26 +264,85 @@ METRIC_DISPLAY_DEFAULTS = {
         "target_meaning_zh": "目标值统计Feature奖金÷触发投注后的中位数。",
     },
     "feature_cycle.duration_distribution": {
-        "description_zh": "衡量完整Feature最终持续了多少次免费旋转。",
-        "usage_scene_zh": "用于比较短局、标准长度和长局Feature的出现结构。",
-        "target_meaning_zh": "每个目标占比统计实际免费旋转次数落入对应长度档位的Feature入口比例。",
+        "description_zh": "衡量初始资源、续命或重置、停止规则和跨步依赖共同作用后，一次完整Feature最终包含多少次主要动作。",
+        "usage_scene_zh": "用于比较完整周期过短或过长，并与免费旋转、重转、Hold & Spin或抽奖的局部过程指标交叉定位。",
+        "target_meaning_zh": "每个目标占比统计完整Feature最终主要动作总数落入对应实际次数档位的周期比例。",
     },
     "cascade_multiplier.joint_distribution": {
         "description_zh": "同时衡量Cascade深度和实际生效倍率的组合，而不是分别看两个指标。",
         "usage_scene_zh": "用于检查深层Cascade是否搭配了过强或过弱的倍率，识别单项看似正常但组合体验失真的情况。",
         "target_meaning_zh": "每个目标占比统计免费旋转局面中，对应Cascade深度×实际生效倍率组合所占比例。",
     },
+    "board.symbol_presence_distribution": {
+        "description_zh": "衡量每种符号有多大概率至少在一个完整盘面中出现一次。",
+        "usage_scene_zh": "用于识别某些符号长期缺席，或少数符号几乎盘盘出现造成的单调感。",
+        "target_meaning_zh": "每个目标值统计含有至少一个对应符号的合格盘面占全部同状态盘面的比例。",
+    },
+    "board.symbol_cell_share_distribution": {
+        "description_zh": "衡量每种符号占全部有效可见格子的比例。",
+        "usage_scene_zh": "用于识别总体盘面是否被少数符号占据，即使盘面签名看起来不同也能发现结构偏斜。",
+        "target_meaning_zh": "每个目标占比统计对应符号格数除以同状态全部有效可见格数。",
+    },
+    "board.symbol_count_per_board_distribution": {
+        "description_zh": "衡量单个盘面中同一种符号通常出现0个、1个、2个或更多个。",
+        "usage_scene_zh": "用于识别某种符号经常整片出现或数量过度固定的问题。",
+        "target_meaning_zh": "每个目标值统计在指定符号条件下，单盘数量落入对应档位的盘面比例。",
+    },
+    "board.symbol_stack_length_distribution": {
+        "description_zh": "衡量同一种符号沿密封堆叠方向连续出现1个、2个、3个或更多个的结构。",
+        "usage_scene_zh": "用于识别卷轴上长堆叠过密、过少或几乎固定的问题。",
+        "target_meaning_zh": "每个目标值统计在指定符号的有效连续段中，对应堆叠长度档位所占比例。",
+    },
+    "board.generation_concentration": {
+        "description_zh": "衡量盘面生成器是否反复使用少数停点窗口、模板或其他稳定生成单元。",
+        "usage_scene_zh": "用于定位完整盘面仍较多变化，但每轴窗口或底层模板高度重复的问题。",
+        "target_meaning_zh": "目标字段统计每个生成分区的最常见项占比、前五项占比和重复碰撞概率。",
+    },
+    "cascade.refill_symbol_distribution": {
+        "description_zh": "衡量Cascade消除后新补入格子由哪些符号构成。",
+        "usage_scene_zh": "用于防止初始盘面正常，但后续补充阶段长期掉落同一批符号。",
+        "target_meaning_zh": "每个目标占比统计对应符号在同状态、同Cascade层新补入有效格子中的比例。",
+    },
+    "settlement.winning_symbol_distribution": {
+        "description_zh": "衡量实际中奖结算主要由哪些符号产生。",
+        "usage_scene_zh": "用于识别总体中奖率正常，但中奖长期集中在少数符号上的问题。",
+        "target_meaning_zh": "每个目标占比统计对应符号中奖事件占全部合格中奖符号事件的比例。",
+    },
+    "settlement.winning_symbol_scale_joint_distribution": {
+        "description_zh": "同时衡量中奖符号和该次中奖规模，判断谁在以多大规模中奖。",
+        "usage_scene_zh": "用于识别符号构成和中奖规模分别正常，但二者组合关系失真的问题。",
+        "target_meaning_zh": "每个目标占比统计对应中奖符号×实际中奖规模档位组合占全部合格中奖事件的比例。",
+    },
     "core.long_tail.audit": {
         "description_zh": "衡量200倍以上高回报结果在各长尾倍率区间中的结构。",
         "usage_scene_zh": "用于审计大奖尾部是否异常集中、缺失或超出预期，不参与普通评分。",
-        "target_meaning_zh": "每个目标占比统计所有200倍以上合格入口中，对应高倍区间所占比例。",
+        "target_meaning_zh": "每个目标占比统计全部合格付费入口中，回报落入对应200倍以上长尾倍率桶的比例；回报低于200x的入口在所有长尾桶中计0。",
     },
     "core.max_win.audit": {
-        "description_zh": "核对最大观测中奖、游戏封顶值以及触顶次数是否符合规则。",
-        "usage_scene_zh": "用于确认高倍结果和封顶处理正确，不参与普通评分。",
-        "target_meaning_zh": "目标字段分别记录原版样本最大观测倍数、规则封顶倍数和原版样本触顶次数。",
+        "description_zh": "核对样本观测最大中奖、规则理论最大中奖、封顶值、触顶次数、实际超限事件和超限处理规则。",
+        "usage_scene_zh": "用于确认高倍结果、封顶触发和超限处理符合权威规则，不参与普通评分。",
+        "target_meaning_zh": "目标对象逐字段记录观测最大值、理论最大值、封顶值、触顶次数、超限事件数及超限规则核对状态。",
+        "object_labels": {
+            "observed_max": "样本观测最大中奖",
+            "theoretical_max": "规则理论最大中奖",
+            "cap": "生效封顶值",
+            "cap_hit_count": "触发封顶次数",
+            "overflow_event_count": "实际超限事件次数",
+            "overflow_rule_status": "超限处理规则核对状态",
+        },
+        "object_units": {
+            "observed_max": "倍投注额（x）",
+            "theoretical_max": "倍投注额（x）",
+            "cap": "倍投注额（x）",
+            "cap_hit_count": "次",
+            "overflow_event_count": "次",
+            "overflow_rule_status": "状态（符合/不符合/无法证明）",
+        },
     },
 }
+LEGACY_METRIC_DISPLAY_DEFAULTS["core.return_distribution.lt200"] = dict(
+    LEGACY_METRIC_DISPLAY_DEFAULTS["core.multiplier_distribution.lt200"]
+)
 
 
 def validate_server_flow_policy(input_manifest, alignment_manifest=None, candidate_archive=None, formal_result=None):
@@ -376,25 +451,34 @@ def apply_metric_display_metadata(contract, metadata=None):
     entries = metadata.get("metrics", []) if isinstance(metadata, dict) else []
     exact = {(item.get("metric_id"), item.get("scope")): item for item in entries if item.get("scope")}
     generic = {item.get("metric_id"): item for item in entries if not item.get("scope")}
-    require_business_labels = metadata is not None or result.get("report_contract_version") == REPORT_CONTRACT_V29
+    version = result.get("report_contract_version")
+    require_business_labels = metadata is not None or version in {REPORT_CONTRACT_V29, REPORT_CONTRACT_V31, REPORT_CONTRACT_V32}
+    allow_legacy_defaults = version not in {REPORT_CONTRACT_V31, REPORT_CONTRACT_V32}
+    required_display = {"description_zh", "usage_scene_zh", "target_meaning_zh", "display_unit"}
     for metric in result.get("metrics", []):
         display = dict(metric.get("display", {}))
         source = generic.get(metric.get("metric_id"), {})
         display.update({key: value for key, value in source.items() if key not in {"metric_id", "scope"}})
         source = exact.get(metric_key(metric), {})
         display.update({key: value for key, value in source.items() if key not in {"metric_id", "scope"}})
+        if not allow_legacy_defaults:
+            missing = sorted(key for key in required_display if not display.get(key))
+            if missing:
+                raise ValueError(f"新版指标合同缺少目录展示元数据: {metric.get('metric_id')} / {','.join(missing)}")
         metric["display"] = display
         metric["_require_business_labels"] = require_business_labels
+        metric["_allow_legacy_display_defaults"] = allow_legacy_defaults
     return result
 
 
 def metric_display(metric):
-    result = dict(METRIC_DISPLAY_DEFAULTS.get(metric.get("metric_id"), {}))
+    result = dict(LEGACY_METRIC_DISPLAY_DEFAULTS.get(metric.get("metric_id"), {})) if metric.get("_allow_legacy_display_defaults", True) else {}
     result.update(metric.get("display", {}))
     name = metric.get("name_zh", metric.get("metric_id", "该指标"))
-    result.setdefault("description_zh", f"衡量{name}在当前作用域内的统计表现。")
-    result.setdefault("usage_scene_zh", f"用于判断{name}是否接近目标体验。")
-    result.setdefault("target_meaning_zh", f"目标值统计合格原版样本中的{name}。")
+    if metric.get("_allow_legacy_display_defaults", True):
+        result.setdefault("description_zh", f"衡量{name}在当前作用域内的统计表现。")
+        result.setdefault("usage_scene_zh", f"用于判断{name}是否接近目标体验。")
+        result.setdefault("target_meaning_zh", f"目标值统计合格原版样本中的{name}。")
     return result
 
 
@@ -472,7 +556,7 @@ def metric_item_labels(metric, count):
         return labels
     metric_id = str(metric.get("metric_id", ""))
     fixed_return_labels = ["0x", "(0,1x)", "[1x,2x)", "[2x,5x)", "[5x,10x)", "[10x,20x)", "[20x,50x)", "[50x,100x)", "[100x,200x)", "[200x,500x)", "[500x,1000x)", "[1000x,2500x)", "[2500x,5000x)", "[5000x,10000x)", "[10000x,最大中奖]"]
-    if metric_id == "core.multiplier_distribution.lt200" and count <= 9:
+    if metric_id in {"core.multiplier_distribution.lt200", "core.return_distribution.lt200"} and count <= 9:
         return fixed_return_labels[:count]
     if metric_id in {"free_spin.return_distribution", "core.long_tail.audit"} and count == 15:
         return fixed_return_labels
@@ -536,13 +620,118 @@ def metric_meta_lines(number, metric):
     if metric.get("kind") == "hard":
         lines.append(f"> 基础容差：{fmt(profile.get('base_tolerance'))}｜系数：{fmt(profile.get('tolerance_factor'))}｜生效容差：{fmt(profile.get('tolerance'))}")
     elif metric.get("kind") == "score":
-        lines.append(f"> 评分组：{fmt(metric.get('score_group'))}｜权重：{fmt(metric.get('weight'))}｜控制簇：{fmt(metric.get('control_cluster'))}")
+        lines.append(f"> 评分组：{fmt(metric.get('score_group'))}｜预算键：{fmt(metric.get('score_budget_key', metric.get('metric_id')))}｜权重：{fmt(metric.get('weight'))}｜控制簇：{fmt(metric.get('control_cluster'))}")
     else:
-        requirement = profile.get("requirement", metric.get("missing_policy", "仅审计"))
-        if requirement == "阻塞":
-            requirement = "必须完成，缺失即阻塞"
+        rules = ["缺失阻塞" if profile.get("blocking_on_missing") else "缺失仅警告"]
+        if "blocking_on_mismatch" in profile:
+            rules.append("不一致阻塞" if profile.get("blocking_on_mismatch") else "不一致仅警告")
+        if profile.get("required_result_status"):
+            rules.append(f"要求状态={profile.get('required_result_status')}")
+        if profile.get("exact_match_fields"):
+            rules.append(f"精确比对={','.join(profile.get('exact_match_fields'))}")
+        if profile.get("insufficient_sample_status"):
+            rules.append(f"样本不足={profile.get('insufficient_sample_status')}{'并阻塞' if profile.get('insufficient_sample_blocks_formal') else '且不阻塞'}")
+        requirement = "；".join(rules)
         lines.append(f"> 审计要求：{fmt(requirement)}｜控制簇：{fmt(metric.get('control_cluster'))}")
+    if metric.get("kind") in {"hard", "score"} and method in {"wasserstein_1d", "grouped_wasserstein_1d"}:
+        dimensions = metric.get("instance_dimensions") if isinstance(metric.get("instance_dimensions"), dict) else {}
+        axis_unit = profile.get("axis_unit") or dimensions.get("output_unit") or display.get("axis_unit") or "以实际桶标签为准"
+        lines.append(
+            f"> 有序轴：{fmt(profile.get('axis_semantics'))}｜原始轴单位：{fmt(axis_unit)}｜位置变换：{fmt(profile.get('position_transform'))}｜距离单位：{fmt(profile.get('distance_unit'))}"
+        )
     return lines
+
+
+def sample_capability_policy_table(policy):
+    """用一张短表说明统一样本能力政策；旧合同未启用时也明确展示。"""
+    if not isinstance(policy, dict) or not policy:
+        return table(
+            ["样本能力政策项", "值", "说明"],
+            [["政策状态", "未启用", "当前合同不受统一样本能力政策检验"]],
+        )
+    confidence = policy.get("confidence_level")
+    confidence = f"{confidence * 100:g}%" if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) else confidence
+    adjustment = policy.get("multiple_testing", {}).get("grouped_adjustment")
+    adjustment = {
+        "bonferroni_across_sides_and_active_groups": "原版与FORMAL两侧，并按活动条件组校正",
+    }.get(adjustment, adjustment)
+    active = policy.get("active_metric_instances")
+    return table(["样本能力政策项", "值", "说明"], [
+        ["政策ID", policy.get("policy_id"), "确定使用哪套样本能力规则"],
+        ["版本", policy.get("version"), "候选结果出现前固定"],
+        ["置信水平", confidence, "原版与FORMAL两侧都必须满足"],
+        ["多重校正", adjustment, "条件组越多，逐组要求越严格"],
+        ["受检指标实例", len(active) if isinstance(active, list) else "无法判定", "只统计本政策实际覆盖的指标作用域"],
+        ["政策状态", policy.get("status"), "阻塞时不得进入后续阶段或交付"],
+        ["政策SHA-256", policy.get("source_sha256"), "用于确认政策文件未变化"],
+    ])
+
+
+def _sample_count_result(actual, required):
+    if not isinstance(actual, int) or isinstance(actual, bool):
+        return "缺失", "阻塞"
+    if not isinstance(required, int) or isinstance(required, bool):
+        return "无法判定", "阻塞"
+    gap = max(required - actual, 0)
+    return gap, "通过" if gap == 0 else "阻塞"
+
+
+def metric_sample_capability_lines(metric, stage, formal_sample_count=None):
+    """展示逐指标、逐条件组样本能力；FORMAL实际值只接受formal_result中的计数。"""
+    capability = metric.get("sample_capability")
+    if not isinstance(capability, dict):
+        return ["> 样本能力：不适用；本指标不受当前统一样本能力政策检验。"]
+    if stage not in SAMPLE_CAPABILITY_TABLE_HEADERS:
+        raise ValueError(f"不支持的样本能力报告阶段: {stage}")
+
+    support = capability.get("support_count_by_group")
+    required = capability.get("required_sample_count_by_group")
+    original_plan = capability.get("original_sample_count_by_group")
+    formal_plan = capability.get("formal_sample_count_by_group")
+    if not all(isinstance(value, dict) and value for value in (support, required, original_plan, formal_plan)):
+        raise ValueError(f"指标样本能力逐组数据不完整: {metric.get('metric_id')} / {metric.get('scope')}")
+    groups = sorted(support)
+    if any(set(value) != set(groups) for value in (required, original_plan, formal_plan)):
+        raise ValueError(f"指标样本能力条件组不一致: {metric.get('metric_id')} / {metric.get('scope')}")
+
+    method = METHOD_NAMES.get(capability.get("method"), capability.get("method"))
+    confidence = capability.get("confidence_level")
+    confidence = f"{confidence * 100:g}%" if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) else confidence
+    rows = []
+    formal_actual_statuses = []
+    actual_groups = formal_sample_count.get("group_sample_counts") if isinstance(formal_sample_count, dict) else None
+    for group in groups:
+        label = "全部样本" if group == "__all__" else group
+        original_gap, original_status = _sample_count_result(original_plan.get(group), required.get(group))
+        if stage in {2, 3}:
+            formal_gap, formal_status = _sample_count_result(formal_plan.get(group), required.get(group))
+            rows.extend([
+                [label, support.get(group), "原版", original_plan.get(group), required.get(group), original_gap, original_status],
+                [label, support.get(group), "FORMAL", formal_plan.get(group), required.get(group), formal_gap, formal_status],
+            ])
+            continue
+
+        if group == "__all__":
+            formal_actual = formal_sample_count.get("sample_count") if isinstance(formal_sample_count, dict) else None
+        else:
+            formal_actual = actual_groups.get(group) if isinstance(actual_groups, dict) else None
+        formal_gap, formal_status = _sample_count_result(formal_actual, required.get(group))
+        formal_actual_statuses.append(formal_status)
+        rows.extend([
+            [label, support.get(group), "原版", original_plan.get(group), "不适用", required.get(group), original_gap, original_status],
+            [label, support.get(group), "FORMAL", formal_plan.get(group), formal_actual, required.get(group), formal_gap, formal_status],
+        ])
+
+    status = capability.get("status")
+    if stage == 4:
+        actual_status = "通过" if formal_actual_statuses and all(item == "通过" for item in formal_actual_statuses) else "阻塞"
+        status = f"计划{status}｜FORMAL实际{actual_status}"
+    summary = (
+        f"> 样本能力门禁：{fmt(status)}｜方法：{fmt(method)}｜置信水平：{fmt(confidence)}"
+        f"｜比较噪声预算：{fmt(capability.get('comparison_noise_budget'))}"
+        f"｜单侧误差预算：{fmt(capability.get('per_side_error_budget'))}"
+    )
+    return [summary, "", table(list(SAMPLE_CAPABILITY_TABLE_HEADERS[stage]), rows)]
 
 
 def metric_stage2_table(metric):
@@ -763,6 +952,16 @@ def validate_report_against_template(report_text, template_text, stage):
         for marker in ("指标说明：", "使用场景：", "目标值含义：", "业务单位："):
             if marker not in body:
                 errors.append(f"阶段{stage}指标章节缺少{marker}: {heading}")
+        if "样本能力门禁：" in body:
+            expected_sample_header = SAMPLE_CAPABILITY_TABLE_HEADERS.get(stage)
+            if expected_sample_header not in {tuple(header) for header in headers}:
+                errors.append(f"阶段{stage}受检指标章节缺少样本能力明细表: {heading}")
+        elif "样本能力：" not in body:
+            errors.append(f"阶段{stage}指标章节缺少样本能力适用性说明: {heading}")
+        if "Wasserstein距离" in body:
+            for marker in ("有序轴：", "原始轴单位：", "位置变换：", "距离单位："):
+                if marker not in body:
+                    errors.append(f"阶段{stage}有序指标章节缺少{marker}: {heading}")
     if blocks and numbers != list(range(1, len(numbers) + 1)):
         errors.append(f"阶段{stage}指标编号不连续")
     return errors

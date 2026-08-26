@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "feature.award-draw",
+  "category": "feature",
+  "version": "2.2.0",
+  "mechanics": [
+    {
+      "mechanic_id": "feature.award-draw",
+      "name_zh": "抽取型奖励Feature",
+      "display_order": 430,
+      "definition": "通过一次或多次Pick、Wheel或等价抽取，从密封奖励池中得到奖励结果，并按固定次数或停止条件结束。",
+      "required_attributes": ["entry_sources", "entry_source_semantics", "stage_graph", "path_signature_definition", "presentation_type", "outcome_pool", "draw_count_rule", "replacement_rule", "draw_dependency_rule", "guarantee_rule", "draw_state_definition", "stop_rule", "award_aggregation_rule", "outcome_return_equivalence"],
+      "optional_attributes": ["player_input_role", "preselection_rule", "persistent_state_ids"],
+      "metric_requirements": {
+        "required_packages": ["atomic.award-draw", "composite.feature-cycle"],
+        "conditional_packages": [
+          {"package_id": "atomic.trigger", "when": "entry_source_semantics至少声明一个endogenous游戏内生入口来源；只有一个内生来源时保留退化支持不适用实例，两个及以上时评分"},
+          {"package_id": "atomic.jackpot", "when": "奖励池包含命名Jackpot层级"}
+        ]
+      },
+      "evidence_signatures": ["each draw index and resolved outcome are observable", "the reward pool, replacement or dependency rule and stop condition reproduce the complete feature award"],
+      "exclusions": ["a deterministic menu only chooses a game mode", "true skill changes the mathematical outcome outside the declared reward pool", "a visible wheel is only an animation for an already settled ordinary win"]
+    }
+  ]
+}

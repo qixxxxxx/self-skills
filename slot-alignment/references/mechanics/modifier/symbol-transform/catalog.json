@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "modifier.symbol-transform",
+  "category": "modifier",
+  "version": "2.2.0",
+  "mechanics": [
+    {
+      "mechanic_id": "modifier.symbol-transform",
+      "name_zh": "符号变形",
+      "display_order": 640,
+      "definition": "在明确时点按选择规则把一个或多个来源格或来源符号转换为目标符号、符号角色或动态奖值，然后再进入后续盘面或结算。",
+      "required_attributes": ["activation_condition", "source_domain", "target_domain", "selection_rule", "target_assignment_scope", "event_target_assignment_rule", "application_scope", "application_timing", "changed_position_pattern_representation", "changed_position_coordinate_domain", "transform_return_binding_rule"],
+      "optional_attributes": ["target_value_rule", "changed_cell_limit", "repeat_rule", "persistence_state_id", "source_value_carry_rule", "return_dependency_evidence", "value_symbol_node_ids"],
+      "metric_requirements": {
+        "required_packages": ["atomic.symbol-transform"],
+        "conditional_packages": [
+          {"package_id": "atomic.persistent-state", "when": "变形结果跨后续步骤、旋转或入口保留"},
+          {"package_id": "atomic.value-symbol", "when": "目标符号获得动态实例奖值"},
+          {"package_id": "interaction.transform-return", "when": "原版证据证明变形结果与同一步骤回报存在不能由边际推出的重要依赖"}
+        ]
+      },
+      "evidence_signatures": ["pre-transform and post-transform cell identities are linked", "actual source-to-target mappings and changed-cell count follow the declared rule", "multi-cell target assignments prove whether one event shares a draw, shares by source group, draws per cell, or uses a mixed state-dependent rule"],
+      "exclusions": ["Cascade仅向空位补入新符号", "Wild在结算时替代其他符号但盘面身份未改变", "稳定对象只改变位置而数学符号身份未改变", "同一符号只改变视觉外观而数学角色不变"]
+    }
+  ]
+}

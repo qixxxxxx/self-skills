@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.1",
-  "report_contract_version": "slot-alignment.reports.v2.9",
+  "schema_version": "1.2",
+  "report_contract_version": "slot-alignment.reports.v3.2",
   "task_id": "",
   "candidate_id": "",
   "plan_id": "",
@@ -10,8 +10,39 @@
   "execution_path": "python",
   "stage1_server_flow_certification_sha256": "",
   "server_flow_call_count": 0,
-  "sample": {"paid_entry_count": 0, "seed_set_hash": ""},
-  "scorecard": {"alignment_status": "无法判定", "overall_score": null, "hard_gates": []},
+  "sample": {"paid_entry_count": 0, "seed_set_hash": "", "metric_sample_counts": []},
+  "scorecard": {
+    "status": "阻塞",
+    "hard_gates": [],
+    "scores": [],
+    "audits": [],
+    "budget_scores": [],
+    "groups": [],
+    "overall_score": null,
+    "overall_band": "无有效评分",
+    "alignment_status": "无法判定",
+    "blocking_reasons": [],
+    "sample_capability_policy": {
+      "policy_id": "distribution-sample-capability-v1",
+      "version": "1.0.0",
+      "source_path": "assets/policies/sample_capability_policy.v1.json",
+      "source_sha256": "",
+      "active_metric_instances_sha256": "",
+      "status": "阻塞"
+    }
+  },
+  "audits": {
+    "long_tail": [],
+    "max_win": {
+      "status": "无法证明",
+      "observed_max": null,
+      "theoretical_max": null,
+      "cap": null,
+      "cap_hit_count": 0,
+      "overflow_event_count": 0,
+      "overflow_rule_status": "无法证明"
+    }
+  },
   "attempt": 0,
   "failure_reason": ""
 }

@@ -1,0 +1,856 @@
+{
+  "schema_version": "2.0",
+  "catalog_type": "metric_package",
+  "package_id": "atomic.persistent-state",
+  "type": "atomic",
+  "category": "state",
+  "version": "3.0.1",
+  "applies_when": {
+    "mechanic_id": "state.persistent-state"
+  },
+  "metrics": [
+    {
+      "metric_id": "persistent_state.ordered_value_distribution",
+      "name_zh": "有序标量持久状态值分布",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 10,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "state.persistent-state×state_id×observation_point",
+      "measurement": "P(ordered_state_value | eligible observation point)",
+      "sample_unit": "persistent_state_observation",
+      "condition_on": "画像密封的指定观测点，状态形态为ordered_scalar；保留全部可达数值，包含初始、上限和重置值",
+      "normalization": "每个state_id×observation_point作用域内有序状态值概率合计为1；实际数值位置由任务合同密封，轴语义由state.persistent-state.ordered_axis_semantics在候选出现前解析",
+      "applicability_rule": "持久状态是可比较大小的等级、计量值、累计倍率或进度标量时必需。即使状态随后映射为生效倍率，本指标仍拥有指定观测点的状态边际；倍率应用事件上的最终生效值由倍率指标独立拥有。",
+      "missing_policy": "状态身份、观测点、完整数值域、数值顺序或实际值缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "value_domain",
+          "value_order",
+          "observation_points",
+          "ordered_axis_semantics"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "ordered_scalar"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.ordered_value_at_observation",
+      "semantic_group": "persistent_state_ordered_scalar",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [],
+        "cross_checks_with": ["multiplier.effective_value_distribution"],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "只负责有序标量在固定观测点的边际；倍率指标负责已应用事件上的最终生效倍率。两者样本单位和观察边界不同，保持独立Owner，并仅通过规则一致性审计交叉核对映射。"
+      },
+      "display": {
+        "description_zh": "衡量固定观测点上的持久等级、计量值或累计倍率通常处于多大数值。",
+        "usage_scene_zh": "用于对齐跨局或跨阶段进度长期停留在哪些数值，并让相邻等级偏差小于跨越多个等级的偏差。",
+        "target_meaning_zh": "每个目标值统计指定观测点上对应实际有序状态值所占比例。",
+        "display_unit": "%（指定观测点状态观测占比）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.ordered_value_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "axis_semantics_source": "state.persistent-state.ordered_axis_semantics",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.ordered_transition_distribution",
+      "name_zh": "有序标量持久状态转移分布",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 20,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "state.persistent-state×state_id×transition_event",
+      "measurement": "P(next_ordered_state_value | current_ordered_state_value), fields current::next",
+      "sample_unit": "persistent_state_transition_opportunity",
+      "condition_on": "指定当前有序状态值下发生一次合格转移机会，保持不变、上升、下降、衰减和重置都必须记录",
+      "normalization": "每个current_ordered_state_value组分别归一化为1；下一状态实际数值位置与条件组权重由任务合同密封，轴语义由state.persistent-state.ordered_axis_semantics在候选出现前解析",
+      "applicability_rule": "ordered_scalar持久状态存在可识别转移、消耗、衰减或重置机会时必需。局部退化的当前值条件组从活动评分组移除，并按原版密封权重重新归一；全部当前值条件组退化时整项标记degenerate_reachable_support不适用且不生成评分预算。",
+      "missing_policy": "转移机会边界、前后状态绑定、数值顺序或任一保持/变化事件缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "value_domain",
+          "value_order",
+          "transition_rule",
+          "ordered_axis_semantics"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "ordered_scalar"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.next_ordered_value_given_current",
+      "semantic_group": "persistent_state_ordered_scalar",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "persistent_state.ordered_value_distribution"
+        ],
+        "overlap_reason_zh": "有序状态值边际由观测值指标负责，本指标只评价给定当前值后的下一数值规律，不重复当前值边际。"
+      },
+      "display": {
+        "description_zh": "衡量处于某个有序状态值时，下一次通常保持、上升、下降、衰减或重置到哪个实际值。",
+        "usage_scene_zh": "用于发现总体等级分布接近，但升级步幅、降级幅度或重置位置错误。",
+        "target_meaning_zh": "每组目标值统计指定当前有序值条件下，各实际下一值所占比例。",
+        "display_unit": "%（指定当前有序值条件转移机会占比）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.ordered_transition_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "axis_semantics_source": "state.persistent-state.ordered_axis_semantics",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.categorical_value_distribution",
+      "name_zh": "类别型持久状态值分布",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 30,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "state.persistent-state×state_id×observation_point",
+      "measurement": "P(categorical_state_value | eligible observation point)",
+      "sample_unit": "persistent_state_observation",
+      "condition_on": "画像密封的指定观测点，状态形态为categorical；类别只按身份比较，不虚构大小或距离",
+      "normalization": "每个state_id×observation_point作用域内全部声明类别概率合计为1",
+      "applicability_rule": "持久状态是模式、阶段、分支、颜色、命名状态等无自然数值顺序的类别时必需。",
+      "missing_policy": "状态身份、观测点、完整类别域或实际类别缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "value_domain",
+          "observation_points"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "categorical"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.categorical_value_at_observation",
+      "semantic_group": "persistent_state_categorical",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "只负责无序类别在固定观测点的边际构成；给定当前类别后的转移由类别转移指标负责。"
+      },
+      "display": {
+        "description_zh": "衡量固定观测点上的持久模式、阶段或命名状态通常是哪一类。",
+        "usage_scene_zh": "用于对齐无大小顺序的状态构成，例如普通、增强、锁定、待结算等模式占比。",
+        "target_meaning_zh": "每个目标值统计指定观测点上对应真实状态类别所占比例。",
+        "display_unit": "%（指定观测点状态观测占比）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.categorical_value_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "total_variation",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.categorical_transition_distribution",
+      "name_zh": "类别型持久状态转移分布",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 40,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "state.persistent-state×state_id×transition_event",
+      "measurement": "P(next_categorical_state_value | current_categorical_state_value), fields current::next",
+      "sample_unit": "persistent_state_transition_opportunity",
+      "condition_on": "指定当前类别下发生一次合格转移机会，保持原类别和切换到其他类别都必须记录",
+      "normalization": "每个current_categorical_state_value组分别归一化为1；条件组权重由任务合同密封",
+      "applicability_rule": "categorical持久状态存在可识别的保持、切换、消耗或重置机会时必需。局部退化的当前类别条件组从活动评分组移除，并按原版密封权重重新归一；全部当前类别条件组退化时整项标记degenerate_reachable_support不适用且不生成评分预算。",
+      "missing_policy": "转移机会边界、前后类别绑定或任一保持/切换事件缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "value_domain",
+          "transition_rule"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "categorical"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.next_categorical_value_given_current",
+      "semantic_group": "persistent_state_categorical",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "persistent_state.categorical_value_distribution"
+        ],
+        "overlap_reason_zh": "类别边际由观测值指标负责，本指标只评价给定当前类别后的下一类别规律，不重复当前类别边际。"
+      },
+      "display": {
+        "description_zh": "衡量处于某个持久类别时，下一次通常保持还是切换到哪一类。",
+        "usage_scene_zh": "用于发现总体类别占比接近，但模式切换、重置或消耗路径错误。",
+        "target_meaning_zh": "每组目标值统计指定当前类别条件下，各实际下一类别所占比例。",
+        "display_unit": "%（指定当前类别条件转移机会占比）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.categorical_transition_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_total_variation",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.occupied_position_count_distribution",
+      "name_zh": "位置集合占用数量分布",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 50,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "state.persistent-state×state_id×observation_point",
+      "measurement": "P(exact occupied_position_count | eligible observation point)",
+      "sample_unit": "persistent_position_set_observation",
+      "condition_on": "画像密封的指定观测点，状态形态为position_set；每次记录声明位置域中实际被占用的位置数量，包含0个",
+      "normalization": "从0到position_domain大小的完整精确整数概率合计为1；不得另建高维位置集合类别评分",
+      "applicability_rule": "持久状态表示Sticky、覆盖、已激活或其他位置集合时必需。若同一state_id与position_domain正是Hold & Spin锁定占用过程，则按semantic_owner_exclusive不适用；若该观测点与普通Respin步骤选择前事件完全相同，且原版步骤暴露权重已密封，则允许由respin.retained_position_count_distribution_by_step边际化派生。",
+      "missing_policy": "位置域、观测点、逐位置占用事实或完整精确数量支持集缺失时阻塞FORMAL；派生时共享事件集、同一观察点、原版步骤暴露权重或逐步保留数量目标任一缺失同样阻塞。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "semantic_owner_exclusive", "deterministically_derived_from_primary"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.wild-substitute",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "position_domain",
+          "observation_points"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "position_set"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.position_set_occupied_count",
+      "semantic_group": "persistent_state_position_set",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "respin.retained_position_count_distribution_by_step"
+        ],
+        "cross_checks_with": [
+          "persistent_state.position_share_given_occupied_count_distribution",
+          "persistent_state.position_count_transition_distribution",
+          "respin.retained_position_count_distribution_by_step"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "exclusive_with": [
+          "hold_spin.initial_occupancy_distribution",
+          "hold_spin.current_occupancy_distribution",
+          "hold_spin.occupancy_transition_distribution",
+          "hold_spin.terminal_occupied_cell_count_distribution"
+        ],
+        "overlap_reason_zh": "本指标只负责固定观测点的占用数量边际；位置份额在给定数量后评价，数量转移在给定当前数量后评价。普通Respin按步骤保留数量是更细粒度Owner，只有共享事件集、同一观测点及原版步骤权重完整时才能向本指标边际化，不能反向派生；Hold & Spin同状态数量链仍由专用Owner承接。"
+      },
+      "display": {
+        "description_zh": "衡量固定观测点上的持久位置集合通常占用了多少个位置。",
+        "usage_scene_zh": "用于对齐Sticky、锁定格、覆盖区或激活位置的总体规模及波动，不比较高维位置集合类别，也不重复评价具体位置偏向。",
+        "target_meaning_zh": "每个目标值统计指定观测点上恰好占用对应数量位置的观测比例，0个也必须保留。",
+        "display_unit": "%（指定观测点位置集合观测占比）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.occupied_position_count_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "distance_normalization": "sealed_support_span",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.position_share_given_occupied_count_distribution",
+      "name_zh": "指定占用数量下的位置份额分布",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 60,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "state.persistent-state×state_id×observation_point×actual_capacity_if_variable",
+      "measurement": "Q(position_id | exact_occupied_count, occupied_position_token), fields occupied_count::position_id",
+      "sample_unit": "persistent_occupied_position_token",
+      "condition_on": "画像密封的指定观测点与position_set状态。固定容量时N为position_domain大小；存在position_domain_by_actual_capacity时，实例必须带actual_capacity且N取该容量对应位置域大小。每次观测按实际占用数量分组并为每个实际占用位置产生token；0和满占用组不评分",
+      "normalization": "仅原版目标概率大于0且0<exact_occupied_count<N的活动组内，当前实际容量位置域中的全部position_id份额合计为1；组权重由相同容量数量Owner的原版目标归一化得到，不能使用候选频率；总体逐位置占用率只作可复算摘要",
+      "applicability_rule": "position_set持久状态的位置身份对规则或可见体验有意义，且至少一个原版正概率数量满足0<occupied_count<N时必需；数量为0或N的局部退化条件组从活动评分组移除，并按原版密封权重重新归一；全部正概率数量只落在0或N时整项标记degenerate_reachable_support不适用且不生成评分预算。完整补集普通Respin与本观测点共享事件集、位置域和原版权重时，允许由更细的respin.rerolled_position_share_given_counts_distribution逐步骤复算并聚合。",
+      "missing_policy": "位置域、观测点、任一活动数量组的占用位置token或绑定数量Owner缺失时阻塞FORMAL；派生时完整补集等式、逐步骤重转位置份额、原版步骤及数量条件权重任一缺失同样阻塞。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "deterministically_derived_from_primary", "semantic_owner_exclusive"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.wild-substitute",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "position_domain",
+          "observation_points"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "position_set"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.occupied_position_share_given_count",
+      "semantic_group": "persistent_state_position_set",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "respin.retained_position_count_distribution_by_step",
+          "respin.rerolled_position_share_given_counts_distribution"
+        ],
+        "cross_checks_with": [
+          "persistent_state.occupied_position_count_distribution",
+          "persistent_state.position_role_dependence_residual_given_count_transition",
+          "respin.rerolled_position_share_given_counts_distribution",
+          "hold_spin.initial_occupancy_distribution",
+          "hold_spin.current_occupancy_distribution",
+          "hold_spin.terminal_occupied_cell_count_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "persistent_state.occupied_position_count_distribution"
+        ],
+        "exclusive_with": [],
+        "overlap_reason_zh": "占用数量边际由本地数量指标或position_count_owner_bindings引用的Hold & Spin专用Owner负责；本指标只在0<count<N时评价全部占用位置token落在哪些真实位置。完整补集且事件权重充分时可由更细Respin重转位置份额反推并聚合；稳定对象移动的配对残差只拥有同组起点与终点如何配对的额外依赖，不拥有本指标的位置边际。总体逐位置占用率可由数量边际与本指标精确复算，不再独立计分。"
+      },
+      "display": {
+        "description_zh": "衡量在同一实际容量下已经确定占用若干格后，这些被占用格在当时真实可用位置之间如何分布。",
+        "usage_scene_zh": "用于发现占用数量正确，但Sticky、锁定、覆盖或激活位置长期偏向某些轴列或格位；可变容量不会把尚未解锁的位置混入基线。",
+        "target_meaning_zh": "每组目标值统计指定实际容量且0<占用数量<N时，一个实际占用位置token属于对应position_id的比例；同组位置份额合计为100%。",
+        "display_unit": "%（指定占用数量组内占用位置token份额）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.position_share_given_occupied_count_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_total_variation",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [0, 100],
+          [0.02, 95],
+          [0.05, 85],
+          [0.1, 70],
+          [0.2, 50],
+          [0.5, 0]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.position_count_transition_distribution",
+      "name_zh": "位置集合移除新增数量转移分布",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 70,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "state.persistent-state×state_id×transition_event",
+      "measurement": "P(removed_count, added_count | current_occupied_count), fields current_count::removed_count|added_count",
+      "sample_unit": "persistent_position_set_transition_opportunity",
+      "condition_on": "position_transition_bindings密封的一次合格位置集合转移；current_occupied_count取转移前占用数，removed_count统计前有后无的位置数，added_count统计前无后有的位置数，均包含0",
+      "normalization": "每个current_occupied_count组内全部结构可达的removed_count|added_count概率合计为1；retained_count=current_count-removed_count、next_count=current_count-removed_count+added_count必须确定性复算，不得另作随机字段；组权重来自同一转移前观测点的占用数量边际",
+      "applicability_rule": "position_set持久状态存在可识别的保持、移除、新增、移动或重置转移机会时必需；局部退化的当前数量条件组从活动评分组移除，并按原版密封权重重新归一；全部当前数量条件组退化时整项标记degenerate_reachable_support不适用且不生成评分预算。同一状态若正是Hold & Spin占用推进链则由专用Owner承接，本指标不适用。",
+      "missing_policy": "position_transition_bindings、前后位置集合、当前数量、移除/新增事实或转移前数量边际任一缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "semantic_owner_exclusive"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.wild-substitute",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "position_domain",
+          "transition_rule",
+          "position_transition_bindings"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "position_set"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.removed_added_count_given_current_count",
+      "semantic_group": "persistent_state_position_set",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "persistent_state.occupied_position_count_distribution",
+          "persistent_state.position_role_dependence_residual_given_count_transition"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "persistent_state.occupied_position_count_distribution"
+        ],
+        "exclusive_with": [
+          "hold_spin.occupancy_transition_distribution"
+        ],
+        "overlap_reason_zh": "当前占用数量由数量边际负责；本指标只评价给定当前数量后移除多少格、增加多少格。保留数量和下一数量都可由三个计数精确推出，不重复保存。"
+      },
+      "display": {
+        "description_zh": "衡量当前已经占用一定数量位置时，一次状态转移会移除多少个旧位置并新增多少个位置。",
+        "usage_scene_zh": "用于对齐Sticky保持、位置移动、释放、扩张和重置的数量过程，同时避免把保留数、下一占用数重复作为随机指标。",
+        "target_meaning_zh": "每组目标值统计指定当前占用数量下，实际移除数量与新增数量组合占该组转移机会的比例。",
+        "display_unit": "%（指定当前占用数量组内状态转移机会占比）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.position_count_transition_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_total_variation",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [0, 100],
+          [0.02, 95],
+          [0.05, 85],
+          [0.1, 70],
+          [0.2, 50],
+          [0.5, 0]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.position_role_dependence_residual_given_count_transition",
+      "name_zh": "指定数量转移下的位置角色依赖残差",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 80,
+      "kind": "score",
+      "unit": "probability_difference",
+      "scope_template": "state.persistent-state×state_id×transition_event×current_actual_capacity_if_variable×next_actual_capacity_if_variable",
+      "measurement": "residual(position_id | current_count, removed_count, added_count, role)=actual_selected_position_share-same_group_available_position_baseline_share, role in removed|added, fields current|removed|added|role::position_id",
+      "sample_unit": "persistent_position_transition_opportunity×declared_position",
+      "condition_on": "一次已绑定前后位置集合的合格转移，并先固定current_count、removed_count、added_count。固定容量使用position_domain；可变容量实例同时固定C与C'，removed基线使用C下转移前实际占用位置，added基线使用C'位置域中转移前未占用的位置，已removed的位置不得再次计入added可用集合。每个事件分别形成可用位置基线与实际选择份额，仅0<role_count<available_count的角色组活动",
+      "normalization": "每个current|removed|added|role活动组的实际位置份额与同组可用位置基线分别合计为1，全部position_id残差合计为0，且baseline+residual落在[0,1]；retained不评分，只由current_count-removed_count确定性复算。可变容量只读取相同C|O|C'的H&S推进组，禁止跨容量混算。组权重由对应数量转移目标概率乘角色数量后归一化，不能使用候选频率",
+      "applicability_rule": "位置身份会影响规则或可见体验，且至少一个原版正概率数量转移满足removed角色0<removed_count<current_count或added角色0<added_count<N-current_count时必需；全部角色均为0或确定全选时按degenerate_reachable_support不适用。Hold & Spin单调推进只允许removed_count=0、added_count=next_count-current_count，并通过position_count_owner_bindings引用专用数量Owner。",
+      "missing_policy": "位置域、前后集合、本地数量转移主指标或有效position_count_owner_bindings、逐事件removed/added可用位置集合、逐事件实际选择、同组可用位置基线、任一position_id残差或原版组权重缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "semantic_owner_exclusive"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.collect",
+        "modifier.expanding-wild",
+        "modifier.wild-substitute",
+        "modifier.symbol-transform",
+        "modifier.win-multiplier"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "position_domain",
+          "transition_rule",
+          "position_transition_bindings"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "position_set"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.position_role_dependence_residual_given_count_transition",
+      "semantic_group": "persistent_state_position_set",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "persistent_state.position_share_given_occupied_count_distribution",
+          "persistent_state.position_count_transition_distribution",
+          "hold_spin.occupancy_transition_distribution",
+          "persistent_state.matched_position_pairing_residual_given_count_transition"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "persistent_state.occupied_position_count_distribution",
+          "persistent_state.position_count_transition_distribution"
+        ],
+        "exclusive_with": [],
+        "overlap_reason_zh": "当前占用数量与移除/新增数量由本地数量指标或position_count_owner_bindings引用的Hold & Spin专用Owner负责；本指标只覆盖0<role_count<available_count的选择组，并先扣除逐事件实际可用位置基线。稳定对象移动的配对残差会先扣除同一移动子集自己的起点与终点边际，只评价哪个起点配到哪个终点，因此不替代本项的可用位置选择偏差。role_count=available_count为确定全选，retained按removed结果复算，均不重复评分。"
+      },
+      "display": {
+        "description_zh": "衡量在相同前后容量与移除/新增数量下，扣除每次事件真实可用位置后，某些位置是否仍更容易被移除或新增。",
+        "usage_scene_zh": "用于发现可变容量H&S或其他位置状态的数量推进正确，但新增仍偏向错误的已解锁区域；不会把尚不可用位置或容量变化再次扣分。",
+        "target_meaning_zh": "每个目标值表示指定前后容量、数量转移与角色下，某个position_id的实际选择份额比同组逐事件可用位置基线高或低多少。",
+        "display_unit": "百分点差（实际选择份额减同组可用位置基线）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.position_role_dependence_residual_given_count_transition",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_mean_absolute_error",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [0, 100],
+          [0.02, 95],
+          [0.05, 85],
+          [0.1, 70],
+          [0.2, 50],
+          [0.5, 0]
+        ]
+      }
+    },
+    {
+      "metric_id": "persistent_state.matched_position_pairing_residual_given_count_transition",
+      "name_zh": "指定数量转移下的一一配对位置移动残差",
+      "owner": "atomic.persistent-state",
+      "category": "state",
+      "display_order": 90,
+      "kind": "score",
+      "unit": "probability_difference",
+      "scope_template": "state.persistent-state×state_id×transition_event",
+      "measurement": "R(pair_id | current_count,removed_count,added_count)=P_actual(pair_id|group)-P_max_entropy_same_support(pair_id|candidate_same_group_origin_and_destination_marginals)，fields current_count|removed_count|added_count::pair_id",
+      "sample_unit": "matched_moving_object_token×count_transition_group",
+      "condition_on": "matched_position_transition_bindings密封的一次完整一一配对位置移动，并固定转移前占用数、实际移除数和实际新增数；每个发生位置变化且身份稳定的对象产生一个matched_moving_object_token。每组先统计真实起点终点联合量，再在相同reachable_position_pairs结构支持上使用迭代比例拟合得到同时保持候选自身起点边际和终点边际的最大熵基线，二者相减",
+      "normalization": "每个current_count|removed_count|added_count组完整使用Binding顺序中的全部pair_id；实际联合量和最大熵基线分别归一化为1，残差总和、每个原位置行和及每个终点列和均为0，单项范围[-1,1]。组权重按候选出现前密封的原版matched_moving_object_token暴露归一化，不能使用候选频率",
+      "applicability_rule": "position_set中的移动对象具有跨观测点稳定身份，规则或事件证据能把全部发生移动的对象逐个且无歧义地一一配对，并密封覆盖全部结构可达位置对的reachable_position_pairs时必需。只有至少一个正概率数量转移组存在两个及以上可达配对且同边际下配对并非唯一时评分；局部唯一配对组移除并按原版权重重新归一，全部组均退化时整项按degenerate_reachable_support标记不适用。",
+      "missing_policy": "稳定对象身份、前后观测点、完整一一配对、真实position_domain、完整结构可达位置对、唯一pair_id、all_reachable_pairs_covered证明、逐组实际联合量、候选同组起点终点边际、最大熵基线收敛证明、原版组权重或规则证据任一缺失时阻塞FORMAL；不得按最近位置、排序序号或事后最优匹配猜测对象身份，候选出现未登记位置对时按规则不一致阻塞。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "state.persistent-state",
+        "modifier.wild-substitute"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "state.persistent-state"
+        ],
+        "required_attributes": [
+          "state_id",
+          "state_shape",
+          "position_domain",
+          "matched_position_transition_bindings"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "state.persistent-state",
+            "attribute": "state_shape",
+            "operator": "equals",
+            "value": "position_set"
+          }
+        ]
+      },
+      "semantic_variable_id": "persistent_state.matched_position_pairing_dependence_residual_given_count_transition",
+      "semantic_group": "persistent_state_position_movement",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "persistent_state.position_count_transition_distribution",
+          "persistent_state.position_share_given_occupied_count_distribution",
+          "persistent_state.position_role_dependence_residual_given_count_transition"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "persistent_state.position_count_transition_distribution"
+        ],
+        "exclusive_with": [],
+        "overlap_reason_zh": "移除/新增数量由数量转移Owner负责，全部占用位置边际由位置份额Owner负责，移除与新增位置选择由位置角色残差负责。本指标在同一数量转移组和移动对象子集中先保留候选自己的起点、终点边际，只评价哪个起点与哪个终点出现额外配对，因此不重复上述三个Owner。"
+      },
+      "display": {
+        "description_zh": "衡量Walking Wild、移动标记或其他稳定对象在起点比例和终点比例相同后，具体起点与终点的配对方式是否仍与原版一致。",
+        "usage_scene_zh": "用于发现对象从哪里出发、最终落到哪里都大致正确，但移动方向、路径分支或对象配对关系错误的问题；不会把位置边际再次扣分。",
+        "target_meaning_zh": "每个目标值表示指定占用、移除和新增数量下，某个真实起点终点位置对的实际份额比保持候选自身起点与终点边际的同支持最大熵基线高或低多少。",
+        "display_unit": "百分点差（实际配对份额减同边际最大熵基线）"
+      },
+      "score_group": "state",
+      "score_budget_key": "persistent_state.matched_position_pairing_residual_given_count_transition",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 0.5,
+      "score_profile": {
+        "method": "grouped_mean_absolute_error",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [0, 100],
+          [0.02, 95],
+          [0.05, 85],
+          [0.1, 70],
+          [0.2, 50],
+          [0.5, 0]
+        ]
+      }
+    }
+  ]
+}

@@ -3,15 +3,21 @@ import argparse
 import hashlib
 import json
 import math
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
+from apply_ordered_distance_policy import validate_policy_source_binding as validate_ordered_distance_policy_binding
+from apply_score_group_weight_policy import validate_policy_source_binding as validate_score_group_weight_policy_binding
 from render_alignment_report import render as render_stage4
 from render_delivery_report import render as render_stage5
 from render_input_profile_report import render as render_stage1
 from render_metric_matching_report import render as render_stage2
 from render_scoring_report import render as render_stage3
 from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_templates
+from score_alignment import sample_capability_summary, schema_is, validate_formal_sample_capability, validate_sample_capability_binding
+from semantic_contract_validation import validate_contract as validate_semantic_contract
 from workspace_paths import REPORT_FILES, REPORT_VERSION_PATTERN, RUNTIME_FILES, latest_report_dir, report_path as workspace_report_path, resolve_manifest_path, task_root
 
 
@@ -23,6 +29,16 @@ REQUIRED_STAGE14 = [
 ]
 STAGE3_GATE_REL = "03-scoring/stage3_gate.json"
 REQUIRED_STAGE5 = ["05-delivery/delivery_manifest.json", "05-delivery/delivery_checklist.json"]
+VALIDATION_MODES = {"stage_transition", "historical_replay"}
+INPUT_VALIDATION_EXCEPTIONS = (
+    OSError,
+    ValueError,
+    TypeError,
+    AttributeError,
+    KeyError,
+    IndexError,
+    json.JSONDecodeError,
+)
 
 
 def load(path):
@@ -32,6 +48,30 @@ def load(path):
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def validate_scorecard_recomputation(contract_path, measurement_path, scorecard_path):
+    with tempfile.TemporaryDirectory(prefix="slot-alignment-rescore-") as directory:
+        output = Path(directory) / "scorecard.json"
+        process = subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("score_alignment.py")), "--contract", str(contract_path), "--measurements", str(measurement_path), "--output", str(output)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if process.returncode != 0 or not output.is_file():
+            detail = (process.stdout or process.stderr).strip()
+            return [f"阶段3评分无法由当前合同与基线测量确定性复算: {detail[:500]}"]
+        if load(output) != load(scorecard_path):
+            return ["阶段3 scorecard与当前合同、基线测量的确定性复算结果不一致"]
+    return []
+
+
+def validate_semantic_compatible(profile_path, contract_path, skill_root, authority_path, manifest_path, validation_mode, root_path):
+    return validate_semantic_contract(
+        profile_path, contract_path, skill_root, authority_path, manifest_path,
+        validation_mode=validation_mode, task_root_path=root_path,
+    )
 
 
 def validate_tolerance_policy(contract):
@@ -64,6 +104,18 @@ def validate_tolerance_policy(contract):
         if not math.isclose(effective, base * factor, rel_tol=1e-12, abs_tol=1e-15):
             errors.append(f"硬指标生效容差计算错误: {metric_id}")
     return errors
+
+
+def validate_score_group_weight_policy(contract, skill_root):
+    if not schema_at_least(contract, 1, 2):
+        return []
+    return validate_score_group_weight_policy_binding(contract, skill_root)
+
+
+def validate_ordered_distance_policy(contract, skill_root):
+    if not schema_at_least(contract, 1, 2):
+        return []
+    return validate_ordered_distance_policy_binding(contract, skill_root)
 
 
 def normalize_target(value):
@@ -213,9 +265,12 @@ def validate_stage3_gate(root):
     return errors
 
 
-def validate(root, require_delivery=True, reports=None):
+def validate(root, require_delivery=True, reports=None, validation_mode="stage_transition"):
+    if validation_mode not in VALIDATION_MODES:
+        raise ValueError(f"未知校验模式: {validation_mode}")
+    root = Path(root)
     skill_root = Path(__file__).resolve().parent.parent
-    errors, task_ids = validate_templates(skill_root), set()
+    errors, task_ids, report_versions = validate_templates(skill_root), set(), set()
     reports = Path(reports) if reports else latest_report_dir(root)
     if reports.name != "artifacts" and not REPORT_VERSION_PATTERN.match(reports.name):
         errors.append("报告目录必须使用rv####命名")
@@ -233,10 +288,14 @@ def validate(root, require_delivery=True, reports=None):
                 data = load(path)
                 if data.get("task_id"):
                     task_ids.add(data["task_id"])
+                if data.get("report_contract_version"):
+                    report_versions.add(data["report_contract_version"])
             except (OSError, json.JSONDecodeError) as exc:
                 errors.append(f"JSON无效 {rel}: {exc}")
     if len(task_ids) > 1:
         errors.append(f"task_id不一致: {sorted(task_ids)}")
+    if validation_mode == "stage_transition" and report_versions != {"slot-alignment.reports.v3.2"}:
+        errors.append(f"新任务全部阶段机器产物必须统一使用slot-alignment.reports.v3.2: {sorted(report_versions)}")
     required_reports = range(1, 6 if require_delivery else 5)
     for stage in required_reports:
         path = workspace_report_path(reports, stage)
@@ -256,7 +315,22 @@ def validate(root, require_delivery=True, reports=None):
     contract_path = root / "02-metric-matching/metric_contract.json"
     if contract_path.is_file():
         contract = load(contract_path)
+        game_profile_path = root / "01-input-profile/game_profile.json"
+        parameter_authority_path = root / "01-input-profile/parameter_authority.json"
+        if game_profile_path.is_file() and parameter_authority_path.is_file():
+            errors += validate_semantic_compatible(
+                game_profile_path,
+                contract_path,
+                skill_root,
+                parameter_authority_path,
+                root / "01-input-profile/input_manifest.json",
+                validation_mode,
+                task_root(root),
+            )
+        errors += validate_sample_capability_binding(contract, skill_root)
         errors += validate_tolerance_policy(contract)
+        errors += validate_score_group_weight_policy(contract, skill_root)
+        errors += validate_ordered_distance_policy(contract, skill_root)
         errors += validate_component_rtp_targets(contract)
         stage2_path = workspace_report_path(reports, 2)
         if stage2_path.is_file():
@@ -270,6 +344,15 @@ def validate(root, require_delivery=True, reports=None):
     stage3_report_path = workspace_report_path(reports, 3)
     if score_path.is_file() and contract_path.is_file() and stage3_report_path.is_file():
         score = load(score_path)
+        contract = load(contract_path)
+        if schema_is(contract, "1.3"):
+            if score.get("schema_version") != "1.3":
+                errors.append("1.3指标合同必须生成1.3阶段3 scorecard")
+            if score.get("sample_capability_policy") != sample_capability_summary(contract):
+                errors.append("阶段3 scorecard样本能力政策摘要与指标合同不一致")
+        measurement_path = Path(score.get("source_paths", {}).get("measurements", ""))
+        if validation_mode == "stage_transition" and measurement_path.is_file():
+            errors += validate_scorecard_recomputation(contract_path, measurement_path, score_path)
         actual = stage3_report_path.read_text(encoding="utf-8")
         errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[3]).read_text(encoding="utf-8"), 3)
         if actual != render_stage3(load(contract_path), score, sha(contract_path), sha(score_path)):
@@ -290,8 +373,23 @@ def validate(root, require_delivery=True, reports=None):
             errors.append(f"阶段4报告复算失败: {exc}")
     if formal_path.is_file():
         formal = load(formal_path)
-        if formal.get("execution_valid") and not formal.get("independent_from_calibration"):
-            errors.append("有效FORMAL缺少CALIBRATION独立性")
+        formal_scorecard = formal.get("scorecard") if isinstance(formal.get("scorecard"), dict) else {}
+        if formal.get("execution_valid") is not True:
+            errors.append("FORMAL执行无效，禁止交付")
+        if formal.get("independent_from_calibration") is not True:
+            errors.append("FORMAL缺少与CALIBRATION独立性，禁止交付")
+        if formal_scorecard.get("alignment_status") not in {"通过", "豁免后通过"}:
+            errors.append("FORMAL最终对齐状态未通过，禁止交付")
+        if formal_scorecard.get("blocking_reasons"):
+            errors.append("FORMAL内嵌scorecard仍有阻塞，禁止交付")
+        if contract_path.is_file():
+            contract = load(contract_path)
+            errors += validate_formal_sample_capability(contract, formal, skill_root)
+            if schema_is(contract, "1.3") and score_path.is_file():
+                score = load(score_path)
+                formal_policy = formal.get("scorecard", {}).get("sample_capability_policy")
+                if formal_policy != score.get("sample_capability_policy"):
+                    errors.append("FORMAL与阶段3 scorecard样本能力政策摘要不一致")
         alignment_manifest_path = root / "04-alignment/alignment_manifest.json"
         candidate_archive_path = root / "04-alignment/candidate_archive.json"
         if input_manifest is not None and alignment_manifest_path.is_file() and candidate_archive_path.is_file():
@@ -337,8 +435,18 @@ def main():
     parser.add_argument("--artifacts", required=True, type=Path)
     parser.add_argument("--reports", type=Path)
     parser.add_argument("--pre-delivery", action="store_true")
+    parser.add_argument("--historical-replay", action="store_true", help="仅用于显式复算受支持的旧版密封任务")
     args = parser.parse_args()
-    errors = validate(args.artifacts, not args.pre_delivery, args.reports)
+    validation_mode = "historical_replay" if args.historical_replay else "stage_transition"
+    try:
+        errors = validate(
+            args.artifacts,
+            require_delivery=not args.pre_delivery,
+            reports=args.reports,
+            validation_mode=validation_mode,
+        )
+    except INPUT_VALIDATION_EXCEPTIONS as exc:
+        errors = [f"校验输入结构无效（{type(exc).__name__}）: {exc}"]
     print(json.dumps({"status": "通过" if not errors else "失败", "errors": errors}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 

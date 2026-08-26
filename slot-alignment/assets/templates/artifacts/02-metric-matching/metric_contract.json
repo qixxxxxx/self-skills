@@ -1,25 +1,59 @@
 {
-  "schema_version": "1.2",
-  "report_contract_version": "slot-alignment.reports.v2.9",
+  "schema_version": "1.3",
+  "report_contract_version": "slot-alignment.reports.v3.2",
   "task_id": "",
   "status": "未开始",
-  "scope": {"game_code": "", "mode": "", "rtp_group": "", "target_rtp": null},
+  "scope": {
+    "game_code": "",
+    "mode": "",
+    "rtp_group": 1,
+    "target_rtp": null,
+    "mode_contract": {
+      "mode_id": "",
+      "feature_mode_selections": [],
+      "paid_configuration": {
+        "configuration_id": "normal",
+        "configuration_type": "normal",
+        "actual_economic_bet_field": "paid_entry.actual_economic_bet",
+        "actual_economic_bet_definition": "每个完整付费入口实际扣除的投注金额",
+        "sample_partition_field": "paid_configuration_id",
+        "sample_partition_value": "normal",
+        "fixed_for_task": true,
+        "evidence_sha256": ""
+      },
+      "mixed_sample_forbidden": true
+    }
+  },
+  "input_hashes": {"input_manifest": "", "game_profile": "", "parameter_authority": ""},
   "catalogs": {"mechanics_version": "", "metrics_version": "", "hashes": {}},
   "hard_gate_tolerance_policy": {
-    "policy_id": "future-default-hard-gate-tolerance-factors-v1",
-    "version": "1.0.0",
-    "source_path": "assets/policies/hard_gate_tolerance_policy.v1.json",
+    "policy_id": "future-default-hard-gate-tolerance-factors-v2",
+    "version": "2.0.0",
+    "source_path": "assets/policies/hard_gate_tolerance_policy.v2.json",
     "source_sha256": "",
     "default_factor": 1.0,
     "metric_factors": {
       "core.rtp.total": 1.0,
       "core.hit_rate.paid_entry": 2.0,
       "core.feature.natural_trigger_rate": 1.5,
-      "core.multiplier_distribution.lt200": 4.0,
+      "core.return_distribution.lt200": 4.0,
       "core.sigma": 1.5,
       "core.rtp.component_contribution": 1.5
     },
     "locked_metrics": ["core.rtp.total"],
+    "legacy_contracts_unchanged": true
+  },
+  "jackpot_materiality_policy": {
+    "source_schema_version": "slot-alignment.jackpot-materiality-policy.v1",
+    "policy_id": "jackpot-materiality-by-existing-resolution-v1",
+    "version": "1.0.0",
+    "source_path": "assets/policies/jackpot_materiality_policy.v1.json",
+    "source_sha256": "",
+    "hit_rate_threshold": 0.0001,
+    "component_rtp_tolerance_threshold": 0.0001,
+    "classification_rule": "material_when_hit_rate_gte_hit_rate_threshold_or_original_rtp_contribution_gte_component_rtp_tolerance",
+    "classifications": [],
+    "classifications_sha256": "",
     "legacy_contracts_unchanged": true
   },
   "component_rtp_target_policy": {
@@ -29,7 +63,140 @@
     "share_sum_target": 1.0,
     "legacy_contracts_unchanged": true
   },
-  "coverage": {"mechanic_required": 0, "mechanic_owned": 0, "mechanic_coverage": null, "metric_required": 0, "metric_measurable": 0, "metric_measurability": null},
+  "score_group_weight_policy": {
+    "policy_id": "mainstream-slot-experience-group-weights-v1",
+    "version": "1.0.0",
+    "source_path": "assets/policies/score_group_weight_policy.v1.json",
+    "source_sha256": "",
+    "method": "normalize_active_base_weights",
+    "base_weights": {
+      "award": 1.0,
+      "board_diversity": 1.0,
+      "board_evolution": 1.0,
+      "feature_experience": 1.0,
+      "feature_process": 1.0,
+      "interaction": 1.0,
+      "modifier": 1.0,
+      "settlement_diversity": 1.0,
+      "state": 1.0,
+      "trigger_structure": 1.0,
+      "variable_grid": 1.0
+    },
+    "active_groups": [],
+    "active_score_budget_keys": [],
+    "active_score_budget_keys_sha256": "",
+    "legacy_contracts_unchanged": true
+  },
+  "ordered_distance_policy": {
+    "source_schema_version": "slot-alignment.ordered-distance-policy.v1",
+    "policy_id": "mainstream-ordered-axis-distance-v1",
+    "version": "1.0.0",
+    "source_path": "assets/policies/ordered_distance_policy.v1.json",
+    "source_sha256": "",
+    "default_axis_semantics": "natural_linear",
+    "axis_profiles": {
+      "natural_linear": {
+        "position_transform": "identity",
+        "distance_normalization": "sealed_support_span",
+        "distance_scale_source": "sealed_support_span",
+        "distance_unit": "normalized_linear_support"
+      },
+      "nonnegative_multiplicative": {
+        "position_transform": "log10_1p",
+        "distance_normalization": "fixed_transform_unit",
+        "distance_scale": 1.0,
+        "distance_unit": "log10_decade"
+      }
+    },
+    "fixed_nonnegative_multiplicative_metrics": [
+      "cascade.step_return_distribution_by_depth",
+      "core.return_distribution.lt200",
+      "effective_ways.capacity_distribution",
+      "effective_ways.return_distribution_by_capacity",
+      "feature_cycle.return_distribution_by_stage_path",
+      "multiplier.effective_value_distribution",
+      "settlement.step_return_distribution",
+      "value_symbol.assignment_value_distribution",
+      "variable_grid.return_distribution_by_capacity",
+      "wild.incremental_return_given_assistance_distribution"
+    ],
+    "dynamic_axis_metrics": {
+      "collect.output_value_given_input_count_distribution": {
+        "allowed_axis_semantics": ["natural_linear", "nonnegative_multiplicative"],
+        "resolution_source": "modifier.collect.output_axis_semantics_by_output"
+      },
+      "persistent_state.ordered_transition_distribution": {
+        "allowed_axis_semantics": ["natural_linear", "nonnegative_multiplicative"],
+        "resolution_source": "state.persistent-state.ordered_axis_semantics"
+      },
+      "persistent_state.ordered_value_distribution": {
+        "allowed_axis_semantics": ["natural_linear", "nonnegative_multiplicative"],
+        "resolution_source": "state.persistent-state.ordered_axis_semantics"
+      },
+      "settlement.scale_given_symbol_distribution": {
+        "allowed_axis_semantics": ["natural_linear", "nonnegative_multiplicative"],
+        "resolution_source": "settlement mechanic winning_scale_axis_semantics"
+      }
+    },
+    "rules": {
+      "raw_positions_must_be_finite": true,
+      "log_positions_must_be_nonnegative": true,
+      "economic_values_must_be_normalized_to_denominator_multiple": true,
+      "candidate_may_not_choose_transform_or_scale": true,
+      "candidate_may_not_add_support_bins": true,
+      "mixed_axis_semantics_in_one_instance_blocks": true
+    },
+    "active_ordered_metric_instances": [],
+    "active_ordered_metric_instances_sha256": "",
+    "legacy_contracts_unchanged": true
+  },
+  "sample_capability_policy": {
+    "source_schema_version": "slot-alignment.sample-capability-policy.v1",
+    "policy_id": "distribution-sample-capability-v1",
+    "version": "1.0.0",
+    "source_path": "assets/policies/sample_capability_policy.v1.json",
+    "source_sha256": "",
+    "legacy_contracts_unchanged": true,
+    "confidence_level": 0.99,
+    "covered_methods": ["grouped_mean_absolute_error", "grouped_total_variation", "grouped_wasserstein_1d", "mean_absolute_error", "total_variation", "wasserstein_1d"],
+    "noise_budget": {
+      "score_source": "minimum_positive_distance_anchor_at_score_95",
+      "hard_source": "effective_tolerance",
+      "hard_tolerance_factor": 0.5,
+      "per_side_factor": 0.5
+    },
+    "bounds": {
+      "total_variation": "bretagnolle_huber_carol",
+      "wasserstein_1d": "dkw",
+      "mean_absolute_residual": "coordinate_hoeffding_union_bound",
+      "residual_coordinate_range_width": 2.0
+    },
+    "multiple_testing": {
+      "sides": ["original", "formal"],
+      "grouped_adjustment": "bonferroni_across_sides_and_active_groups"
+    },
+    "formulas": {
+      "total_variation": "ceil((support_count*ln(2)+ln(1/delta))/(2*epsilon^2))",
+      "wasserstein_1d": "ceil(normalized_span^2*ln(2/delta)/(2*epsilon^2))",
+      "mean_absolute_residual": "ceil(range_width^2*ln(2*coordinate_count/delta)/(2*epsilon^2))"
+    },
+    "rules": {
+      "active_reachable_support_only": true,
+      "zero_probability_reachable_cells_count": true,
+      "original_and_formal_must_both_pass": true,
+      "candidate_may_not_change_support": true,
+      "candidate_frequency_may_not_define_groups_or_samples": true,
+      "insufficient_capacity_blocks": true,
+      "insufficient_capacity_may_not_become_inapplicable": true
+    },
+    "active_metric_instances": [],
+    "active_metric_instances_sha256": "",
+    "blocking_reasons": [],
+    "status": "阻塞"
+  },
+  "coverage": {"mechanic_required": 0, "mechanic_owned": 0, "mechanic_coverage": null, "metric_required": 0, "metric_measurable": 0, "metric_measurability": null, "metric_resolved": 0, "metric_resolution": null},
+  "group_weights": {},
+  "step_return_owner_partitions": [],
   "metrics": [],
   "package_matches": [],
   "coupling_clusters": [],

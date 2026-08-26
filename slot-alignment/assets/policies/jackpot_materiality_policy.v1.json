@@ -1,0 +1,31 @@
+{
+  "schema_version": "slot-alignment.jackpot-materiality-policy.v1",
+  "policy_id": "jackpot-materiality-by-existing-resolution-v1",
+  "version": "1.0.0",
+  "status": "默认政策",
+  "authority": "沿用已密封评分锚点与硬指标容差，不新增经验阈值",
+  "created_at": "2026-08-26",
+  "source_path": "assets/policies/jackpot_materiality_policy.v1.json",
+  "applies_to": "采用本政策后新建并在候选结果出现前密封的对齐任务",
+  "legacy_contracts_unchanged": true,
+  "hit_rate_threshold": {
+    "metric_id": "jackpot.material_hit_rate",
+    "source": "score_profile.anchors",
+    "anchor_score": 95,
+    "selection": "smallest_positive_distance_at_score"
+  },
+  "rtp_contribution_threshold": {
+    "metric_id": "core.rtp.component_contribution",
+    "source": "active_metric_instance.hard_gate_profile.tolerance"
+  },
+  "classification_rule": "material_when_hit_rate_gte_hit_rate_threshold_or_original_rtp_contribution_gte_component_rtp_tolerance",
+  "rules": {
+    "tier_domain_must_be_fully_covered": true,
+    "one_tier_one_opportunity_set": true,
+    "same_opportunity_set_same_denominator": true,
+    "candidate_result_may_not_reclassify": true,
+    "non_material_tiers_remain_in_full_tier_audits": true,
+    "material_without_projection_requires_direct_low_dimensional_score": true,
+    "material_without_formal_sample_capability_blocks": true
+  }
+}

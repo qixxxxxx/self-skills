@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from report_common import apply_metric_display_metadata, detail_rows, metric_brief_result, metric_groups, metric_key, metric_meta_lines, metric_result_summary, metric_stage4_table, table
+from report_common import apply_metric_display_metadata, detail_rows, metric_brief_result, metric_groups, metric_key, metric_meta_lines, metric_result_summary, metric_sample_capability_lines, metric_stage4_table, sample_capability_policy_table, table
 
 
 def load(path):
@@ -32,10 +32,19 @@ def render(a, display_metadata=None):
     parameters = load(a / "04-alignment/aligned_parameters.json")
     formal = load(a / "04-alignment/formal_result.json")
     scope = inputs.get("scope", {})
-    final_score = formal.get("scorecard", {}) if formal.get("scorecard", {}).get("hard_gates") is not None else score
-    if not final_score.get("hard_gates") and score.get("hard_gates"):
-        final_score = score
-    status = formal.get("scorecard", {}).get("alignment_status") or final_score.get("alignment_status", "无法判定")
+    final_score = formal.get("scorecard")
+    required_final_score_fields = {
+        "hard_gates", "scores", "budget_scores", "groups", "overall_score",
+        "overall_band", "alignment_status", "blocking_reasons",
+    }
+    if formal.get("report_contract_version") in {"slot-alignment.reports.v3.1", "slot-alignment.reports.v3.2"}:
+        required_final_score_fields.add("audits")
+    if not isinstance(final_score, dict):
+        raise ValueError("FORMAL缺少完整scorecard")
+    missing_final_score_fields = sorted(required_final_score_fields - set(final_score))
+    if missing_final_score_fields:
+        raise ValueError(f"FORMAL scorecard字段缺失: {','.join(missing_final_score_fields)}")
+    status = final_score.get("alignment_status", "无法判定")
     hard = final_score.get("hard_gates", [])
     hard_required = [x for x in hard if x.get("status") != "硬指标已豁免"]
     hard_passed = sum(x.get("status") == "通过" for x in hard_required)
@@ -47,8 +56,18 @@ def render(a, display_metadata=None):
     contract_metrics = {(x.get("metric_id"), x.get("scope")): x for x in contract.get("metrics", [])}
     baseline_hard = {metric_key(item): item for item in score.get("hard_gates", [])}
     baseline_scores = {metric_key(item): item for item in score.get("scores", [])}
+    baseline_audits = {metric_key(item): item for item in score.get("audits", [])}
     formal_hard = {metric_key(item): item for item in final_score.get("hard_gates", [])}
     formal_scores = {metric_key(item): item for item in final_score.get("scores", [])}
+    formal_audits = {metric_key(item): item for item in final_score.get("audits", [])}
+    formal_sample_counts = {}
+    for item in formal.get("sample", {}).get("metric_sample_counts", []):
+        if not isinstance(item, dict):
+            continue
+        item_key = metric_key(item)
+        if item_key in formal_sample_counts:
+            raise ValueError(f"FORMAL逐指标样本计数重复: {item_key[0]} / {item_key[1]}")
+        formal_sample_counts[item_key] = item
     audit_results = {}
     long_tail_audit = formal.get("audits", {}).get("long_tail", [])
     if isinstance(long_tail_audit, list):
@@ -60,9 +79,12 @@ def render(a, display_metadata=None):
     if isinstance(max_win_audit, dict):
         audit_results["core.max_win.audit"] = {
             "candidate": {
+                "observed_max": max_win_audit.get("observed_max", max_win_audit.get("observed", max_win_audit.get("observed_normal_bet_multiple"))),
+                "theoretical_max": max_win_audit.get("theoretical_max"),
                 "cap": max_win_audit.get("cap"),
                 "cap_hit_count": max_win_audit.get("cap_hit_count"),
-                "observed": max_win_audit.get("observed", max_win_audit.get("observed_normal_bet_multiple")),
+                "overflow_event_count": max_win_audit.get("overflow_event_count"),
+                "overflow_rule_status": max_win_audit.get("overflow_rule_status"),
             },
             "status": max_win_audit.get("status", "审计"),
         }
@@ -73,6 +95,8 @@ def render(a, display_metadata=None):
             return baseline_hard.get(metric_key(metric))
         if metric.get("kind") == "score":
             return baseline_scores.get(metric_key(metric))
+        if metric.get("kind") == "audit":
+            return baseline_audits.get(metric_key(metric))
         return None
 
     def formal_for(metric):
@@ -80,7 +104,9 @@ def render(a, display_metadata=None):
             return formal_hard.get(metric_key(metric))
         if metric.get("kind") == "score":
             return formal_scores.get(metric_key(metric))
-        return audit_results.get(metric.get("metric_id"))
+        if metric.get("kind") == "audit":
+            return formal_audits.get(metric_key(metric)) or audit_results.get(metric.get("metric_id"))
+        return None
 
     metric_overview_rows = []
     for _, title, items in grouped_metrics:
@@ -105,6 +131,7 @@ def render(a, display_metadata=None):
                 f"#### {number} {metric.get('name_zh', metric.get('metric_id'))}", "",
                 *metric_meta_lines(number, metric), "",
                 metric_stage4_table(metric, baseline_item, formal_item), "",
+                *metric_sample_capability_lines(metric, 4, formal_sample_counts.get(metric_key(metric))), "",
                 f"阶段4结论：{metric_result_summary(metric, formal_item, 'FORMAL未生成该指标结果')}。", "",
             ])
         return "\n".join(blocks).rstrip()
@@ -131,7 +158,15 @@ def render(a, display_metadata=None):
     score_target_table = table(["指标", "目标项", "值"], score_target_rows)
     score_method_table = table(["指标", "评价方法", "评分组", "权重"], score_method_rows)
     score_detail_table = table(["指标", "评价参数", "值"], score_detail_rows)
-    group_table = table(["评分组", "得分", "档位", "权重"], [[x.get("group"), x.get("score"), x.get("band"), x.get("weight")] for x in final_score.get("groups", [])])
+    budget_score_table = table(["评分预算键", "评分组", "作用域实例数", "作用域聚合", "预算得分", "档位", "指标权重"], [[x.get("score_budget_key"), x.get("group"), x.get("scope_count"), x.get("scope_aggregation"), x.get("score"), x.get("band"), x.get("weight")] for x in final_score.get("budget_scores", [])])
+    group_table = table(
+        ["评分组", "得分", "档位", "组权重", "有效评分预算数", "汇总方法"],
+        [[
+            item.get("group"), item.get("score"), item.get("band"), item.get("weight"),
+            item.get("budget_count", item.get("metric_count")),
+            item.get("method", "按评分预算加权后参与综合分"),
+        ] for item in final_score.get("groups", [])],
+    )
     mechanic_summary_rows, mechanic_attribute_rows, mechanic_evidence_rows = [], [], []
     for item in mechanics:
         mechanic_id = item.get("mechanic_id")
@@ -164,6 +199,15 @@ def render(a, display_metadata=None):
     tolerance_policy = contract.get("hard_gate_tolerance_policy", {})
     if tolerance_policy.get("source_sha256"):
         hashes["hard_gate_tolerance_policy"] = tolerance_policy["source_sha256"]
+    score_group_policy = contract.get("score_group_weight_policy", {})
+    if score_group_policy.get("source_sha256"):
+        hashes["score_group_weight_policy"] = score_group_policy["source_sha256"]
+    ordered_distance_policy = contract.get("ordered_distance_policy", {})
+    if ordered_distance_policy.get("source_sha256"):
+        hashes["ordered_distance_policy"] = ordered_distance_policy["source_sha256"]
+    sample_capability_policy = contract.get("sample_capability_policy", {})
+    if sample_capability_policy.get("source_sha256"):
+        hashes["sample_capability_policy"] = sample_capability_policy["source_sha256"]
     component_rows, component_target_rows = [], []
     for item in hard:
         if "component_contribution" not in item.get("metric_id", ""):
@@ -183,6 +227,9 @@ def render(a, display_metadata=None):
         ref = f"P{index:02d}"
         source_summary_rows.append([ref, source_names.get(key, key), "阶段1已密封"])
         source_path_rows.append([ref, value, inputs.get("hashes", {}).get(key)])
+    if sample_capability_policy:
+        source_summary_rows.append(["POL01", "样本能力政策", "候选前密封；FORMAL按实际逐指标、逐条件组复验"])
+        source_path_rows.append(["POL01", sample_capability_policy.get("source_path"), sample_capability_policy.get("source_sha256")])
     formal_hash_rows = [[name, value] for name, value in sorted(formal.get("input_hashes", {}).items())]
     waiver_summary_rows, waiver_approval_rows = [], []
     for item in waivers:
@@ -190,7 +237,6 @@ def render(a, display_metadata=None):
         approval = item.get("approval")
         waiver_summary_rows.append([metric_id, item.get("status"), item.get("reason"), approval.get("status") if isinstance(approval, dict) else approval])
         waiver_approval_rows.extend([[metric_id, field, value] for field, value in detail_rows(approval, "批准")])
-    max_win_rows = detail_rows(formal.get("audits", {}).get("max_win", "无。"))
     scope_rows = [[name, value, "不得跨作用域"] for name, value in named_rows({key: value for key, value in scope.items() if key != "target_rtp"}, {"game_code": "游戏", "mode": "模式", "rtp_group": "RTP组"})]
     scope_target_rows = detail_rows(scope.get("target_rtp"), "目标RTP")
     rtp_items = [item for item in hard if item.get("metric_id") == "core.rtp.total"]
@@ -199,7 +245,7 @@ def render(a, display_metadata=None):
     probability_items = [item for item in hard if "hit_rate" in item.get("metric_id", "") or "trigger_rate" in item.get("metric_id", "")]
     probability_rows = [[item.get("name_zh"), item.get("scope"), item.get("candidate"), item.get("distance"), item.get("tolerance"), item.get("status")] for item in probability_items]
     probability_target_rows = [[item.get("name_zh"), field, value] for item in probability_items for field, value in detail_rows(item.get("target"), "目标")]
-    distribution_items = [item for item in hard if "multiplier_distribution" in item.get("metric_id", "")]
+    distribution_items = [item for item in hard if item.get("metric_id") in {"core.multiplier_distribution.lt200", "core.return_distribution.lt200"}]
     distribution_rows = [[item.get("name_zh"), item.get("distance"), item.get("base_tolerance", item.get("tolerance")), item.get("tolerance_factor", 1.0), item.get("tolerance"), item.get("status")] for item in distribution_items]
     distribution_detail_rows = []
     for item in distribution_items:
@@ -226,12 +272,12 @@ def render(a, display_metadata=None):
             ["综合档位", final_score.get("overall_band")], ["低于85分项", len(low)], ["豁免", len(waivers)],
             ["200x以上长尾", "已审计" if long_tail else "无数据/未完成"], ["交付建议", "可进入交付" if formal.get("execution_valid") else "等待有效FORMAL"]
         ]), "", "### 一句话结论", "", f"本次对齐结论为**{status}**；硬指标、综合评分和 FORMAL 资格以本报告后续机器证据为准。", "",
-        "## 1. 任务范围与依据", "", "### 1.1 对齐范围", "", table(["字段", "值", "边界"], [["任务ID", inputs.get("task_id"), "全阶段一致"], *scope_rows]), "", table(["目标项", "值"], scope_target_rows), "", "### 1.2 权威资料与版本", "", table(["资料ID", "资料", "资格"], source_summary_rows), "", table(["资料ID", "路径", "SHA-256/版本"], source_path_rows), "", "### 1.3 统计口径", "", table(["口径项", "定义"], [["完整付费入口", inputs.get("paid_entry_definition", "真实扣款开始至恢复可再次扣款状态")], ["投注", inputs.get("bet_basis", "入口实际扣款")], ["派奖", inputs.get("payout_basis", "入口及全部后续Feature/collect派奖")], ["组件拆分", "按同一入口链拆分Base/Feature/其他贡献"], ["定向样本", "不混入总体指标"], ["FORMAL单位", "完整付费入口"]]), "",
+        "## 1. 任务范围与依据", "", "### 1.1 对齐范围", "", table(["字段", "值", "边界"], [["任务ID", inputs.get("task_id"), "全阶段一致"], *scope_rows]), "", table(["目标项", "值"], scope_target_rows), "", "### 1.2 权威资料与版本", "", table(["资料ID", "资料", "资格"], source_summary_rows), "", table(["资料ID", "路径", "SHA-256/版本"], source_path_rows), "", sample_capability_policy_table(sample_capability_policy), "", "### 1.3 统计口径", "", table(["口径项", "定义"], [["完整付费入口", inputs.get("paid_entry_definition", "真实扣款开始至恢复可再次扣款状态")], ["投注", inputs.get("bet_basis", "入口实际扣款")], ["派奖", inputs.get("payout_basis", "入口及全部后续Feature/collect派奖")], ["组件拆分", "按同一入口链拆分Base/Feature/其他贡献"], ["定向样本", "不混入总体指标"], ["FORMAL单位", "完整付费入口"]]), "",
         "## 2. 指标对齐详情", "", table(["编号", "指标", "分类", "作用域", "基线→FORMAL"], metric_overview_rows), "", "指标编号、分类和顺序与阶段2、阶段3保持一致。", "",
         "### 2.1 硬指标", "", metric_sections("hard"), "", "> 硬指标只判最终门禁，不进入综合分。组件RTP目标仍使用原版贡献占比映射权威总RTP。", "",
         "### 2.2 评分指标", "", metric_sections("score"), "",
-        "### 2.3 审计指标", "", metric_sections("audit"), "", "> 审计指标不参与硬门禁和综合分，但必须保留目标与FORMAL审计结果。", "",
-        "## 3. 综合评分汇总", "", "### 3.1 评分组汇总", "", group_table, "", "### 3.2 低于85分项", "", table(["指标", "得分", "档位", "差距"], [[x.get("name_zh"), x.get("score"), x.get("band"), x.get("distance")] for x in low]), "",
+        "### 2.3 审计指标", "", metric_sections("audit"), "", "> 审计指标不进入硬指标或综合分；目录声明为缺失/不一致阻塞的审计仍会阻塞FORMAL有效性。", "",
+        "## 3. 综合评分汇总", "", "### 3.1 评分组汇总", "", budget_score_table, "", group_table, "", "### 3.2 低于85分项", "", table(["指标", "得分", "档位", "差距"], [[x.get("name_zh"), x.get("score"), x.get("band"), x.get("distance")] for x in low]), "",
         "## 4. 玩法画像与指标覆盖", "", "### 4.1 玩法画像", "", mechanic_table, "", mechanic_attribute_table, "", mechanic_evidence_table, "", "### 4.2 指标包匹配", "", metric_table, "", "### 4.3 覆盖率", "", table(["项目", "结果"], named_rows(contract.get("coverage", {}), {"mechanic_required": "必需玩法节点", "mechanic_owned": "已有Owner玩法节点", "mechanic_coverage": "玩法覆盖率", "metric_required": "必需指标", "metric_measurable": "可测指标", "metric_measurability": "指标可测率"})), "",
         "## 5. 参数变化", "", parameter_table, "", parameter_metric_table, "", "### 5.1 权限与玩法边界确认", "", table(["边界", "结论", "依据"], [["参数授权", authority.get("status", "未知"), "parameter_authority.json"], ["Normal / Ante", "未修改", "作用域限制"], ["paytable / 价格 / 初始次数 / 重触", "未修改", "禁止类别"], ["状态机 / 触发与结算 / RNG顺序", "未修改", "禁止类别"], ["封顶 / 最大中奖 / 公共接口", "未修改", "禁止类别"]]), "",
         "## 6. CALIBRATION过程", "", "### 6.1 搜索与预算", "", budget_table, "", attainability_table, "", ceiling_table, "", "### 6.2 候选演进", "", candidate_table, "", candidate_parameter_table, "", "### 6.3 停止原因", "", f"停止原因：{candidates.get('stop_reason', '—')}", "",
@@ -248,11 +294,15 @@ def main():
     parser.add_argument("--display-metadata", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    text, status = render(args.artifacts, load(args.display_metadata) if args.display_metadata else None)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(text, encoding="utf-8")
-    print(json.dumps({"status": "通过", "output": str(args.output), "alignment_status": status}, ensure_ascii=False))
-    return 0
+    try:
+        text, status = render(args.artifacts, load(args.display_metadata) if args.display_metadata else None)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text, encoding="utf-8")
+        print(json.dumps({"status": "通过", "output": str(args.output), "alignment_status": status}, ensure_ascii=False))
+        return 0
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        print(json.dumps({"status": "失败", "error": str(exc)}, ensure_ascii=False))
+        return 2
 
 
 if __name__ == "__main__":

@@ -3,10 +3,41 @@
   "catalog_type": "mechanic_package",
   "package_id": "modifier.wild",
   "category": "modifier",
-  "version": "1.0.0",
+  "version": "2.4.0",
   "mechanics": [
-    {"mechanic_id": "modifier.wild-substitute", "name_zh": "Wild替代", "definition": "Wild 在结算中替代允许的普通符号。", "required_attributes": ["substitution_scope"], "optional_attributes": ["excluded_symbols", "own_pay"], "evidence_signatures": ["wild substitution in win"], "exclusions": []},
-    {"mechanic_id": "modifier.expanding-wild", "name_zh": "扩展Wild", "definition": "Wild 出现后按规则扩展到额外位置。", "required_attributes": ["expansion_rule"], "optional_attributes": ["persistence"], "evidence_signatures": ["wild expansion event"], "exclusions": []}
+    {
+      "mechanic_id": "modifier.wild-substitute",
+      "name_zh": "Wild替代",
+      "display_order": 600,
+      "definition": "Wild在实际结算时替代声明允许的结算符号，并按明确优先级参与中奖组合。",
+      "required_attributes": ["wild_effect_id", "effect_owner_node_id", "wild_symbol_domain", "substitution_scope", "eligible_target_domain", "resolution_priority", "assistance_resolution_rule", "incremental_payout_rule", "wild_effect_scope"],
+      "optional_attributes": ["excluded_symbols", "own_pay", "direction_restrictions", "assisting_cell_identity_rule", "persistence_state_id", "linked_multiplier_id", "wild_multiplier_dependency_evidence"],
+      "metric_requirements": {
+        "required_packages": ["atomic.wild-effect"],
+        "conditional_packages": [
+          {"package_id": "atomic.persistent-state", "when": "Wild对象跨后续步骤或旋转保留或移动，且persistence_state_id引用活动position_set持久状态"},
+          {"package_id": "interaction.wild-multiplier", "when": "linked_multiplier_id指向活动倍率节点，且存在专属wild_multiplier_dependency_evidence并与倍率共享同一结算事件集"}
+        ]
+      },
+      "evidence_signatures": ["settlement records identify a Wild as an actual substitute in a paid result", "the paid result changes when the Wild substitution rule is applied"],
+      "exclusions": ["a symbol only looks like Wild but never substitutes", "source cells are converted into another symbol before settlement", "ordinary symbols share artwork without substitution semantics"]
+    },
+    {
+      "mechanic_id": "modifier.expanding-wild",
+      "name_zh": "扩展Wild",
+      "display_order": 610,
+      "definition": "合格Wild按明确几何与时点规则覆盖或生成额外Wild位置，扩展结果随后参与盘面或结算。",
+      "required_attributes": ["wild_effect_id", "effect_owner_node_id", "source_wild_domain", "activation_condition", "expansion_geometry", "application_timing", "assistance_resolution_rule", "incremental_payout_rule", "wild_effect_scope"],
+      "optional_attributes": ["blocked_cell_rule", "replacement_rule", "assisting_cell_identity_rule", "persistence_state_id", "linked_multiplier_id", "wild_multiplier_dependency_evidence"],
+      "metric_requirements": {
+        "required_packages": ["atomic.wild-effect"],
+        "conditional_packages": [
+          {"package_id": "atomic.persistent-state", "when": "扩展Wild跨后续步骤或旋转保留"},
+          {"package_id": "interaction.wild-multiplier", "when": "扩展Wild在同一结算步骤与倍率联合生效，linked_multiplier_id指向活动倍率节点，且存在专属wild_multiplier_dependency_evidence"}
+        ]
+      },
+      "evidence_signatures": ["pre-expansion and post-expansion coordinates identify newly effective Wild cells", "expansion follows the declared geometry and timing"],
+      "exclusions": ["Wild仅以堆叠形式直接从卷轴生成", "任意来源符号被转换为Wild但不存在扩展源", "Wild只在结算中替代而不新增有效位置"]
+    }
   ]
 }
-

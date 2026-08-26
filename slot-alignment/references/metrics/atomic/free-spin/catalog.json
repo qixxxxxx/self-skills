@@ -1,14 +1,242 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "catalog_type": "metric_package",
   "package_id": "atomic.free-spin",
   "type": "atomic",
-  "version": "1.0.0",
-  "applies_when": {"mechanic_id": "feature.free-spin"},
+  "category": "feature",
+  "version": "2.2.0",
+  "applies_when": {
+    "mechanic_id": "feature.free-spin"
+  },
   "metrics": [
-    {"metric_id": "free_spin.length.mean", "name_zh": "免费旋转平均长度", "owner": "atomic.free-spin", "kind": "score", "unit": "spins", "scope_template": "feature.free-spin", "measurement": "mean(total_free_spins_per_natural_entry)", "score_group": "feature_process", "default_weight": 0.35, "score_profile": {"method": "relative_error", "anchors": [[0,100],[0.03,95],[0.08,85],[0.15,70],[0.30,50],[1,0]]}},
-    {"metric_id": "free_spin.retrigger_rate", "name_zh": "免费旋转重触发率", "owner": "atomic.free-spin", "kind": "score", "unit": "ratio", "scope_template": "feature.free-spin", "measurement": "entries_with_retrigger/free_spin_entries", "score_group": "feature_process", "default_weight": 0.30, "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.005,95],[0.015,85],[0.04,70],[0.08,50],[0.25,0]]}},
-    {"metric_id": "free_spin.return_distribution", "name_zh": "免费旋转回报分布", "owner": "atomic.free-spin", "kind": "score", "unit": "distribution", "scope_template": "feature.free-spin", "measurement": "feature_total_win/triggering_paid_bet in declared buckets", "score_group": "feature_process", "default_weight": 0.35, "score_profile": {"method": "total_variation", "anchors": [[0,100],[0.02,95],[0.05,85],[0.10,70],[0.20,50],[0.50,0]]}}
+    {
+      "metric_id": "free_spin.initial_grant_distribution",
+      "name_zh": "初始免费旋转赠送次数分布",
+      "owner": "atomic.free-spin",
+      "category": "feature",
+      "display_order": 10,
+      "kind": "score",
+      "unit": "distribution",
+      "scope_template": "feature.free-spin×entry_source",
+      "measurement": "distribution of initially granted primary free-spin count per feature entry",
+      "sample_unit": "free_spin_entry_event",
+      "condition_on": "指定入口来源实际进入免费旋转时的初始赠送",
+      "normalization": "初始赠送次数有序桶概率合计为1",
+      "applicability_rule": "存在免费旋转且初始赠送次数可观测时必需；只有resource_count_derivation_bindings完整使用固定十字段、relation=deterministic_success_subset，并从共享事件集中的单一活动Board或Trigger数量Owner经完整确定映射精确推出本目标时才派生。推送后只有一个正概率赠送值时按退化支持不计分且不得保留派生Binding。",
+      "missing_policy": "入口事件或初始赠送次数缺失时阻塞FORMAL；派生Binding若字段不完整、派生实例维度不一致、来源实例不唯一或不活动、共享事件集无效、映射未覆盖全部来源支持、mapping_total_and_deterministic/source_count_sufficient不是true、extra_random_or_state_dependency不是false、rule_evidence_sha256无效或目标复算不一致，同样阻塞。",
+      "inapplicability_reason_codes": [
+        "degenerate_reachable_support",
+        "deterministically_derived_from_primary"
+      ],
+      "capability_ids": [
+        "feature.free-spin"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "feature.free-spin"
+        ],
+        "required_attributes": [
+          "entry_sources",
+          "initial_spin_grant_rule"
+        ]
+      },
+      "semantic_variable_id": "free_spin.initial_grant_count",
+      "semantic_group": "free_spin_process",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "board.symbol_count_per_board_distribution",
+          "trigger.symbol_count_distribution"
+        ],
+        "cross_checks_with": [
+          "board.symbol_count_per_board_distribution",
+          "trigger.symbol_count_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "默认由本指标拥有初始赠送数量；只有固定十字段Binding证明同一共享事件集中的单一活动Board或Trigger数量Owner经deterministic_success_subset完整映射可复算本目标时，才将本实例确定性派生。推送后固定单一赠送值只按退化支持处理，不得冒充指标间派生。"
+      },
+      "display": {
+        "description_zh": "衡量进入免费旋转时最初获得多少次旋转。",
+        "usage_scene_zh": "用于对齐不同Scatter数量或入口来源对应的初始次数。",
+        "target_meaning_zh": "每个值统计免费旋转入口的初始赠送次数落入对应档位的比例。",
+        "display_unit": "%（免费旋转入口占比）"
+      },
+      "score_group": "feature_process",
+      "score_budget_key": "free_spin.initial_grant_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "distance_normalization": "sealed_support_span",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "free_spin.retrigger_grant_distribution",
+      "name_zh": "免费旋转重触发赠送次数分布",
+      "owner": "atomic.free-spin",
+      "category": "feature",
+      "display_order": 20,
+      "kind": "score",
+      "unit": "distribution",
+      "scope_template": "feature.free-spin×state",
+      "measurement": "distribution of additional free spins granted per eligible free-spin step, including 0",
+      "sample_unit": "eligible_free_spin_step",
+      "condition_on": "具备重触发资格的每次免费旋转主动作",
+      "normalization": "新增次数有序桶（含0次）概率合计为1",
+      "applicability_rule": "存在重触发规则时必需；不存在重触发时不适用。只有resource_count_derivation_bindings完整使用固定十字段、relation=same_event_pushforward，并从共享合格步骤事件集中的单一活动Board或Trigger数量Owner经完整确定映射精确推出含0次桶的新增次数目标时才派生。推送后只有一个正概率结果时按退化支持不计分且不得保留派生Binding。",
+      "missing_policy": "重触发资格步骤或新增次数无法识别时阻塞FORMAL；派生Binding若字段不完整、派生实例维度不一致、来源实例不唯一或不活动、共享事件集无效、映射含null或未覆盖全部来源支持、mapping_total_and_deterministic/source_count_sufficient不是true、extra_random_or_state_dependency不是false、rule_evidence_sha256无效或目标复算不一致，同样阻塞。",
+      "inapplicability_reason_codes": [
+        "degenerate_reachable_support",
+        "deterministically_derived_from_primary"
+      ],
+      "capability_ids": [
+        "feature.free-spin"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "feature.free-spin"
+        ],
+        "required_attributes": [
+          "retrigger_rule"
+        ]
+      },
+      "semantic_variable_id": "free_spin.retrigger_grant_per_eligible_step",
+      "semantic_group": "free_spin_process",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [
+          "board.symbol_count_per_board_distribution",
+          "trigger.symbol_count_distribution"
+        ],
+        "cross_checks_with": [
+          "board.symbol_count_per_board_distribution",
+          "trigger.symbol_count_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "默认由本指标拥有每个合格步骤的新增次数；只有固定十字段Binding证明同一共享事件集中的单一活动Board或Trigger数量Owner经same_event_pushforward完整映射可复算含0次桶目标时，才将本实例确定性派生。推送后固定单一结果只按退化支持处理。"
+      },
+      "display": {
+        "description_zh": "衡量每次有资格的免费旋转会额外赠送0次、若干次旋转的概率。",
+        "usage_scene_zh": "用于同时对齐重触发频率和每次重触发赠送数量。",
+        "target_meaning_zh": "每个值统计合格免费旋转步骤新增次数落入对应档位的比例。",
+        "display_unit": "%（合格免费旋转步骤占比）"
+      },
+      "score_group": "feature_process",
+      "score_budget_key": "free_spin.retrigger_grant_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "distance_normalization": "sealed_support_span",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "free_spin.retrigger_rate",
+      "name_zh": "免费旋转重触发率",
+      "owner": "atomic.free-spin",
+      "category": "feature",
+      "display_order": 30,
+      "kind": "audit",
+      "unit": "ratio",
+      "scope_template": "feature.free-spin×state",
+      "measurement": "1 - P(retrigger_grant_count=0 | eligible_free_spin_step)",
+      "sample_unit": "eligible_free_spin_step",
+      "condition_on": "具备重触发资格的免费旋转主动作",
+      "normalization": "派生为[0,1]概率",
+      "applicability_rule": "重触发赠送次数分布有效时派生展示。",
+      "missing_policy": "随重触发赠送次数主指标状态传播。",
+      "capability_ids": [
+        "feature.free-spin"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "feature.free-spin"
+        ],
+        "required_attributes": [
+          "retrigger_rule"
+        ]
+      },
+      "semantic_variable_id": "free_spin.retrigger_occurrence_rate",
+      "semantic_group": "free_spin_process",
+      "semantic_role": "derived_diagnostic",
+      "relationships": {
+        "derived_from": [
+          "free_spin.retrigger_grant_distribution"
+        ],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "由重触发赠送次数分布的0次桶精确推出，不独立计分。"
+      },
+      "display": {
+        "description_zh": "衡量一次有资格的免费旋转实际发生重触发的概率。",
+        "usage_scene_zh": "用于用直观比例阅读重触发频率。",
+        "target_meaning_zh": "目标等于1减去重触发新增0次的概率。",
+        "display_unit": "%（合格免费旋转步骤占比）"
+      },
+      "score_weight": 0,
+      "audit_profile": {
+        "method": "deterministic_derivation",
+        "blocking_on_missing": false
+      }
+    }
   ]
 }
-

@@ -2,21 +2,118 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Alignment Scorecard",
   "type": "object",
-  "required": ["schema_version", "task_id", "status", "hard_gates", "scores", "groups", "overall_score", "overall_band", "alignment_status", "blocking_reasons", "waiver_count"],
+  "required": ["schema_version", "task_id", "status", "hard_gates", "scores", "budget_scores", "groups", "overall_score", "overall_band", "alignment_status", "blocking_reasons", "waiver_count"],
   "allOf": [
     {
-      "if": {"properties": {"schema_version": {"const": "1.1"}}},
+      "if": {"properties": {"schema_version": {"enum": ["1.1", "1.2", "1.3"]}}},
       "then": {"required": ["source_paths", "source_hashes", "generator"]}
+    },
+    {
+      "if": {"properties": {"schema_version": {"enum": ["1.2", "1.3"]}}},
+      "then": {"required": ["audits", "ordered_distance_policy"]}
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": "1.3"}}},
+      "then": {"required": ["sample_capability_policy"]}
     }
   ],
   "properties": {
-    "hard_gates": {"type": "array"},
-    "scores": {"type": "array"},
-    "groups": {"type": "array"},
+    "schema_version": {"enum": ["1.0", "1.1", "1.2", "1.3"]},
+    "hard_gates": {"type": "array", "items": {"$ref": "#/$defs/metric_result"}},
+    "scores": {"type": "array", "items": {"$ref": "#/$defs/metric_result"}},
+    "audits": {"type": "array"},
+    "budget_scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["group", "score_budget_key", "score", "band", "weight", "scope_aggregation", "scope_count"]
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "budget_count": {"type": "integer", "minimum": 0},
+          "metric_count": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
     "overall_score": {"type": ["number", "null"]},
     "alignment_status": {"enum": ["通过", "豁免后通过", "不通过", "无法判定"]},
+    "ordered_distance_policy": {
+      "type": "object",
+      "required": ["policy_id", "version", "source_path", "source_sha256", "active_ordered_metric_instances_sha256"],
+      "properties": {
+        "policy_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "version": {"type": "string", "minLength": 1},
+        "source_path": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "active_ordered_metric_instances_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "sample_capability_policy": {"$ref": "#/$defs/sample_capability_policy_summary"},
     "source_paths": {"type": "object", "required": ["metric_contract", "measurements"]},
     "source_hashes": {"type": "object", "required": ["metric_contract", "measurements"]},
     "generator": {"const": "score_alignment.py"}
+  },
+  "$defs": {
+    "sample_capability_policy_summary": {
+      "type": "object",
+      "required": ["policy_id", "version", "source_path", "source_sha256", "active_metric_instances_sha256", "status"],
+      "properties": {
+        "policy_id": {"const": "distribution-sample-capability-v1"},
+        "version": {"const": "1.0.0"},
+        "source_path": {"const": "assets/policies/sample_capability_policy.v1.json"},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "active_metric_instances_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "status": {"enum": ["通过", "阻塞"]}
+      }
+    },
+    "metric_result": {
+      "type": "object",
+      "properties": {
+        "distance_profile": {"$ref": "#/$defs/distance_profile"}
+      }
+    },
+    "distance_profile": {
+      "type": "object",
+      "required": ["axis_semantics", "ordered_distance_policy_id", "position_transform", "distance_normalization", "distance_unit"],
+      "properties": {
+        "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative"]},
+        "ordered_distance_policy_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "position_transform": {"enum": ["identity", "log10_1p"]},
+        "distance_normalization": {"enum": ["sealed_support_span", "fixed_transform_unit"]},
+        "distance_scale": {"const": 1.0},
+        "distance_scale_source": {"const": "sealed_support_span"},
+        "distance_unit": {"enum": ["normalized_linear_support", "log10_decade"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"distance_normalization": {"const": "fixed_transform_unit"}}, "required": ["distance_normalization"]},
+          "then": {
+            "required": ["distance_scale"],
+            "properties": {
+              "axis_semantics": {"const": "nonnegative_multiplicative"},
+              "position_transform": {"const": "log10_1p"},
+              "distance_unit": {"const": "log10_decade"}
+            },
+            "not": {"required": ["distance_scale_source"]}
+          }
+        },
+        {
+          "if": {"properties": {"distance_normalization": {"const": "sealed_support_span"}}, "required": ["distance_normalization"]},
+          "then": {
+            "required": ["distance_scale_source"],
+            "properties": {
+              "axis_semantics": {"const": "natural_linear"},
+              "position_transform": {"const": "identity"},
+              "distance_unit": {"const": "normalized_linear_support"}
+            },
+            "not": {"required": ["distance_scale"]}
+          }
+        }
+      ]
+    }
   }
 }

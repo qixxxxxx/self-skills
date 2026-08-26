@@ -3,9 +3,26 @@
   "catalog_type": "mechanic_package",
   "package_id": "modifier.multiplier",
   "category": "modifier",
-  "version": "1.0.0",
+  "version": "2.5.0",
   "mechanics": [
-    {"mechanic_id": "modifier.win-multiplier", "name_zh": "中奖倍率修饰", "definition": "对指定结算结果应用一个或多个倍率。", "required_attributes": ["application_scope", "combine_rule"], "optional_attributes": ["value_domain", "progression_rule", "reset_rule"], "evidence_signatures": ["multiplier value", "pre/post multiplier win"], "exclusions": ["paytable multiplier already intrinsic to symbol"]}
+    {
+      "mechanic_id": "modifier.win-multiplier",
+      "name_zh": "中奖倍率修饰",
+      "display_order": 620,
+      "definition": "在普通赔付结果确定后，对声明作用域中的一个或多个中奖结果应用可观察倍率，并按明确规则合并多个倍率。",
+      "required_attributes": ["application_scope", "value_source", "combine_rule", "application_timing", "value_domain", "application_may_be_skipped", "progression_driver"],
+      "optional_attributes": ["progression_rule", "reset_rule", "cap_rule", "persistent_state_id", "progression_state_id", "cascade_node_id", "state_to_effective_multiplier_rule", "value_symbol_effective_multiplier_binding", "cascade_depth_multiplier_binding", "same_depth_multiplier_randomness", "linked_symbol_domain", "dependency_evidence", "return_dependency_evidence"],
+      "metric_requirements": {
+        "required_packages": ["atomic.modifier"],
+        "conditional_packages": [
+          {"package_id": "interaction.cascade-multiplier", "when": "progression_driver=cascade_depth且已密封same_depth_multiplier_randomness；同深度仍随机时评分，完全确定时作派生"},
+          {"package_id": "interaction.multiplier-return", "when": "结构化return_dependency_evidence证明倍率前中奖与倍率状态可在共享事件集中联合观测，全部Cascade深度、持久倍率状态、Wild等直接驱动节点均已进入控制分层，且控制后仍存在剩余依赖"},
+          {"package_id": "interaction.wild-multiplier", "when": "Wild节点通过linked_multiplier_id和专属wild_multiplier_dependency_evidence绑定本倍率，且linked_symbol_domain与同一步事件集可核对"},
+          {"package_id": "atomic.persistent-state", "when": "倍率跨结算步骤、旋转或付费入口保留"}
+        ]
+      },
+      "evidence_signatures": ["pre-multiplier win, effective multiplier and post-multiplier win are jointly observable or exactly reproducible", "each applied multiplier event has a stable event id", "all direct multiplier drivers are identified by node id and jointly observable in the same semantic event set", "value_symbol_effective_multiplier_binding, when present, proves a bijection between all realized value-symbol assignment instances and applied multiplier events with no additional multiplier source", "cascade_depth_multiplier_binding, when present, covers every reachable terminal depth and every actual settlement step from initial step 0 through the final cascade step with a deterministic occurrence, application and effective-value state", "multiple multiplier instances follow the declared combination order"],
+      "exclusions": ["symbol paytable value is intrinsically larger but no separate multiplier is applied", "final paid-entry return multiple", "presentation multiplier that does not change settlement"]
+    }
   ]
 }
-

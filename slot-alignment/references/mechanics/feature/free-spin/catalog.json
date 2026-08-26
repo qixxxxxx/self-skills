@@ -3,9 +3,23 @@
   "catalog_type": "mechanic_package",
   "package_id": "feature.free-spin",
   "category": "feature",
-  "version": "1.0.0",
+  "version": "2.7.0",
   "mechanics": [
-    {"mechanic_id": "feature.free-spin", "name_zh": "免费旋转", "definition": "由自然入口或购买入口进入、不再次扣除基础投注的有限或可扩展旋转序列。", "required_attributes": ["entry_sources", "initial_spin_rule", "exit_condition"], "optional_attributes": ["retrigger_rule", "buy_available", "feature_multiplier"], "evidence_signatures": ["free spin counter", "feature start/end events"], "exclusions": ["paid respin"]}
+    {
+      "mechanic_id": "feature.free-spin",
+      "name_zh": "免费旋转",
+      "display_order": 400,
+      "definition": "由自然入口、购买入口或其他明确来源进入，在不再次扣除基础投注的情况下执行有限且可按规则追加的旋转序列。",
+      "required_attributes": ["entry_sources", "entry_source_semantics", "stage_graph", "path_signature_definition", "initial_spin_grant_rule", "spin_consumption_rule", "retrigger_rule", "exit_condition", "feature_mode_domain", "selected_feature_mode_id", "mode_selection_rule", "player_input_role"],
+      "optional_attributes": ["buy_available", "feature_multiplier", "board_variant", "persistent_state_ids", "duration_determinism", "resource_count_derivation_bindings"],
+      "metric_requirements": {
+        "required_packages": ["atomic.free-spin", "composite.feature-cycle"],
+        "conditional_packages": [
+          {"package_id": "atomic.trigger", "when": "entry_source_semantics至少声明一个endogenous游戏内生入口来源；只有一个内生来源时保留退化支持不适用实例，两个及以上时评分"}
+        ]
+      },
+      "evidence_signatures": ["protocol or state exposes a free-spin remaining counter", "feature start, each consumed spin, any added spins and feature end form one complete chain", "retrigger_rule is explicitly investigated and uses the controlled value none only when source evidence proves no retrigger or extension path", "feature_mode_domain, selected_feature_mode_id, mode_selection_rule and player_input_role prove one fixed mathematical mode for the task", "resource_count_derivation_bindings, when present, uses exactly derived_metric_id, derived_instance_dimensions, primary_owner_metric_instance, shared_semantic_event_set_id, relation, source_count_to_resource_count, mapping_total_and_deterministic, source_count_sufficient, extra_random_or_state_dependency and rule_evidence_sha256"],
+      "exclusions": ["ordinary paid spins", "respin cycles that reroll only selected positions", "presentation-only bonus awards with no spin sequence"]
+    }
   ]
 }
-

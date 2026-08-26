@@ -1,19 +1,23 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "catalog_type": "mechanic_package",
   "package_id": "category.package-name",
   "category": "feature",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "mechanics": [
     {
       "mechanic_id": "category.mechanic-name",
       "name_zh": "中文玩法名",
+      "display_order": 100,
       "definition": "不依赖游戏自由文本名称的稳定语义定义。",
       "required_attributes": [],
       "optional_attributes": [],
       "evidence_signatures": [],
-      "exclusions": []
+      "exclusions": [],
+      "metric_requirements": {
+        "required_packages": ["atomic.package-name"],
+        "conditional_packages": []
+      }
     }
   ]
 }
-

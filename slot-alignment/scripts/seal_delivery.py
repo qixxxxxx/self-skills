@@ -7,7 +7,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from validate_artifacts import required_stage14, validate
+from validate_artifacts import INPUT_VALIDATION_EXCEPTIONS, required_stage14, validate
 from render_delivery_report import render
 from workspace_paths import REPORT_FILES, RUNTIME_FILES, latest_report_dir, report_path, task_root
 
@@ -31,7 +31,10 @@ def next_version(versions):
 
 
 def delivery_report_contract_version(input_manifest):
-    return input_manifest.get("report_contract_version", "slot-alignment.reports.v2.5")
+    version = input_manifest.get("report_contract_version")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("input_manifest缺少显式report_contract_version")
+    return version
 
 
 def main():
@@ -39,9 +42,18 @@ def main():
     parser.add_argument("--artifacts", required=True, type=Path)
     parser.add_argument("--reports", type=Path)
     parser.add_argument("--formal-runtime", required=True, type=Path)
+    parser.add_argument("--historical-replay", action="store_true", help="仅用于显式复算受支持的旧版密封任务")
     args = parser.parse_args()
     reports = args.reports or latest_report_dir(args.artifacts)
-    errors = validate(args.artifacts, require_delivery=False, reports=reports)
+    try:
+        errors = validate(
+            args.artifacts,
+            require_delivery=False,
+            reports=reports,
+            validation_mode="historical_replay" if args.historical_replay else "stage_transition",
+        )
+    except INPUT_VALIDATION_EXCEPTIONS as exc:
+        errors = [f"校验输入结构无效（{type(exc).__name__}）: {exc}"]
     for name in RUNTIME_FILES:
         if not (args.formal_runtime / name).is_file():
             errors.append(f"FORMAL Runtime缺少文件: {name}")
@@ -63,7 +75,8 @@ def main():
     version = next_version(versions)
     version_dir = versions / version
     version_dir.mkdir()
-    score = load(args.artifacts / "03-scoring/scorecard.json")
+    formal = load(args.artifacts / "04-alignment/formal_result.json")
+    formal_score = formal.get("scorecard", {})
     input_manifest = load(args.artifacts / "01-input-profile/input_manifest.json")
     report_contract_version = delivery_report_contract_version(input_manifest)
     root = task_root(args.artifacts)
@@ -82,7 +95,7 @@ def main():
         path = delivery_runtime / name
         files.append({"path": str(path.relative_to(root)), "required": True, "role": "FORMAL Runtime", "sha256": sha(path), "valid": True})
     now = datetime.now(timezone.utc).isoformat()
-    manifest = {"schema_version": "1.1", "report_contract_version": report_contract_version, "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "alignment_status": score.get("alignment_status", "无法判定"), "delivery_status": "通过", "files": files, "generated_at": now}
+    manifest = {"schema_version": "1.1", "report_contract_version": report_contract_version, "task_id": input_manifest.get("task_id", ""), "delivery_version": version, "alignment_status": formal_score.get("alignment_status", "无法判定"), "delivery_status": "通过", "files": files, "generated_at": now}
     checks = [
         {"check_id": "structure", "name_zh": "固定目录与必需文件", "status": "通过"},
         {"check_id": "scope", "name_zh": "作用域与task_id一致", "status": "通过"},

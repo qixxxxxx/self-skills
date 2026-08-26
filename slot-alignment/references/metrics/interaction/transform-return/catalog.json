@@ -1,0 +1,66 @@
+{
+  "schema_version": "2.0",
+  "catalog_type": "metric_package",
+  "package_id": "interaction.transform-return",
+  "type": "interaction",
+  "category": "interaction",
+  "version": "2.1.0",
+  "applies_when": {
+    "mechanic_id": "modifier.symbol-transform",
+    "required_attributes": ["transform_return_binding_rule", "return_dependency_evidence"]
+  },
+  "metrics": [
+    {
+      "metric_id": "transform.return_dependence_residual",
+      "name_zh": "符号变形结果与回报依赖残差",
+      "owner": "interaction.transform-return",
+      "category": "interaction",
+      "display_order": 20,
+      "kind": "score",
+      "unit": "probability_difference",
+      "scope_template": "modifier.symbol-transform×component×state×board_phase",
+      "measurement": "residual vector P(step_return_bucket | minimal_transform_outcome_signature) - P(step_return_bucket)",
+      "sample_unit": "eligible_symbol_transform_opportunity",
+      "condition_on": "画像密封的最小充分变形结果签名；只包含改变格数、来源到目标类别及确有必要的位置模式",
+      "normalization": "字段使用minimal_transform_outcome_signature::step_return_bucket；对每个最小变形结果签名计算相对同事件集步骤回报边际的有符号概率残差，组内先平均字段绝对误差，再按group_weights[最小变形结果签名]=原版合格变形机会中该签名占比汇总",
+      "applicability_rule": "原版证据证明变形结果与同一步骤回报存在重要非独立关系，且可在同一密封事件集中联合观测时必需；无依赖证据时不加载。",
+      "missing_policy": "变形结果签名、同一步骤回报、同事件集绑定或原版条件组权重缺失时阻塞FORMAL。",
+      "capability_ids": ["modifier.symbol-transform"],
+      "profile_match": {
+        "mechanic_id": "modifier.symbol-transform",
+        "required_attributes": ["transform_return_binding_rule", "return_dependency_evidence"]
+      },
+      "semantic_variable_id": "transform.return_dependence_residual",
+      "semantic_group": "transform_return_interaction",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "transform.changed_cell_count_distribution",
+          "transform.target_symbol_given_source_distribution",
+          "settlement.step_return_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "普通步骤回报边际继续由结算包拥有；本指标只评价最小变形结果与回报之间不能由各自边际推出的残差，不建立第二份原始联合回报分布。"
+      },
+      "display": {
+        "description_zh": "衡量不同变形结果是否带来与原版相似的回报变化。",
+        "usage_scene_zh": "用于发现变形次数、来源和目标都接近，但真正有利或无利的变形结果比例不同。",
+        "target_meaning_zh": "每个值表示某个最小变形结果条件下，指定回报档位相对总体步骤回报边际多出或减少的概率。",
+        "display_unit": "百分点差（指定变形结果相对步骤回报边际）"
+      },
+      "score_group": "interaction",
+      "score_budget_key": "transform.return_dependence_residual",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_mean_absolute_error",
+        "group_separator": "::",
+        "group_weight_source": "task_contract",
+        "normalization_tolerance": 0.000001,
+        "anchors": [[0, 100], [0.01, 95], [0.03, 85], [0.06, 70], [0.12, 50], [0.3, 0]]
+      }
+    }
+  ]
+}

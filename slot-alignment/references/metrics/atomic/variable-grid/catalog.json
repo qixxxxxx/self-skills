@@ -1,0 +1,346 @@
+{
+  "schema_version": "2.0",
+  "catalog_type": "metric_package",
+  "package_id": "atomic.variable-grid",
+  "type": "atomic",
+  "category": "board",
+  "version": "2.4.0",
+  "applies_when": {
+    "mechanic_id": "board.variable-grid"
+  },
+  "metrics": [
+    {
+      "metric_id": "variable_grid.reel_height_layout_distribution",
+      "name_zh": "完整轴高布局模式分布",
+      "owner": "atomic.variable-grid",
+      "category": "board",
+      "display_order": 10,
+      "kind": "score",
+      "unit": "distribution",
+      "scope_template": "component×state×board_phase",
+      "measurement": "P(complete ordered reel-height vector or sealed equivalent layout_id | eligible board)",
+      "sample_unit": "board_snapshot",
+      "condition_on": "可变网格的合格完整盘面；布局身份是按轴顺序排列的完整高度向量或与其一一对应的密封layout_id",
+      "normalization": "全部有限可枚举布局模式概率合计为1",
+      "applicability_rule": "轴高会变化且完整轴高向量属于有限可枚举支持集时必需；无法可靠密封布局集合时阻塞并提出指标扩展，不改用完整可见盘面签名。",
+      "missing_policy": "任一轴高度、轴顺序或完整布局支持集缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "board.variable-grid"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "board.variable-grid"
+        ],
+        "required_attributes": [
+          "reels",
+          "height_domain_by_reel",
+          "reel_height_variation"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "board.variable-grid",
+            "attribute": "reel_height_variation",
+            "operator": "truthy"
+          }
+        ]
+      },
+      "semantic_variable_id": "variable_grid.complete_height_layout",
+      "semantic_group": "variable_grid_geometry",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [
+          "cascade.effective_capacity_distribution_by_depth"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "无；本指标为该语义变量的唯一Owner。"
+      },
+      "display": {
+        "description_zh": "衡量整组轴高按实际轴顺序组合成哪些完整布局模式。",
+        "usage_scene_zh": "用于捕捉逐轴边际看似正常但轴与轴之间组合关系失真的问题。",
+        "target_meaning_zh": "每个值统计一个真实完整轴高向量或等价布局ID占全部合格可变网格盘面的比例。",
+        "display_unit": "%（可变网格盘面占比）"
+      },
+      "score_group": "variable_grid",
+      "score_budget_key": "variable_grid.reel_height_layout_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "total_variation",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "variable_grid.valid_cell_layout_distribution",
+      "name_zh": "有效格布局模式分布",
+      "owner": "atomic.variable-grid",
+      "category": "board",
+      "display_order": 20,
+      "kind": "score",
+      "unit": "distribution",
+      "scope_template": "component×state×board_phase",
+      "measurement": "P(sealed complete valid-cell coordinate layout or layout_id | eligible board)",
+      "sample_unit": "board_snapshot",
+      "condition_on": "轴高不变化但实际有效格坐标集合或参与结算几何布局会变化的每个合格完整盘面；布局身份使用完整坐标表示或与其一一对应的密封layout_id",
+      "normalization": "全部有限可枚举有效格布局模式概率合计为1",
+      "applicability_rule": "reel_height_variation=false，且完整有效格布局存在两个及以上结构可达模式并属于有限可枚举支持集时必需；轴高实际变化时由完整轴高布局指标承接。",
+      "missing_policy": "有效格坐标域、完整布局表示、layout_id到坐标的无损映射或结构可达支持集任一缺失时阻塞FORMAL；布局集合无法可靠有限枚举时提出指标扩展，不能改用容量数字替代几何布局。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support"],
+      "capability_ids": [
+        "board.variable-grid"
+      ],
+      "profile_match": {
+        "mechanic_id_any": [
+          "board.variable-grid"
+        ],
+        "required_attributes": [
+          "reel_height_variation",
+          "valid_cell_layout_domain",
+          "valid_cell_layout_representation"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "board.variable-grid",
+            "attribute": "reel_height_variation",
+            "operator": "falsy"
+          }
+        ]
+      },
+      "semantic_variable_id": "variable_grid.complete_valid_cell_layout",
+      "semantic_group": "variable_grid_geometry",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "仅承接轴高固定但实际有效格坐标或几何布局变化的实例；轴高实际变化的实例由variable_grid.reel_height_layout_distribution评分，固定布局下的动态Ways容量由atomic.effective-ways-capacity承接。"
+      },
+      "display": {
+        "description_zh": "衡量轴高固定时，实际参与结算的完整有效格坐标布局通常是哪一种。",
+        "usage_scene_zh": "用于发现非矩形、开孔、遮罩或模板型盘面的几何布局比例失真，同时避免用容量数字代替真实布局。",
+        "target_meaning_zh": "每个值统计一个真实完整有效格坐标布局或等价layout_id占全部合格盘面的比例。",
+        "display_unit": "%（非轴高可变布局盘面占比）"
+      },
+      "score_group": "variable_grid",
+      "score_budget_key": "variable_grid.valid_cell_layout_distribution",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "total_variation",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "metric_id": "variable_grid.capacity_distribution",
+      "name_zh": "盘面几何基础容量分布",
+      "owner": "atomic.variable-grid",
+      "category": "board",
+      "display_order": 30,
+      "kind": "audit",
+      "unit": "distribution",
+      "scope_template": "component×state×board_phase",
+      "measurement": "deterministically map each sealed active geometry layout through the geometry-only available_ways_formula, then aggregate geometry base-capacity probabilities",
+      "sample_unit": "board_snapshot",
+      "condition_on": "当前作用域适用的完整轴高布局或有效格坐标布局，以及画像密封的仅使用几何事实的可用Ways基础容量公式",
+      "normalization": "派生几何基础容量有序桶概率合计为1",
+      "applicability_rule": "ways_capacity_mode为layout_only或layout_plus_non_layout，且实际轴高或有效格布局会改变几何基础容量时必需。layout_plus_non_layout下本项仍只作几何阅读核对，最终实际容量由effective_ways.capacity_distribution拥有。",
+      "missing_policy": "容量公式缺失时不实例化本派生项并由阶段2画像证据说明；当前适用的几何布局主指标缺失时由上游主指标阻塞FORMAL，本项不要求独立测量。",
+      "capability_ids": [
+        "board.variable-grid",
+        "settlement.ways"
+      ],
+      "profile_match": {
+        "mechanic_id_all": [
+          "board.variable-grid",
+          "settlement.ways"
+        ],
+        "required_attributes": [
+          "available_ways_formula"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "board.variable-grid",
+            "attribute": "ways_capacity_mode",
+            "operator": "in",
+            "value": ["layout_only", "layout_plus_non_layout"]
+          }
+        ]
+      },
+      "semantic_variable_id": "variable_grid.geometry_base_capacity_distribution",
+      "semantic_group": "variable_grid_geometry",
+      "semantic_role": "derived_diagnostic",
+      "relationships": {
+        "derived_from": [
+          "variable_grid.reel_height_layout_distribution",
+          "variable_grid.valid_cell_layout_distribution"
+        ],
+        "cross_checks_with": [
+          "effective_ways.capacity_distribution"
+        ],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "overlap_reason_zh": "由当前作用域适用的完整轴高布局或有效格坐标布局及几何基础容量公式确定性映射得到，不与布局几何重复计分；layout_plus_non_layout时最终容量由effective_ways.capacity_distribution拥有，本项不把Split Symbol、超大符号或多重计数再次纳入。"
+      },
+      "display": {
+        "description_zh": "把完整可变几何布局换算为仅由布局决定的基础Ways/组合容量，方便阅读布局差异。",
+        "usage_scene_zh": "用于核对轴高或有效格布局到几何容量的映射；若还叠加Split Symbol、超大符号或多重计数，最终容量另由专用Owner评价。",
+        "target_meaning_zh": "每个值由当前适用的完整几何布局目标按几何基础容量公式确定性映射后聚合得到。",
+        "display_unit": "%（盘面占比）"
+      },
+      "score_weight": 0,
+      "audit_profile": {
+        "method": "deterministic_derivation",
+        "blocking_on_missing": false
+      }
+    },
+    {
+      "metric_id": "variable_grid.return_distribution_by_capacity",
+      "name_zh": "不同容量下的回报分布",
+      "owner": "atomic.variable-grid",
+      "category": "board",
+      "display_order": 40,
+      "kind": "score",
+      "unit": "probability",
+      "scope_template": "component×state×board_phase",
+      "measurement": "P(return_bucket | capacity_bucket), fields capacity_bucket::return_bucket",
+      "sample_unit": "board_snapshot_settlement",
+      "condition_on": "指定最终实际容量档位下完成对应盘面结算；layout_only时容量来自几何基础容量，layout_plus_non_layout时来自effective_ways.capacity_distribution同事件事实",
+      "normalization": "每个capacity_bucket组分别归一化为1",
+      "applicability_rule": "可变网格的最终实际容量与对应盘面回报可一一关联，且该结算步骤不属于Cascade时必需。纯几何容量读取variable_grid.capacity_distribution；叠加非几何容量规则时读取effective_ways.capacity_distribution，不再额外加载effective_ways.return_distribution_by_capacity。局部退化组移除后按原版活动组权重重新归一；全部条件组退化时整项按退化支持标记不适用。",
+      "missing_policy": "容量到结算的绑定或任一分桶缺失时阻塞FORMAL。",
+      "inapplicability_reason_codes": ["degenerate_reachable_support", "semantic_owner_exclusive"],
+      "capability_ids": [
+        "board.variable-grid",
+        "settlement.ways"
+      ],
+      "profile_match": {
+        "mechanic_id_all": [
+          "board.variable-grid",
+          "settlement.ways"
+        ],
+        "required_attributes": [
+          "available_ways_formula"
+        ]
+      },
+      "semantic_variable_id": "variable_grid.return_given_capacity",
+      "semantic_group": "variable_grid_outcome",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "cross_checks_with": [],
+        "marginal_of": [],
+        "conditional_on_metric": [
+          "variable_grid.capacity_distribution",
+          "effective_ways.capacity_distribution"
+        ],
+        "exclusive_with": [
+          "settlement.step_return_distribution",
+          "cascade.step_return_distribution_by_depth",
+          "effective_ways.return_distribution_by_capacity"
+        ],
+        "overlap_reason_zh": "本指标只拥有非Cascade可变网格Ways步骤的最终容量条件回报；纯几何容量以前者派生容量为条件，混合容量以effective_ways最终容量为条件。固定布局动态Ways回报仍由effective-ways-capacity包承接。"
+      },
+      "display": {
+        "description_zh": "衡量低容量和高容量盘面分别产生怎样的回报。",
+        "usage_scene_zh": "用于发现容量外观正确但不同容量档位中奖能力失真。",
+        "target_meaning_zh": "每组目标值统计在指定容量档位条件下，盘面回报落入各倍率桶的比例。",
+        "display_unit": "%（容量条件下的盘面占比）"
+      },
+      "score_group": "variable_grid",
+      "score_budget_key": "variable_grid.return_distribution_by_capacity",
+      "scope_aggregation": "weighted_mean",
+      "default_weight": 1,
+      "score_profile": {
+        "method": "grouped_wasserstein_1d",
+        "bin_positions_source": "task_contract",
+        "axis_semantics": "nonnegative_multiplicative",
+        "position_transform": "log10_1p",
+        "distance_normalization": "fixed_transform_unit",
+        "distance_scale": 1,
+        "distance_unit": "log10_decade",
+        "group_separator": "::",
+        "normalization_tolerance": 0.000001,
+        "group_weight_source": "task_contract",
+        "anchors": [
+          [
+            0,
+            100
+          ],
+          [
+            0.02,
+            95
+          ],
+          [
+            0.05,
+            85
+          ],
+          [
+            0.1,
+            70
+          ],
+          [
+            0.2,
+            50
+          ],
+          [
+            0.5,
+            0
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -54,7 +54,7 @@ def main():
     contract["hard_gate_tolerance_policy"] = {
         "policy_id": policy["policy_id"],
         "version": policy["version"],
-        "source_path": "assets/policies/hard_gate_tolerance_policy.v1.json",
+        "source_path": policy.get("source_path", f"assets/policies/{args.policy.name}"),
         "source_sha256": source_hash,
         "default_factor": default_factor,
         "metric_factors": factors,

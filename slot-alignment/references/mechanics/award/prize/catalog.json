@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "award.prize",
+  "category": "award",
+  "version": "2.5.0",
+  "mechanics": [
+    {
+      "mechanic_id": "award.value-symbol",
+      "name_zh": "动态奖值符号",
+      "display_order": 700,
+      "definition": "单个符号实例携带运行时分配的金额、投注倍数或奖项值，并在满足明确兑现条件时计入结算或Feature终局。若同一实例可升级，初始赋值仍由Value Symbol指标拥有并使用独立初始赋值事件集；升级检查前当前值和逐次值转移必须通过value_upgrade_state_binding交给同实例ordered_scalar持久状态Owner，避免把初始赋值混入升级边际或新增同义升级指标。",
+      "required_attributes": ["symbol_domain", "value_domain", "assignment_timing", "realization_condition", "aggregation_rule"],
+      "optional_attributes": ["display_rounding_rule", "lockable", "collectible", "value_upgrade_rule", "value_upgrade_state_binding", "jackpot_tier_mapping", "unrealized_disposition_rule", "linked_multiplier_node_ids"],
+      "metric_requirements": {
+        "required_packages": ["atomic.value-symbol"],
+        "conditional_packages": [
+          {"package_id": "atomic.jackpot", "when": "动态奖值可映射到命名Jackpot层级"},
+          {"package_id": "atomic.persistent-state", "when": "value_upgrade_rule存在；必须同时提供value_upgrade_state_binding并关联活动state.persistent-state(ordered_scalar)"}
+        ]
+      },
+      "evidence_signatures": ["each value-bearing symbol instance has a stable instance id and a traceable assigned value or tier", "realized and unrealized instances can be distinguished at the declared settlement boundary", "linked_multiplier_node_ids, when present, only declares a link and does not itself prove metric derivation", "value_upgrade_state_binding, when value_upgrade_rule is present, proves stable instance identity, equal value domains, a separate initial-assignment event universe excluded from the before-upgrade observation marginal, initial assignment to initial state mapping, and exactly one ordered transition opportunity for every eligible upgrade check, including a self-transition when no upgrade occurs"],
+      "exclusions": ["a symbol only has a static paytable payout", "the displayed number is decorative and never enters settlement", "an ordinary multiplier is not attached to a symbol instance"]
+    },
+    {
+      "mechanic_id": "award.jackpot",
+      "name_zh": "Jackpot奖项",
+      "display_order": 710,
+      "definition": "具有稳定命名层级、独立触发规则、层级奖值模型和中奖后重置规则的奖项，独立于普通符号赔付表与最大中奖封顶。每个合格机会必须按tier_resolution_rule确定性归入至多一个统计层级，避免总体命中和层级构成重复计数。",
+      "required_attributes": ["tier_domain", "trigger_rule", "tier_resolution_rule", "value_model", "payout_scope", "reset_rule", "jackpot_tier_exposure"],
+      "optional_attributes": ["funding_rule", "seed_value", "progressive_increment_rule", "external_pool_id", "award_cap_rule", "value_symbol_mapping", "jackpot_material_owner_bindings"],
+      "metric_requirements": {
+        "required_packages": ["atomic.jackpot"],
+        "conditional_packages": [
+          {"package_id": "atomic.value-symbol", "when": "Jackpot层级通过盘面动态奖值符号承载"}
+        ]
+      },
+      "evidence_signatures": ["award event identifies a declared jackpot tier", "tier_resolution_rule deterministically resolves every eligible opportunity to no hit or at most one declared statistical tier before tier counts are produced", "tier value and post-award reset are observable or linked to an authoritative external pool response", "jackpot_tier_exposure covers every declared tier exactly once and binds its common opportunity set, mutually exclusive resolved hit count and RTP contribution to a sealed evidence path, JSON pointer and hash", "jackpot_material_owner_bindings, when present, maps the complete support of one active Primary metric to jackpot tier or no-hit on the same sealed event universe"],
+      "exclusions": ["ordinary high paytable win", "the game-wide max-win cap", "marketing labels such as GRAND that have no separate trigger, value model or reset semantics"]
+    }
+  ]
+}

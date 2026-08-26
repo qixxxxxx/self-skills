@@ -1,23 +1,51 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "catalog_type": "metric_package",
   "package_id": "atomic.package-name",
   "type": "atomic",
-  "version": "1.0.0",
+  "category": "feature",
+  "version": "2.0.0",
   "applies_when": {"mechanic_id": "category.mechanic-name"},
   "metrics": [
     {
       "metric_id": "domain.metric-name",
       "name_zh": "中文指标名",
       "owner": "atomic.package-name",
+      "category": "feature",
+      "display_order": 100,
       "kind": "score",
       "unit": "ratio",
       "scope_template": "mechanic:*",
       "measurement": "确定性测量表达",
+      "sample_unit": "stable_sample_unit_id",
+      "condition_on": "明确条件总体或分母",
+      "normalization": "scalar",
+      "applicability_rule": "何时必需、何时不适用",
+      "missing_policy": "适用但缺失时如何阻塞或审计",
+      "capability_ids": ["feature.example_process"],
+      "profile_match": {"mechanic_id": "category.mechanic-name"},
+      "semantic_variable_id": "feature.example.variable",
+      "semantic_group": "feature.example",
+      "semantic_role": "primary",
+      "relationships": {
+        "derived_from": [],
+        "conditional_derivation_sources": [],
+        "marginal_of": [],
+        "conditional_on_metric": [],
+        "cross_checks_with": [],
+        "overlap_reason_zh": "无；本指标为该语义变量的唯一Owner。"
+      },
       "score_group": "group-name",
+      "score_budget_key": "domain.metric-name",
+      "scope_aggregation": "weighted_mean",
       "default_weight": 1.0,
-      "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.01,85],[0.10,0]]}
+      "score_profile": {"method": "absolute_error", "anchors": [[0,100],[0.01,85],[0.10,0]]},
+      "display": {
+        "description_zh": "用通俗中文说明衡量什么。",
+        "usage_scene_zh": "说明何时关注及能发现什么问题。",
+        "target_meaning_zh": "说明目标值的样本、分母和统计口径。",
+        "display_unit": "业务单位"
+      }
     }
   ]
 }
-

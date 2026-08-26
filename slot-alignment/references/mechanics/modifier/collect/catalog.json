@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "modifier.collect",
+  "category": "modifier",
+  "version": "2.2.0",
+  "mechanics": [
+    {
+      "mechanic_id": "modifier.collect",
+      "name_zh": "Collect收集",
+      "display_order": 630,
+      "definition": "在一次明确收集机会中，收集器从声明范围聚合合格对象的数量、动态价值或奖项，并把聚合结果兑现为有序数值输出或无序类别输出。",
+      "required_attributes": ["collector_domain", "collectible_domain", "collection_scope", "aggregation_rule", "realization_timing", "output_semantic_domain"],
+      "optional_attributes": ["output_axis_semantics_by_output", "output_category_domains_by_output", "collector_multiplier_rule", "collected_item_consumption_rule", "output_state_id", "multiple_collector_rule", "value_symbol_rule"],
+      "metric_requirements": {
+        "required_packages": ["atomic.collect"],
+        "conditional_packages": [
+          {"package_id": "atomic.value-symbol", "when": "被收集对象携带动态金额、倍率或奖项"},
+          {"package_id": "atomic.persistent-state", "when": "收集结果写入跨步骤、旋转或入口保留的状态"}
+        ]
+      },
+      "evidence_signatures": ["collector activation and the exact set of collected source items are observable", "every output semantic is registered exactly once as an ordered value output or an unordered category output", "aggregated input reproduces the realized numeric value, award category or state result"],
+      "exclusions": ["all-board symbol count directly pays without a collector event", "symbols are only locked for terminal hold-and-spin settlement", "a meter changes without an identifiable collection source set"]
+    }
+  ]
+}

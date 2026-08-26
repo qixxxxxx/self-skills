@@ -1,14 +1,436 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "catalog_type": "metric_index",
-  "version": "1.0.0",
+  "version": "2.7.0",
+  "summary_path": "指标汇总.md",
+  "categories": [
+    {
+      "category_id": "core",
+      "name_zh": "通用结果与风险",
+      "display_order": 10,
+      "source_categories": [
+        "core"
+      ],
+      "description_zh": "所有游戏共用的RTP、中奖率、触发率、波动、组件贡献、长尾及封顶门禁。"
+    },
+    {
+      "category_id": "board",
+      "name_zh": "盘面生成与符号结构",
+      "display_order": 20,
+      "source_categories": [
+        "board"
+      ],
+      "description_zh": "可见符号组成、空间结构、生成集中度、可变轴高和组合容量。"
+    },
+    {
+      "category_id": "settlement",
+      "name_zh": "中奖结算与构成",
+      "display_order": 30,
+      "source_categories": [
+        "settlement"
+      ],
+      "description_zh": "实际中奖符号、条件中奖规模、并发结果、赔付线和Cluster结算结构。"
+    },
+    {
+      "category_id": "trigger",
+      "name_zh": "玩法触发与入口",
+      "display_order": 40,
+      "source_categories": [
+        "trigger"
+      ],
+      "description_zh": "触发符号数量、位置配置及已进入Feature后的游戏内生入口来源构成；外生选择不进入评分。"
+    },
+    {
+      "category_id": "evolution",
+      "name_zh": "盘面演化与连续过程",
+      "display_order": 50,
+      "source_categories": [
+        "evolution"
+      ],
+      "description_zh": "Cascade等一次入口内的连续盘面演化、补充和分层回报。"
+    },
+    {
+      "category_id": "feature",
+      "name_zh": "特色玩法、奖励与状态",
+      "display_order": 60,
+      "source_categories": [
+        "feature",
+        "award",
+        "state"
+      ],
+      "description_zh": "免费旋转、重转、Hold & Spin、奖励抽取、动态奖值、Jackpot、持久状态及完整Feature周期。"
+    },
+    {
+      "category_id": "modifier",
+      "name_zh": "修饰器与跨玩法联合",
+      "display_order": 70,
+      "source_categories": [
+        "modifier",
+        "interaction"
+      ],
+      "description_zh": "Collect、符号变形、Wild、倍率及有原版依赖证据的跨玩法联合体验。"
+    }
+  ],
+  "coverage_policy": {
+    "policy_id": "metric-coverage.v2",
+    "unique_owner_required": true,
+    "profile_match_uses_mechanic_id_and_standard_attributes": true,
+    "primary_and_guard_metrics_required_when_applicable": true,
+    "derived_metrics_must_be_audit": true,
+    "audit_score_weight_must_be_zero": true,
+    "score_budget_key_unique_within_semantic_scope": true,
+    "scope_instances_do_not_increase_score_budget": true,
+    "raw_joint_and_scored_marginals_forbidden": true,
+    "interaction_dependency_evidence_required": true,
+    "summary_must_cover_every_metric_id": true,
+    "summary_update_required_on_catalog_change": true
+  },
   "packages": [
-    {"package_id": "core.general", "type": "core", "path": "core/general/catalog.json", "version": "1.0.0", "sha256": "df180ca83bfbdca54a172f5f7552121052eab8ccc9746b0567075d04934441af", "applies_when": {"always": true}},
-    {"package_id": "atomic.free-spin", "type": "atomic", "path": "atomic/free-spin/catalog.json", "version": "1.0.0", "sha256": "462bc0a1f7828cd84f52f5e1fe101085b250bf8aa786eaee4bb80538bd4a2672", "applies_when": {"mechanic_id": "feature.free-spin"}},
-    {"package_id": "atomic.respin", "type": "atomic", "path": "atomic/respin/catalog.json", "version": "1.0.0", "sha256": "816b75d8df464c7146810d3b168d83b5b37038cf53fa166d7d12e1eae185556d", "applies_when": {"mechanic_id": "feature.respin"}},
-    {"package_id": "atomic.cascade", "type": "atomic", "path": "atomic/cascade/catalog.json", "version": "1.0.0", "sha256": "cd6166d8fd52574bcf9a09a8e260e3f2702ffe66b7ab972bb1d60a91fe272f9b", "applies_when": {"mechanic_id": "evolution.cascade"}},
-    {"package_id": "atomic.modifier", "type": "atomic", "path": "atomic/modifier/catalog.json", "version": "1.0.0", "sha256": "239e008129b905558bdcaf350afc2056d55e8d7bcc7191476fc29f4c2381c935", "applies_when": {"mechanic_id_any": ["modifier.wild-substitute", "modifier.expanding-wild", "modifier.win-multiplier"]}},
-    {"package_id": "composite.feature-cycle", "type": "composite", "path": "composite/feature-cycle/catalog.json", "version": "1.0.0", "sha256": "cb122e42948198fd8f48f72c926e56c643e2d02bdf52edd1127ad5506942adea", "applies_when": {"mechanic_id_any": ["feature.free-spin", "feature.respin"]}},
-    {"package_id": "interaction.cascade-multiplier", "type": "interaction", "path": "interaction/cascade-multiplier/catalog.json", "version": "1.0.0", "sha256": "e6546b8fc93b7ba574df1d7cde98e5cfd53e479106a9e1f790b9ed3ae8331bb0", "applies_when": {"mechanic_id_all": ["evolution.cascade", "modifier.win-multiplier"]}}
+    {
+      "package_id": "core.general",
+      "type": "core",
+      "category": "core",
+      "path": "core/general/catalog.json",
+      "display_order": 10,
+      "applies_when": {
+        "always": true
+      },
+      "version": "2.1.0",
+      "sha256": "8d22dcd00d848ac75751fc1b950cdf730c17781c3bb10f6491232cd348731502"
+    },
+    {
+      "package_id": "atomic.board-diversity",
+      "type": "atomic",
+      "category": "board",
+      "path": "atomic/board-diversity/catalog.json",
+      "display_order": 10,
+      "applies_when": {
+        "mechanic_id_any": [
+          "board.fixed-grid",
+          "board.variable-grid"
+        ]
+      },
+      "version": "2.0.0",
+      "sha256": "6397ef5d001754bc56f40fd565c7b4877a60086d2c5bb12ec0de572cf7e2a510"
+    },
+    {
+      "package_id": "atomic.variable-grid",
+      "type": "atomic",
+      "category": "board",
+      "path": "atomic/variable-grid/catalog.json",
+      "display_order": 20,
+      "applies_when": {
+        "mechanic_id": "board.variable-grid"
+      },
+      "version": "2.4.0",
+      "sha256": "e7048e928e1ad9c9fed9e80d5c0ec96ffcfb8e98bef0db29575a9e87cf0a19b0"
+    },
+    {
+      "package_id": "atomic.settlement-diversity",
+      "type": "atomic",
+      "category": "settlement",
+      "path": "atomic/settlement-diversity/catalog.json",
+      "display_order": 10,
+      "applies_when": {
+        "mechanic_id_any": [
+          "settlement.payline",
+          "settlement.ways",
+          "settlement.count-pay",
+          "settlement.cluster-pay"
+        ]
+      },
+      "version": "2.3.0",
+      "sha256": "267c645f6f3913e6b3f2e6927faffa5e8c7c0f4b06c47dee4de71ea2884ceeea"
+    },
+    {
+      "package_id": "atomic.effective-ways-capacity",
+      "type": "atomic",
+      "category": "settlement",
+      "path": "atomic/effective-ways-capacity/catalog.json",
+      "display_order": 20,
+      "applies_when": {
+        "mechanic_id": "settlement.effective-ways-capacity"
+      },
+      "version": "2.3.0",
+      "sha256": "0efb62777a50a54e90d224e2d46365e5e0fb98654a8776afbbeb6ac883016de1"
+    },
+    {
+      "package_id": "atomic.trigger",
+      "type": "atomic",
+      "category": "trigger",
+      "path": "atomic/trigger/catalog.json",
+      "display_order": 10,
+      "applies_when": {
+        "mechanic_id_any": [
+          "trigger.symbol-count",
+          "trigger.random-event",
+          "trigger.state-threshold",
+          "feature.free-spin",
+          "feature.respin",
+          "feature.hold-and-spin",
+          "feature.award-draw",
+          "feature.bonus-sequence"
+        ]
+      },
+      "version": "2.3.0",
+      "sha256": "805d833e8b7b6d89fd6535fc909f4530866ea7d68db6ba0794b6b275d8f53b70"
+    },
+    {
+      "package_id": "atomic.cascade",
+      "type": "atomic",
+      "category": "evolution",
+      "path": "atomic/cascade/catalog.json",
+      "display_order": 10,
+      "applies_when": {
+        "mechanic_id": "evolution.cascade"
+      },
+      "version": "2.4.0",
+      "sha256": "20b8148d9e59a4186cf81c3d00e33b34783808039543ee72d59181c2c2975127"
+    },
+    {
+      "package_id": "atomic.free-spin",
+      "type": "atomic",
+      "category": "feature",
+      "path": "atomic/free-spin/catalog.json",
+      "display_order": 20,
+      "applies_when": {
+        "mechanic_id": "feature.free-spin"
+      },
+      "version": "2.2.0",
+      "sha256": "c0f8d214b06bd959b27b685cbc64a286022655fb1646bbc67f7a546cc65803ab"
+    },
+    {
+      "package_id": "atomic.respin",
+      "type": "atomic",
+      "category": "feature",
+      "path": "atomic/respin/catalog.json",
+      "display_order": 30,
+      "applies_when": {
+        "mechanic_id": "feature.respin"
+      },
+      "version": "2.6.0",
+      "sha256": "afad12a1774814acee9b49e346f389d010ab349ba0d12de65d15a7fd4db1e213"
+    },
+    {
+      "package_id": "composite.feature-cycle",
+      "type": "composite",
+      "category": "feature",
+      "path": "composite/feature-cycle/catalog.json",
+      "display_order": 40,
+      "applies_when": {
+        "mechanic_id_any": [
+          "feature.free-spin",
+          "feature.respin",
+          "feature.hold-and-spin",
+          "feature.award-draw",
+          "feature.bonus-sequence"
+        ]
+      },
+      "version": "2.4.0",
+      "sha256": "556ef7e3269699543d09eb8f51e67c35be438bfab70a801ab30ebd6d880c2b7a"
+    },
+    {
+      "package_id": "atomic.hold-and-spin",
+      "type": "atomic",
+      "category": "feature",
+      "path": "atomic/hold-and-spin/catalog.json",
+      "display_order": 50,
+      "applies_when": {
+        "mechanic_id": "feature.hold-and-spin"
+      },
+      "version": "2.8.0",
+      "sha256": "ec5b419303be4803666e64e9340859581cb254e0fda145997c0c5c56c85b52a6"
+    },
+    {
+      "package_id": "atomic.collect",
+      "type": "atomic",
+      "category": "modifier",
+      "path": "atomic/collect/catalog.json",
+      "display_order": 60,
+      "applies_when": {
+        "mechanic_id": "modifier.collect"
+      },
+      "version": "2.3.0",
+      "sha256": "bccdafa7973aa64cc5fdad76ae1dddeb89de11cd719d761b9418a93ce69b5983"
+    },
+    {
+      "package_id": "atomic.award-draw",
+      "type": "atomic",
+      "category": "feature",
+      "path": "atomic/award-draw/catalog.json",
+      "display_order": 70,
+      "applies_when": {
+        "mechanic_id": "feature.award-draw"
+      },
+      "version": "2.2.0",
+      "sha256": "be3dc06e820877e04fc7855f2407abb417a4fed4d980353704e48371b2b4b2b7"
+    },
+    {
+      "package_id": "atomic.jackpot",
+      "type": "atomic",
+      "category": "award",
+      "path": "atomic/jackpot/catalog.json",
+      "display_order": 80,
+      "applies_when": {
+        "mechanic_id": "award.jackpot"
+      },
+      "version": "2.3.0",
+      "sha256": "4714ec493207d9b965deff5f4597aac5dadb18c219fec7383c53a42260203818"
+    },
+    {
+      "package_id": "atomic.value-symbol",
+      "type": "atomic",
+      "category": "award",
+      "path": "atomic/value-symbol/catalog.json",
+      "display_order": 10,
+      "applies_when": {
+        "mechanic_id": "award.value-symbol"
+      },
+      "version": "2.2.0",
+      "sha256": "b578116c0a538e7a0e1f6b1fcc2fe1761188d6b9603b921a0db7b35166d15458"
+    },
+    {
+      "package_id": "atomic.symbol-transform",
+      "type": "atomic",
+      "category": "modifier",
+      "path": "atomic/symbol-transform/catalog.json",
+      "display_order": 20,
+      "applies_when": {
+        "mechanic_id": "modifier.symbol-transform"
+      },
+      "version": "2.1.0",
+      "sha256": "4ad6f5b066458932f7dda15db90df0f4787092001f8af120ac8c0491dc071783"
+    },
+    {
+      "package_id": "atomic.persistent-state",
+      "type": "atomic",
+      "category": "state",
+      "path": "atomic/persistent-state/catalog.json",
+      "display_order": 30,
+      "applies_when": {
+        "mechanic_id": "state.persistent-state"
+      },
+      "version": "3.0.1",
+      "sha256": "bdc0e680cb5c1ec4e233c7846c826e3495d0e0ea96cf0c26048e289b1c2c75b8"
+    },
+    {
+      "package_id": "atomic.wild-effect",
+      "type": "atomic",
+      "category": "modifier",
+      "path": "atomic/wild-effect/catalog.json",
+      "display_order": 40,
+      "applies_when": {
+        "mechanic_id_any": [
+          "modifier.wild-substitute",
+          "modifier.expanding-wild"
+        ]
+      },
+      "version": "2.5.0",
+      "sha256": "4328ccac4ba13453b4e3f35c6251487f394711c1eafae17e6640fdc13262f270"
+    },
+    {
+      "package_id": "atomic.modifier",
+      "type": "atomic",
+      "category": "modifier",
+      "path": "atomic/modifier/catalog.json",
+      "display_order": 50,
+      "applies_when": {
+        "mechanic_id": "modifier.win-multiplier"
+      },
+      "version": "2.3.0",
+      "sha256": "a4acef8bb5da88ca1602dce10c59ca1211de3724372e3940eb5089dcb6da5240"
+    },
+    {
+      "package_id": "interaction.cascade-multiplier",
+      "type": "interaction",
+      "category": "interaction",
+      "path": "interaction/cascade-multiplier/catalog.json",
+      "display_order": 10,
+      "applies_when": {
+        "mechanic_id_all": [
+          "evolution.cascade",
+          "modifier.win-multiplier"
+        ],
+        "required_attributes": [
+          "same_depth_multiplier_randomness"
+        ]
+      },
+      "version": "2.2.0",
+      "sha256": "477cb61f4bb058afe299877bf655f4451688660df8899c6788f8ba86beaf7d05"
+    },
+    {
+      "package_id": "interaction.multiplier-return",
+      "type": "interaction",
+      "category": "interaction",
+      "path": "interaction/multiplier-return/catalog.json",
+      "display_order": 20,
+      "applies_when": {
+        "mechanic_id": "modifier.win-multiplier",
+        "required_attributes": [
+          "return_dependency_evidence"
+        ]
+      },
+      "version": "2.2.0",
+      "sha256": "dba7796020e7d971c96a15daee6f9d7cf11727a51ad3ef226c2b9417323ff635"
+    },
+    {
+      "package_id": "interaction.hold-spin-return",
+      "type": "interaction",
+      "category": "feature",
+      "path": "interaction/hold-spin-return/catalog.json",
+      "display_order": 55,
+      "applies_when": {
+        "mechanic_id": "feature.hold-and-spin",
+        "required_attributes": [
+          "board_capacity",
+          "terminal_award_binding_rule"
+        ]
+      },
+      "version": "2.2.0",
+      "sha256": "9c4c9050e620ceca603b7e010dad92bdb1604cd7288341c7628a33a757d00e9b"
+    },
+    {
+      "package_id": "interaction.wild-multiplier",
+      "type": "interaction",
+      "category": "interaction",
+      "path": "interaction/wild-multiplier/catalog.json",
+      "display_order": 30,
+      "applies_when": {
+        "mechanic_id_any": [
+          "modifier.wild-substitute",
+          "modifier.expanding-wild"
+        ],
+        "required_attributes": [
+          "linked_multiplier_id",
+          "wild_multiplier_dependency_evidence",
+          "linked_symbol_domain"
+        ],
+        "attribute_conditions": [
+          {
+            "mechanic_id": "modifier.win-multiplier",
+            "attribute": "linked_symbol_domain",
+            "operator": "exists"
+          }
+        ]
+      },
+      "version": "2.1.0",
+      "sha256": "946a58c29b3623a3a7862eb84989a7db63032ee1b2d405c69a9fe69982dd8752"
+    },
+    {
+      "package_id": "interaction.transform-return",
+      "type": "interaction",
+      "category": "interaction",
+      "path": "interaction/transform-return/catalog.json",
+      "display_order": 40,
+      "applies_when": {
+        "mechanic_id": "modifier.symbol-transform",
+        "required_attributes": [
+          "transform_return_binding_rule",
+          "return_dependency_evidence"
+        ]
+      },
+      "version": "2.1.0",
+      "sha256": "63d629b674eb81c3c59325da7e62aa52c6b8841f7408d8920c7ae6bc2956c48e"
+    }
   ]
 }

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "catalog_type": "mechanic_package",
+  "package_id": "state.persistent",
+  "category": "state",
+  "version": "2.9.0",
+  "mechanics": [
+    {
+      "mechanic_id": "state.persistent-state",
+      "name_zh": "持久状态",
+      "display_order": 800,
+      "definition": "命名状态跨至少一个声明边界继续存在，并按明确事件发生可复算的状态转移、消耗、衰减或重置。state_shape统一取ordered_scalar、categorical或position_set；位置集合只按占用数量、给定数量后的位置份额、移除/新增数量转移及扣除同组可用位置基线后的移除/新增依赖残差评价。稳定对象可完整一一配对移动时，再按数量转移分组评价扣除候选自身起点与终点边际后的纯配对残差。若位置容量可变，position_domain保存全部真实位置并用position_domain_by_actual_capacity逐容量密封当时可用位置域；若数量语义已由Hold & Spin专用指标拥有，空间指标必须通过position_count_owner_bindings引用精确Owner实例。",
+      "required_attributes": ["state_id", "state_shape", "persistence_horizon", "observation_points", "initial_state", "transition_rule", "reset_rule"],
+      "optional_attributes": ["value_domain", "value_order", "ordered_axis_semantics", "transition_event_domain", "position_domain", "position_domain_by_actual_capacity", "position_transition_bindings", "matched_position_transition_bindings", "position_count_owner_bindings", "cap_rule", "decay_rule", "serialization_scope", "consumer_mechanic_ids", "shared_across_modes"],
+      "metric_requirements": {
+        "required_packages": ["atomic.persistent-state"],
+        "conditional_packages": []
+      },
+      "evidence_signatures": ["the same named state is observable before and after a declared persistence boundary", "state transitions and resets reproduce later game behavior", "position_domain_by_actual_capacity, when present, covers the complete actual capacity domain, has exactly capacity-many unique positions per key, and every subset belongs to the union position_domain", "position_count_owner_bindings, when present, uses exactly consumer_metric_id, consumer_instance_dimensions, primary_owner_metric_instance, shared_semantic_event_set_id, relation and rule_evidence_sha256", "matched_position_transition_bindings, when present, proves stable object identity, complete bijective pairing without births, deaths or guessed matching, a complete reachable origin-destination pair domain with unique pair_id values, and sufficient evidence to reproduce the same-support maximum-entropy baseline"],
+      "exclusions": ["temporary local variable used only inside one atomic settlement", "a feature counter whose complete lifecycle is already the feature itself and has no additional state meaning", "client-only visual progress not used by server settlement"]
+    }
+  ]
+}

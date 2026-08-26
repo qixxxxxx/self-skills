@@ -5,11 +5,40 @@
   "required": ["schema_version", "task_id", "status", "scope", "coverage", "metrics", "coupling_clusters", "waivers"],
   "allOf": [
     {
-      "if": {"properties": {"schema_version": {"const": "1.1"}}},
+      "if": {"properties": {"schema_version": {"enum": ["1.1", "1.2", "1.3"]}}},
       "then": {"required": ["component_rtp_target_policy"]}
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": "1.2"}}},
+      "then": {
+        "required": ["report_contract_version", "input_hashes", "catalogs", "ordered_distance_policy", "score_group_weight_policy", "group_weights", "package_matches", "gaps", "owner_conflicts"],
+        "properties": {"metrics": {"minItems": 1, "items": {"$ref": "#/$defs/metricV12"}}}
+      }
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": "1.3"}}},
+      "then": {
+        "required": ["report_contract_version", "input_hashes", "catalogs", "hard_gate_tolerance_policy", "jackpot_materiality_policy", "ordered_distance_policy", "score_group_weight_policy", "sample_capability_policy", "group_weights", "package_matches", "gaps", "owner_conflicts", "step_return_owner_partitions"],
+        "properties": {"metrics": {"minItems": 1, "items": {"$ref": "#/$defs/metricV13"}}}
+      }
     }
   ],
   "properties": {
+    "schema_version": {"enum": ["1.0", "1.1", "1.2", "1.3"]},
+    "report_contract_version": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "status": {"enum": ["未开始", "进行中", "已完成", "阻塞"]},
+    "scope": {
+      "type": "object",
+      "required": ["game_code", "mode", "rtp_group", "target_rtp", "mode_contract"],
+      "properties": {
+        "game_code": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "mode": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "rtp_group": {"const": 1},
+        "target_rtp": {},
+        "mode_contract": {"$ref": "#/$defs/modeContract"}
+      }
+    },
     "hard_gate_tolerance_policy": {
       "type": "object",
       "required": ["policy_id", "version", "source_path", "source_sha256", "default_factor", "metric_factors", "locked_metrics", "legacy_contracts_unchanged"],
@@ -35,8 +64,1248 @@
         "legacy_contracts_unchanged": {"const": true}
       }
     },
+    "ordered_distance_policy": {
+      "type": "object",
+      "required": ["source_schema_version", "policy_id", "version", "source_path", "source_sha256", "default_axis_semantics", "axis_profiles", "fixed_nonnegative_multiplicative_metrics", "dynamic_axis_metrics", "rules", "active_ordered_metric_instances", "active_ordered_metric_instances_sha256", "legacy_contracts_unchanged"],
+      "properties": {
+        "source_schema_version": {"const": "slot-alignment.ordered-distance-policy.v1"},
+        "policy_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "version": {"type": "string", "minLength": 1},
+        "source_path": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "default_axis_semantics": {"const": "natural_linear"},
+        "axis_profiles": {
+          "type": "object",
+          "required": ["natural_linear", "nonnegative_multiplicative"],
+          "properties": {
+            "natural_linear": {
+              "type": "object",
+              "required": ["position_transform", "distance_normalization", "distance_scale_source", "distance_unit"],
+              "properties": {
+                "position_transform": {"const": "identity"},
+                "distance_normalization": {"const": "sealed_support_span"},
+                "distance_scale_source": {"const": "sealed_support_span"},
+                "distance_unit": {"const": "normalized_linear_support"}
+              }
+            },
+            "nonnegative_multiplicative": {
+              "type": "object",
+              "required": ["position_transform", "distance_normalization", "distance_scale", "distance_unit"],
+              "properties": {
+                "position_transform": {"const": "log10_1p"},
+                "distance_normalization": {"const": "fixed_transform_unit"},
+                "distance_scale": {"const": 1.0},
+                "distance_unit": {"const": "log10_decade"}
+              }
+            }
+          }
+        },
+        "fixed_nonnegative_multiplicative_metrics": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z0-9._-]+$"}
+        },
+        "dynamic_axis_metrics": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["allowed_axis_semantics", "resolution_source"],
+            "properties": {
+              "allowed_axis_semantics": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "uniqueItems": true,
+                "items": {"enum": ["natural_linear", "nonnegative_multiplicative"]}
+              },
+              "resolution_source": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "rules": {
+          "type": "object",
+          "required": ["raw_positions_must_be_finite", "log_positions_must_be_nonnegative", "economic_values_must_be_normalized_to_denominator_multiple", "candidate_may_not_choose_transform_or_scale", "candidate_may_not_add_support_bins", "mixed_axis_semantics_in_one_instance_blocks"],
+          "properties": {
+            "raw_positions_must_be_finite": {"const": true},
+            "log_positions_must_be_nonnegative": {"const": true},
+            "economic_values_must_be_normalized_to_denominator_multiple": {"const": true},
+            "candidate_may_not_choose_transform_or_scale": {"const": true},
+            "candidate_may_not_add_support_bins": {"const": true},
+            "mixed_axis_semantics_in_one_instance_blocks": {"const": true}
+          }
+        },
+        "active_ordered_metric_instances": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["metric_id", "scope", "kind", "profile_field", "axis_semantics"],
+            "properties": {
+              "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+              "scope": {"type": "string", "minLength": 1},
+              "kind": {"enum": ["hard", "score"]},
+              "profile_field": {"enum": ["hard_gate_profile", "score_profile"]},
+              "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative"]}
+            },
+            "allOf": [
+              {
+                "if": {"properties": {"kind": {"const": "hard"}}, "required": ["kind"]},
+                "then": {"properties": {"profile_field": {"const": "hard_gate_profile"}}}
+              },
+              {
+                "if": {"properties": {"kind": {"const": "score"}}, "required": ["kind"]},
+                "then": {"properties": {"profile_field": {"const": "score_profile"}}}
+              }
+            ]
+          }
+        },
+        "active_ordered_metric_instances_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "legacy_contracts_unchanged": {"const": true}
+      }
+    },
+    "score_group_weight_policy": {
+      "type": "object",
+      "required": ["policy_id", "version", "source_path", "source_sha256", "method", "base_weights", "active_groups", "active_score_budget_keys", "active_score_budget_keys_sha256", "legacy_contracts_unchanged"],
+      "properties": {
+        "policy_id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "source_path": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "method": {"const": "normalize_active_base_weights"},
+        "base_weights": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
+        "active_groups": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "active_score_budget_keys": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "active_score_budget_keys_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "legacy_contracts_unchanged": {"const": true}
+      }
+    },
+    "sample_capability_policy": {"$ref": "#/$defs/sampleCapabilityPolicy"},
+    "jackpot_materiality_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_schema_version", "policy_id", "version", "source_path", "source_sha256", "hit_rate_threshold", "component_rtp_tolerance_threshold", "classification_rule", "classifications", "classifications_sha256", "legacy_contracts_unchanged"],
+      "properties": {
+        "source_schema_version": {"const": "slot-alignment.jackpot-materiality-policy.v1"},
+        "policy_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "version": {"$ref": "#/$defs/nonEmptyString"},
+        "source_path": {"$ref": "#/$defs/nonEmptyString"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "hit_rate_threshold": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "component_rtp_tolerance_threshold": {"type": "number", "exclusiveMinimum": 0},
+        "classification_rule": {"const": "material_when_hit_rate_gte_hit_rate_threshold_or_original_rtp_contribution_gte_component_rtp_tolerance"},
+        "classifications": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/jackpotMaterialityClassification"}
+        },
+        "classifications_sha256": {"$ref": "#/$defs/sha256"},
+        "legacy_contracts_unchanged": {"const": true}
+      }
+    },
+    "group_weights": {
+      "type": "object",
+      "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+    },
+    "input_hashes": {
+      "type": "object",
+      "required": ["input_manifest", "game_profile", "parameter_authority"],
+      "properties": {
+        "input_manifest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "game_profile": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "parameter_authority": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "catalogs": {
+      "type": "object",
+      "required": ["mechanics_version", "metrics_version", "hashes"],
+      "properties": {
+        "mechanics_version": {"type": "string", "minLength": 1},
+        "metrics_version": {"type": "string", "minLength": 1},
+        "hashes": {
+          "type": "object",
+          "required": ["mechanics", "metrics"],
+          "properties": {
+            "mechanics": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "metrics": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["mechanic_required", "mechanic_owned", "mechanic_coverage", "metric_required", "metric_measurable", "metric_measurability", "metric_resolved", "metric_resolution"],
+      "properties": {
+        "mechanic_required": {"type": "integer", "minimum": 0},
+        "mechanic_owned": {"type": "integer", "minimum": 0},
+        "mechanic_coverage": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "metric_required": {"type": "integer", "minimum": 0},
+        "metric_measurable": {"type": "integer", "minimum": 0},
+        "metric_measurability": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "metric_resolved": {"type": "integer", "minimum": 0},
+        "metric_resolution": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      }
+    },
+    "step_return_owner_partitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/stepReturnOwnerPartition"}
+    },
     "metrics": {"type": "array"},
+    "package_matches": {"type": "array", "items": {"$ref": "#/$defs/packageMatchV12"}},
+    "gaps": {"type": "array"},
+    "owner_conflicts": {"type": "array"},
     "coupling_clusters": {"type": "array"},
     "waivers": {"type": "array"}
+  },
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "featureModeSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feature_node_id", "mode_domain", "selected_mode_id", "selection_rule", "player_input_role", "fixed_for_task", "evidence_sha256"],
+      "properties": {
+        "feature_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "mode_domain": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "selected_mode_id": {"$ref": "#/$defs/nonEmptyString"},
+        "selection_rule": {"$ref": "#/$defs/nonEmptyString"},
+        "player_input_role": {"const": "selects_feature_mode"},
+        "fixed_for_task": {"const": true},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "paidConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configuration_id", "configuration_type", "actual_economic_bet_field", "actual_economic_bet_definition", "sample_partition_field", "sample_partition_value", "fixed_for_task", "evidence_sha256"],
+      "properties": {
+        "configuration_id": {"$ref": "#/$defs/nonEmptyString"},
+        "configuration_type": {"enum": ["normal", "ante", "bonus_bet", "enhanced_bet", "other_paid_configuration"]},
+        "actual_economic_bet_field": {"$ref": "#/$defs/nonEmptyString"},
+        "actual_economic_bet_definition": {"$ref": "#/$defs/nonEmptyString"},
+        "sample_partition_field": {"$ref": "#/$defs/nonEmptyString"},
+        "sample_partition_value": {"type": ["string", "number", "boolean"]},
+        "fixed_for_task": {"const": true},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "modeContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode_id", "feature_mode_selections", "paid_configuration", "mixed_sample_forbidden"],
+      "properties": {
+        "mode_id": {"$ref": "#/$defs/nonEmptyString"},
+        "feature_mode_selections": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/featureModeSelection"}},
+        "paid_configuration": {"$ref": "#/$defs/paidConfiguration"},
+        "mixed_sample_forbidden": {"const": true}
+      }
+    },
+    "metricInstanceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_id", "source_node_ids", "instance_dimensions"],
+      "properties": {
+        "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "source_node_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "instance_dimensions": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}}
+      }
+    },
+    "stepReturnOwnerMetricInstanceReference": {
+      "allOf": [
+        {"$ref": "#/$defs/metricInstanceReference"},
+        {
+          "properties": {
+            "metric_id": {
+              "enum": [
+                "cascade.step_return_distribution_by_depth",
+                "variable_grid.return_distribution_by_capacity",
+                "effective_ways.return_distribution_by_capacity",
+                "settlement.step_return_distribution"
+              ]
+            }
+          },
+          "required": ["metric_id"]
+        }
+      ]
+    },
+    "stepReturnOwnerBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_instance", "subset_scope_instance_id"],
+      "properties": {
+        "metric_instance": {"$ref": "#/$defs/stepReturnOwnerMetricInstanceReference"},
+        "subset_scope_instance_id": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "stepReturnOwnerPartition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["partition_id", "owner_bindings"],
+      "properties": {
+        "partition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "owner_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/stepReturnOwnerBinding"}
+        }
+      }
+    },
+    "jackpotMaterialityTierExposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier_id", "hit_rate", "original_hit_count", "original_rtp_contribution", "material", "evidence_sha256"],
+      "properties": {
+        "tier_id": {"$ref": "#/$defs/nonEmptyString"},
+        "hit_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "original_hit_count": {"type": "integer", "minimum": 0},
+        "original_rtp_contribution": {"type": "number", "minimum": 0},
+        "material": {"type": "boolean"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "jackpotMaterialityClassification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jackpot_node_id", "opportunity_set_id", "original_opportunity_count", "material_tier_ids", "non_material_tier_ids", "tier_exposure"],
+      "properties": {
+        "jackpot_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "opportunity_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "original_opportunity_count": {"type": "integer", "minimum": 1},
+        "material_tier_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "non_material_tier_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "tier_exposure": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/jackpotMaterialityTierExposure"}}
+      }
+    },
+    "jackpotMaterialOwnerBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opportunity_set_id", "covered_tier_ids", "primary_owner_metric_instance", "projection_validator_id", "shared_semantic_event_set_id", "source_outcome_to_jackpot_tier", "source_support_fully_covered", "mapping_total_and_deterministic", "no_additional_jackpot_source", "rule_evidence_sha256"],
+      "properties": {
+        "opportunity_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "covered_tier_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "primary_owner_metric_instance": {"$ref": "#/$defs/metricInstanceReference"},
+        "projection_validator_id": {"const": "jackpot_material_outcome_projection_v1"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "source_outcome_to_jackpot_tier": {"type": "object", "minProperties": 1, "additionalProperties": {"type": ["string", "null"]}},
+        "source_support_fully_covered": {"const": true},
+        "mapping_total_and_deterministic": {"const": true},
+        "no_additional_jackpot_source": {"const": true},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "conditionalDerivationRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_metric_id", "profile_binding_attribute", "required_binding_fields", "required_primary_owner_metric_id"],
+      "properties": {
+        "source_metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "profile_binding_attribute": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "required_binding_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}},
+        "required_primary_owner_metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"}
+      }
+    },
+    "valueSymbolEffectiveMultiplierBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value_symbol_node_id", "multiplier_node_id", "shared_semantic_event_set_id", "value_symbol_instance_id_field", "multiplier_application_event_id_field", "event_pairing_bijective", "all_assignments_realized_exactly_once", "same_event_universe", "no_additional_multiplier_source", "value_to_effective_multiplier_mapping", "mapping_total_and_bijective", "primary_owner_metric_id", "rule_evidence_sha256"],
+      "properties": {
+        "value_symbol_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "value_symbol_instance_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_application_event_id_field": {"$ref": "#/$defs/nonEmptyString"},
+        "event_pairing_bijective": {"const": true},
+        "all_assignments_realized_exactly_once": {"const": true},
+        "same_event_universe": {"const": true},
+        "no_additional_multiplier_source": {"const": true},
+        "value_to_effective_multiplier_mapping": {"type": "object", "minProperties": 1, "additionalProperties": {"type": ["string", "number"]}},
+        "mapping_total_and_bijective": {"const": true},
+        "primary_owner_metric_id": {"enum": ["value_symbol.assignment_value_distribution", "multiplier.effective_value_distribution"]},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "cascadeStepMultiplierState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["settlement_step_index", "multiplier_state_id", "multiplier_occurred", "multiplier_applied", "effective_multiplier"],
+      "properties": {
+        "settlement_step_index": {"type": "integer", "minimum": 0},
+        "multiplier_state_id": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_occurred": {"type": "boolean"},
+        "multiplier_applied": {"type": "boolean"},
+        "effective_multiplier": {"type": ["number", "null"], "minimum": 0}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"multiplier_applied": {"const": true}}, "required": ["multiplier_applied"]},
+          "then": {
+            "required": ["multiplier_occurred", "effective_multiplier"],
+            "properties": {"multiplier_occurred": {"const": true}, "effective_multiplier": {"type": "number", "minimum": 0}}
+          },
+          "else": {"properties": {"effective_multiplier": {"type": "null"}}}
+        }
+      ]
+    },
+    "cascadeDepthMultiplierBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cascade_node_id", "multiplier_node_id", "shared_semantic_event_set_id", "terminal_depth_semantics", "settlement_step_index_semantics", "terminal_depth_to_step_states", "all_reachable_depths_covered", "mapping_total_and_deterministic", "extra_random_or_state_dependency", "rule_evidence_sha256"],
+      "properties": {
+        "cascade_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "multiplier_node_id": {"$ref": "#/$defs/nonEmptyString"},
+        "shared_semantic_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+        "terminal_depth_semantics": {"const": "completed_cascade_settlement_count_0_based"},
+        "settlement_step_index_semantics": {"const": "initial_settlement_0_then_cascade_step_1_based"},
+        "terminal_depth_to_step_states": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^(0|[1-9][0-9]*)$"},
+          "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/cascadeStepMultiplierState"}}
+        },
+        "all_reachable_depths_covered": {"const": true},
+        "mapping_total_and_deterministic": {"const": true},
+        "extra_random_or_state_dependency": {"const": false},
+        "rule_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "groupWeightSourceMetricInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_id", "source_node_ids", "instance_dimensions", "target_evidence_sha256"],
+      "properties": {
+        "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "source_node_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "instance_dimensions": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
+        "target_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "groupWeightFactor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["constant"],
+          "properties": {"constant": {"type": "number", "exclusiveMinimum": 0}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_alias", "source_field", "source_keys", "aggregation"],
+          "properties": {
+            "source_alias": {"$ref": "#/$defs/nonEmptyString"},
+            "source_field": {"enum": ["target", "group_weights"]},
+            "source_keys": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/nonEmptyString"}},
+            "aggregation": {"const": "sum"}
+          }
+        }
+      ]
+    },
+    "conditionalGroupWeightBinding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "source_event_set_id", "source_evidence_path", "source_evidence_sha256", "source_event_count", "group_exposure_counts", "token_multipliers", "normalization"],
+          "properties": {
+            "method": {"const": "sealed_original_exposure"},
+            "source_event_set_id": {"$ref": "#/$defs/nonEmptyString"},
+            "source_evidence_path": {"$ref": "#/$defs/nonEmptyString"},
+            "source_evidence_sha256": {"$ref": "#/$defs/sha256"},
+            "source_event_count": {"type": "integer", "minimum": 1},
+            "group_exposure_counts": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 1}},
+            "token_multipliers": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
+            "normalization": {"const": "normalize_positive_active_groups"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "source_metric_instances", "group_factor_rules", "normalization"],
+          "properties": {
+            "method": {"const": "source_metric_factors"},
+            "source_metric_instances": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/groupWeightSourceMetricInstance"}},
+            "group_factor_rules": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/groupWeightFactor"}}
+            },
+            "normalization": {"const": "normalize_positive_active_groups"}
+          }
+        }
+      ]
+    },
+    "packageMatchV12": {
+      "type": "object",
+      "required": ["mechanic_id", "source_node_ids", "instance_dimensions", "scope", "package_id", "owner", "metric_ids", "evidence", "status"],
+      "properties": {
+        "mechanic_id": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+        "source_node_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "instance_dimensions": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
+        "scope": {"type": "string", "minLength": 1},
+        "package_id": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+        "owner": {"type": "string", "pattern": "^[a-z0-9.-]+$"},
+        "metric_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9._-]+$"}},
+        "evidence": {"oneOf": [{"type": "object", "minProperties": 1}, {"type": "array", "minItems": 1}]},
+        "status": {"const": "已匹配"}
+      }
+    },
+    "scoreProfileV12": {
+      "type": "object",
+      "required": ["method", "anchors"],
+      "properties": {
+        "method": {"enum": ["absolute_error", "relative_error", "range_error", "total_variation", "mean_absolute_error", "max_absolute_error", "grouped_mean_absolute_error", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d"]},
+        "anchors": {"type": "array", "minItems": 2},
+        "zero_floor": {"type": "number", "exclusiveMinimum": 0},
+        "group_separator": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "bin_positions_source": {"const": "task_contract"},
+        "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative"]},
+        "ordered_distance_policy_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "position_transform": {"enum": ["identity", "log10_1p"]},
+        "distance_normalization": {"enum": ["sealed_support_span", "fixed_transform_unit"]},
+        "distance_scale": {"const": 1.0},
+        "distance_scale_source": {"const": "sealed_support_span"},
+        "distance_unit": {"enum": ["normalized_linear_support", "log10_decade"]},
+        "group_weight_source": {"const": "task_contract"},
+        "reachable_support_source": {"const": "task_contract"},
+        "reachable_support_status": {"enum": ["active", "all_degenerate"]},
+        "normalization_tolerance": {"type": "number", "minimum": 0, "exclusiveMaximum": 1},
+        "bin_positions": {"type": "array", "minItems": 2, "items": {"type": "number"}},
+        "bin_positions_by_group": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "minProperties": 2,
+            "additionalProperties": {"type": "number"}
+          }
+        },
+        "bin_boundaries_by_group": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "object",
+              "required": ["lower", "upper"],
+              "properties": {
+                "lower": {"type": "number", "minimum": 0},
+                "upper": {"type": ["number", "null"], "minimum": 0}
+              }
+            }
+          }
+        },
+        "group_weights": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+        },
+        "residual_baselines_by_group": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"required": ["reachable_support_status"]},
+          "then": {"required": ["reachable_support_source"]}
+        },
+        {
+          "if": {
+            "allOf": [
+              {"properties": {"method": {"const": "wasserstein_1d"}}, "required": ["method"]},
+              {"not": {"properties": {"reachable_support_status": {"const": "all_degenerate"}}, "required": ["reachable_support_status"]}}
+            ]
+          },
+          "then": {"required": ["bin_positions_source", "axis_semantics", "ordered_distance_policy_id", "position_transform", "distance_normalization", "distance_unit", "bin_positions"]}
+        },
+        {
+          "if": {
+            "allOf": [
+              {"properties": {"method": {"enum": ["grouped_mean_absolute_error", "grouped_total_variation", "grouped_wasserstein_1d"]}}, "required": ["method"]},
+              {"not": {"properties": {"reachable_support_status": {"const": "all_degenerate"}}, "required": ["reachable_support_status"]}}
+            ]
+          },
+          "then": {"required": ["group_separator", "group_weight_source", "group_weights", "normalization_tolerance"]}
+        },
+        {
+          "if": {
+            "allOf": [
+              {"properties": {"method": {"const": "grouped_wasserstein_1d"}}, "required": ["method"]},
+              {"not": {"properties": {"reachable_support_status": {"const": "all_degenerate"}}, "required": ["reachable_support_status"]}}
+            ]
+          },
+          "then": {"required": ["bin_positions_source", "axis_semantics", "ordered_distance_policy_id", "position_transform", "distance_normalization", "distance_unit", "bin_positions_by_group"]}
+        },
+        {
+          "if": {"properties": {"distance_normalization": {"const": "fixed_transform_unit"}}, "required": ["distance_normalization"]},
+          "then": {
+            "required": ["distance_scale"],
+            "properties": {
+              "axis_semantics": {"const": "nonnegative_multiplicative"},
+              "position_transform": {"const": "log10_1p"},
+              "distance_scale": {"const": 1.0},
+              "distance_unit": {"const": "log10_decade"}
+            },
+            "not": {"required": ["distance_scale_source"]}
+          }
+        },
+        {
+          "if": {"properties": {"position_transform": {"const": "log10_1p"}}, "required": ["position_transform"]},
+          "then": {
+            "required": ["distance_scale"],
+            "properties": {
+              "distance_normalization": {"const": "fixed_transform_unit"},
+              "distance_scale": {"const": 1.0},
+              "bin_positions": {"items": {"type": "number", "minimum": 0}},
+              "bin_positions_by_group": {
+                "additionalProperties": {
+                  "additionalProperties": {"type": "number", "minimum": 0}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"distance_normalization": {"const": "sealed_support_span"}}, "required": ["distance_normalization"]},
+          "then": {
+            "required": ["distance_scale_source"],
+            "properties": {
+              "axis_semantics": {"const": "natural_linear"},
+              "position_transform": {"const": "identity"},
+              "distance_scale_source": {"const": "sealed_support_span"},
+              "distance_unit": {"const": "normalized_linear_support"}
+            },
+            "not": {"required": ["distance_scale"]}
+          }
+        }
+      ]
+    },
+    "hardGateProfileV12": {
+      "type": "object",
+      "required": ["method", "tolerance_source", "confidence_required"],
+      "properties": {
+        "method": {"enum": ["absolute_error", "relative_error", "range_error", "total_variation", "mean_absolute_error", "max_absolute_error", "grouped_mean_absolute_error", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d"]},
+        "tolerance_source": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "confidence_required": {"type": "boolean"},
+        "base_tolerance": {"type": "number", "minimum": 0},
+        "tolerance_factor": {"type": "number", "exclusiveMinimum": 0},
+        "tolerance": {"type": "number", "minimum": 0},
+        "tolerance_policy_id": {"type": "string", "minLength": 1},
+        "zero_floor": {"type": "number", "exclusiveMinimum": 0},
+        "group_separator": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "bin_positions_source": {"const": "task_contract"},
+        "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative"]},
+        "ordered_distance_policy_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "position_transform": {"enum": ["identity", "log10_1p"]},
+        "distance_normalization": {"enum": ["sealed_support_span", "fixed_transform_unit"]},
+        "distance_scale": {"const": 1.0},
+        "distance_scale_source": {"const": "sealed_support_span"},
+        "distance_unit": {"enum": ["normalized_linear_support", "log10_decade"]},
+        "group_weight_source": {"const": "task_contract"},
+        "normalization_tolerance": {"type": "number", "minimum": 0, "exclusiveMaximum": 1},
+        "bin_positions": {"type": "array", "minItems": 2, "items": {"type": "number"}},
+        "bin_positions_by_group": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "minProperties": 2,
+            "additionalProperties": {"type": "number"}
+          }
+        },
+        "group_weights": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"method": {"const": "wasserstein_1d"}}, "required": ["method"]},
+          "then": {"required": ["bin_positions_source", "axis_semantics", "ordered_distance_policy_id", "position_transform", "distance_normalization", "distance_unit", "bin_positions"]}
+        },
+        {
+          "if": {"properties": {"method": {"enum": ["grouped_mean_absolute_error", "grouped_total_variation", "grouped_wasserstein_1d"]}}, "required": ["method"]},
+          "then": {"required": ["group_separator", "group_weight_source", "group_weights", "normalization_tolerance"]}
+        },
+        {
+          "if": {"properties": {"method": {"const": "grouped_wasserstein_1d"}}, "required": ["method"]},
+          "then": {"required": ["bin_positions_source", "axis_semantics", "ordered_distance_policy_id", "position_transform", "distance_normalization", "distance_unit", "bin_positions_by_group"]}
+        },
+        {
+          "if": {"properties": {"distance_normalization": {"const": "fixed_transform_unit"}}, "required": ["distance_normalization"]},
+          "then": {
+            "required": ["distance_scale"],
+            "properties": {
+              "axis_semantics": {"const": "nonnegative_multiplicative"},
+              "position_transform": {"const": "log10_1p"},
+              "distance_scale": {"const": 1.0},
+              "distance_unit": {"const": "log10_decade"}
+            },
+            "not": {"required": ["distance_scale_source"]}
+          }
+        },
+        {
+          "if": {"properties": {"position_transform": {"const": "log10_1p"}}, "required": ["position_transform"]},
+          "then": {
+            "required": ["distance_scale"],
+            "properties": {
+              "distance_normalization": {"const": "fixed_transform_unit"},
+              "distance_scale": {"const": 1.0},
+              "bin_positions": {"items": {"type": "number", "minimum": 0}},
+              "bin_positions_by_group": {
+                "additionalProperties": {
+                  "additionalProperties": {"type": "number", "minimum": 0}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"distance_normalization": {"const": "sealed_support_span"}}, "required": ["distance_normalization"]},
+          "then": {
+            "required": ["distance_scale_source"],
+            "properties": {
+              "axis_semantics": {"const": "natural_linear"},
+              "position_transform": {"const": "identity"},
+              "distance_scale_source": {"const": "sealed_support_span"},
+              "distance_unit": {"const": "normalized_linear_support"}
+            },
+            "not": {"required": ["distance_scale"]}
+          }
+        }
+      ]
+    },
+    "auditProfileV12": {
+      "type": "object",
+      "required": ["method", "blocking_on_missing"],
+      "properties": {
+        "method": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "blocking_on_missing": {"type": "boolean"},
+        "blocking_on_mismatch": {"type": "boolean"},
+        "required_result_status": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "exact_match_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "pattern": "\\S"}
+        },
+        "insufficient_sample_status": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "insufficient_sample_blocks_formal": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"blocking_on_mismatch": {"const": true}}, "required": ["blocking_on_mismatch"]},
+          "then": {"required": ["required_result_status"]}
+        },
+        {
+          "if": {"anyOf": [{"required": ["insufficient_sample_status"]}, {"required": ["insufficient_sample_blocks_formal"]}]},
+          "then": {"required": ["insufficient_sample_status", "insufficient_sample_blocks_formal"]}
+        }
+      ]
+    },
+    "sampleCapabilityInput": {
+      "type": "object",
+      "required": ["original_sample_count", "formal_sample_count"],
+      "properties": {
+        "original_sample_count": {"type": "integer", "minimum": 0},
+        "formal_sample_count": {"type": "integer", "minimum": 0},
+        "original_group_sample_counts": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 0}},
+        "formal_group_sample_counts": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 0}}
+      }
+    },
+    "sampleCapabilityBlocker": {
+      "type": "object",
+      "required": ["side", "group", "required", "actual", "shortfall"],
+      "properties": {
+        "side": {"enum": ["原版", "FORMAL"]},
+        "group": {"type": "string", "minLength": 1},
+        "required": {"type": "integer", "minimum": 1},
+        "actual": {"type": "integer", "minimum": 0},
+        "shortfall": {"type": "integer", "minimum": 1}
+      }
+    },
+    "sampleCapability": {
+      "type": "object",
+      "required": ["policy_id", "method", "bound_family", "confidence_level", "comparison_noise_budget", "comparison_noise_budget_source", "per_side_error_budget", "per_side_group_failure_probability", "active_group_count", "active_support_count", "max_support_per_group", "support_count_by_group", "support_sha256", "normalized_span_by_group", "required_sample_count_by_group", "original_required_sample_count", "original_actual_sample_count", "original_sample_count_by_group", "original_min_group_sample_count", "original_samples_per_active_support", "original_min_group_samples_per_support", "formal_required_sample_count", "formal_actual_sample_count", "formal_sample_count_by_group", "formal_min_group_sample_count", "formal_samples_per_active_support", "formal_min_group_samples_per_support", "blocking_reasons", "status", "input_sha256"],
+      "properties": {
+        "policy_id": {"type": "string", "minLength": 1},
+        "method": {"enum": ["total_variation", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d", "mean_absolute_error", "grouped_mean_absolute_error"]},
+        "bound_family": {"enum": ["bretagnolle_huber_carol", "dkw", "coordinate_hoeffding_union_bound"]},
+        "confidence_level": {"const": 0.99},
+        "comparison_noise_budget": {"type": "number", "exclusiveMinimum": 0},
+        "comparison_noise_budget_source": {"type": "string", "minLength": 1},
+        "per_side_error_budget": {"type": "number", "exclusiveMinimum": 0},
+        "per_side_group_failure_probability": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "active_group_count": {"type": "integer", "minimum": 1},
+        "active_support_count": {"type": "integer", "minimum": 1},
+        "max_support_per_group": {"type": "integer", "minimum": 1},
+        "support_count_by_group": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 1}},
+        "support_sha256": {"$ref": "#/$defs/sha256"},
+        "normalized_span_by_group": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
+        "required_sample_count_by_group": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 1}},
+        "original_required_sample_count": {"type": "integer", "minimum": 1},
+        "original_actual_sample_count": {"type": "integer", "minimum": 0},
+        "original_sample_count_by_group": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 0}},
+        "original_min_group_sample_count": {"type": "integer", "minimum": 0},
+        "original_samples_per_active_support": {"type": "number", "minimum": 0},
+        "original_min_group_samples_per_support": {"type": "number", "minimum": 0},
+        "formal_required_sample_count": {"type": "integer", "minimum": 1},
+        "formal_actual_sample_count": {"type": "integer", "minimum": 0},
+        "formal_sample_count_by_group": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "integer", "minimum": 0}},
+        "formal_min_group_sample_count": {"type": "integer", "minimum": 0},
+        "formal_samples_per_active_support": {"type": "number", "minimum": 0},
+        "formal_min_group_samples_per_support": {"type": "number", "minimum": 0},
+        "blocking_reasons": {"type": "array", "items": {"$ref": "#/$defs/sampleCapabilityBlocker"}},
+        "status": {"enum": ["通过", "阻塞"]},
+        "input_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "sampleCapabilityPolicy": {
+      "type": "object",
+      "required": ["source_schema_version", "policy_id", "version", "source_path", "source_sha256", "legacy_contracts_unchanged", "confidence_level", "covered_methods", "noise_budget", "bounds", "multiple_testing", "formulas", "rules", "active_metric_instances", "active_metric_instances_sha256", "blocking_reasons", "status"],
+      "properties": {
+        "source_schema_version": {"const": "slot-alignment.sample-capability-policy.v1"},
+        "policy_id": {"const": "distribution-sample-capability-v1"},
+        "version": {"const": "1.0.0"},
+        "source_path": {"const": "assets/policies/sample_capability_policy.v1.json"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "legacy_contracts_unchanged": {"const": true},
+        "confidence_level": {"const": 0.99},
+        "covered_methods": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"enum": ["total_variation", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d", "mean_absolute_error", "grouped_mean_absolute_error"]}},
+        "noise_budget": {
+          "type": "object",
+          "required": ["score_source", "hard_source", "hard_tolerance_factor", "per_side_factor"],
+          "properties": {
+            "score_source": {"const": "minimum_positive_distance_anchor_at_score_95"},
+            "hard_source": {"const": "effective_tolerance"},
+            "hard_tolerance_factor": {"const": 0.5},
+            "per_side_factor": {"const": 0.5}
+          }
+        },
+        "bounds": {
+          "type": "object",
+          "required": ["total_variation", "wasserstein_1d", "mean_absolute_residual", "residual_coordinate_range_width"],
+          "properties": {
+            "total_variation": {"const": "bretagnolle_huber_carol"},
+            "wasserstein_1d": {"const": "dkw"},
+            "mean_absolute_residual": {"const": "coordinate_hoeffding_union_bound"},
+            "residual_coordinate_range_width": {"const": 2.0}
+          }
+        },
+        "multiple_testing": {
+          "type": "object",
+          "required": ["sides", "grouped_adjustment"],
+          "properties": {
+            "sides": {"const": ["original", "formal"]},
+            "grouped_adjustment": {"const": "bonferroni_across_sides_and_active_groups"}
+          }
+        },
+        "formulas": {"type": "object", "minProperties": 3},
+        "rules": {"type": "object", "minProperties": 7, "additionalProperties": {"const": true}},
+        "active_metric_instances": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["metric_id", "scope", "kind", "method", "sample_capability_sha256"],
+            "properties": {
+              "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+              "scope": {"type": "string", "minLength": 1},
+              "kind": {"enum": ["hard", "score"]},
+              "method": {"enum": ["total_variation", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d", "mean_absolute_error", "grouped_mean_absolute_error"]},
+              "sample_capability_sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        },
+        "active_metric_instances_sha256": {"$ref": "#/$defs/sha256"},
+        "blocking_reasons": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/sampleCapabilityBlocker"},
+              {"type": "object", "required": ["metric_id", "scope"], "properties": {"metric_id": {"type": "string", "minLength": 1}, "scope": {"type": "string", "minLength": 1}}}
+            ]
+          }
+        },
+        "status": {"enum": ["通过", "阻塞"]}
+      }
+    },
+    "metricV13": {
+      "allOf": [
+        {"$ref": "#/$defs/metricV12"},
+        {
+          "if": {
+            "allOf": [
+              {"not": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]}},
+              {"not": {"properties": {"waiver": {"properties": {"status": {"const": "已批准"}}, "required": ["status"]}}, "required": ["waiver"]}},
+              {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "kind": {"const": "score"},
+                      "score_profile": {"properties": {"method": {"enum": ["total_variation", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d", "mean_absolute_error", "grouped_mean_absolute_error"]}}, "required": ["method"]}
+                    },
+                    "required": ["kind", "score_profile"]
+                  },
+                  {
+                    "properties": {
+                      "kind": {"const": "hard"},
+                      "hard_gate_profile": {"properties": {"method": {"enum": ["total_variation", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d", "mean_absolute_error", "grouped_mean_absolute_error"]}}, "required": ["method"]}
+                    },
+                    "required": ["kind", "hard_gate_profile"]
+                  }
+                ]
+              }
+            ]
+          },
+          "then": {"required": ["sample_capability_input", "sample_capability"]},
+          "else": {"not": {"anyOf": [{"required": ["sample_capability_input"]}, {"required": ["sample_capability"]}]}}
+        }
+      ]
+    },
+    "metricV12": {
+      "type": "object",
+      "required": ["metric_id", "name_zh", "owner", "category", "display_order", "kind", "scope_template", "scope", "source_node_ids", "instance_dimensions", "status", "target", "unit", "measurement", "sample_unit", "condition_on", "normalization", "applicability_rule", "missing_policy", "capability_ids", "profile_match", "semantic_variable_id", "semantic_group", "semantic_role", "relationships", "display"],
+      "properties": {
+        "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "category": {"type": "string", "minLength": 1},
+        "display_order": {"type": "integer", "minimum": 0},
+        "kind": {"enum": ["hard", "score", "audit"]},
+        "scope_template": {"type": "string", "minLength": 1},
+        "scope": {"type": "string", "minLength": 1},
+        "source_node_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "instance_dimensions": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
+        "target": {"type": ["number", "string", "object", "array", "boolean"]},
+        "unit": {"type": "string", "minLength": 1},
+        "measurement": {"type": "string", "minLength": 1},
+        "sample_unit": {"type": "string", "minLength": 1},
+        "condition_on": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+          ]
+        },
+        "normalization": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "object", "minProperties": 1}
+          ]
+        },
+        "applicability_rule": {"type": "string", "minLength": 1},
+        "missing_policy": {"type": "string", "minLength": 1},
+        "capability_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "profile_match": {"type": "object", "minProperties": 1},
+        "semantic_variable_id": {"type": "string", "minLength": 1},
+        "semantic_group": {"type": "string", "minLength": 1},
+        "relationships": {
+          "type": "object",
+          "required": ["derived_from", "cross_checks_with", "overlap_reason_zh"],
+          "properties": {
+            "derived_from": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "conditional_derivation_sources": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "marginal_of": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "conditional_on_metric": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "cross_checks_with": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "fallback_for": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "exclusive_with": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "overlap_reason_zh": {"type": "string", "minLength": 1}
+          }
+        },
+        "conditional_derivation_requirements": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/conditionalDerivationRequirement"}
+        },
+        "owner_derivation_binding": {"$ref": "#/$defs/valueSymbolEffectiveMultiplierBinding"},
+        "cascade_derivation_binding": {"$ref": "#/$defs/cascadeDepthMultiplierBinding"},
+        "jackpot_material_owner_binding": {"$ref": "#/$defs/jackpotMaterialOwnerBinding"},
+        "conditional_group_weight_binding": {"$ref": "#/$defs/conditionalGroupWeightBinding"},
+        "status": {"enum": ["适用", "不适用"]},
+        "inapplicability_reason_code": {"type": "string", "minLength": 1},
+        "inapplicability_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["evidence_path", "evidence_sha256", "json_pointer", "expected_value"],
+            "properties": {
+              "evidence_path": {"type": "string", "minLength": 1},
+              "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "json_pointer": {"type": "string", "pattern": "^/"},
+              "expected_value": {}
+            }
+          }
+        },
+        "target_evidence": {
+          "type": "object",
+          "required": ["evidence_path", "evidence_sha256", "json_pointer", "binding_json_pointer"],
+          "properties": {
+            "evidence_path": {"type": "string", "minLength": 1},
+            "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "json_pointer": {"type": "string", "pattern": "^/"},
+            "binding_json_pointer": {"type": "string", "pattern": "^/"}
+          }
+        },
+        "sealed_event_set_id": {"type": "string", "minLength": 1},
+        "sealed_event_set_path": {"type": "string", "minLength": 1},
+        "sealed_event_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "sealed_event_count": {"type": "integer", "minimum": 1},
+        "return_denominator": {"enum": ["triggering_paid_bet", "actual_purchase_cost", "normal_base_bet"]},
+        "event_recomputation_contract": {
+          "type": "object",
+          "required": ["sealed_event_set_id", "sealed_event_set_path", "sealed_event_set_sha256", "event_count", "event_id_field", "feature_total_win_field", "actual_purchase_cost_field", "normal_base_bet_field", "entry_source_field", "entry_source_value", "base_bet_equivalent_bins"],
+          "properties": {
+            "sealed_event_set_id": {"type": "string", "minLength": 1},
+            "sealed_event_set_path": {"type": "string", "minLength": 1},
+            "sealed_event_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "event_count": {"type": "integer", "minimum": 1},
+            "event_id_field": {"type": "string", "minLength": 1},
+            "feature_total_win_field": {"type": "string", "minLength": 1},
+            "actual_purchase_cost_field": {"type": "string", "minLength": 1},
+            "normal_base_bet_field": {"type": "string", "minLength": 1},
+            "entry_source_field": {"type": "string", "minLength": 1},
+            "entry_source_value": {"const": "feature_buy"},
+            "base_bet_equivalent_bins": {
+              "type": "object",
+              "minProperties": 2,
+              "additionalProperties": {
+                "type": "object",
+                "required": ["lower", "upper"],
+                "properties": {
+                  "lower": {"type": "number", "minimum": 0},
+                  "upper": {"type": ["number", "null"], "minimum": 0}
+                }
+              }
+            }
+          }
+        },
+        "semantic_role": {"enum": ["primary", "guard_cross_check", "derived_diagnostic", "audit"]},
+        "score_group": {"type": "string", "minLength": 1},
+        "score_budget_key": {"type": "string", "minLength": 1},
+        "scope_aggregation": {"enum": ["weighted_mean", "minimum"]},
+        "weight": {"type": "number", "exclusiveMinimum": 0},
+        "scope_weight": {"type": "number", "exclusiveMinimum": 0},
+        "score_profile": {"$ref": "#/$defs/scoreProfileV12"},
+        "hard_gate_profile": {"$ref": "#/$defs/hardGateProfileV12"},
+        "score_weight": {"type": "number"},
+        "audit_profile": {"$ref": "#/$defs/auditProfileV12"},
+        "sample_capability_input": {"$ref": "#/$defs/sampleCapabilityInput"},
+        "sample_capability": {"$ref": "#/$defs/sampleCapability"},
+        "display": {
+          "type": "object",
+          "required": ["description_zh", "usage_scene_zh", "target_meaning_zh", "display_unit"],
+          "properties": {
+            "description_zh": {"type": "string", "minLength": 1},
+            "usage_scene_zh": {"type": "string", "minLength": 1},
+            "target_meaning_zh": {"type": "string", "minLength": 1},
+            "display_unit": {"type": "string", "minLength": 1}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "score"}}, "required": ["kind"]},
+          "then": {"required": ["score_group", "score_budget_key", "scope_aggregation", "weight", "score_profile"]}
+        },
+        {
+          "if": {
+            "allOf": [
+              {"properties": {"kind": {"const": "score"}}, "required": ["kind"]},
+              {"not": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]}}
+            ]
+          },
+          "then": {"required": ["sealed_event_set_id", "sealed_event_set_path", "sealed_event_set_sha256", "sealed_event_count"]}
+        },
+        {
+          "if": {"not": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]}},
+          "then": {"required": ["target_evidence"]}
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {"const": "不适用"},
+              "inapplicability_reason_code": {"const": "feature_buy_unavailable"}
+            },
+            "required": ["status", "inapplicability_reason_code"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {"required": ["target_evidence"]},
+                {"required": ["sealed_event_set_id"]},
+                {"required": ["sealed_event_set_path"]},
+                {"required": ["sealed_event_set_sha256"]},
+                {"required": ["sealed_event_count"]},
+                {"required": ["event_recomputation_contract"]}
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {"properties": {"kind": {"const": "score"}, "scope_aggregation": {"const": "weighted_mean"}}, "required": ["kind", "scope_aggregation"]},
+              {"not": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]}}
+            ]
+          },
+          "then": {"required": ["scope_weight"]}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "hard"}}, "required": ["kind"]},
+          "then": {"required": ["hard_gate_profile"]}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "audit"}}, "required": ["kind"]},
+          "then": {"required": ["score_weight", "audit_profile"], "properties": {"score_weight": {"const": 0}}}
+        },
+        {
+          "if": {"required": ["owner_derivation_binding"]},
+          "then": {
+            "required": ["status", "inapplicability_reason_code"],
+            "properties": {
+              "status": {"const": "不适用"},
+              "inapplicability_reason_code": {"const": "deterministically_derived_from_primary"}
+            }
+          }
+        },
+        {
+          "if": {"required": ["cascade_derivation_binding"]},
+          "then": {
+            "required": ["status", "inapplicability_reason_code"],
+            "properties": {
+              "status": {"const": "不适用"},
+              "inapplicability_reason_code": {"const": "deterministically_derived_from_primary"}
+            }
+          }
+        },
+        {
+          "if": {"required": ["jackpot_material_owner_binding"]},
+          "then": {
+            "required": ["status", "inapplicability_reason_code"],
+            "properties": {
+              "status": {"const": "不适用"},
+              "inapplicability_reason_code": {"const": "deterministically_derived_from_primary"}
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {"not": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]}},
+              {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "kind": {"const": "score"},
+                      "score_profile": {"properties": {"method": {"enum": ["grouped_mean_absolute_error", "grouped_total_variation", "grouped_wasserstein_1d"]}}, "required": ["method"]}
+                    },
+                    "required": ["kind", "score_profile"]
+                  },
+                  {
+                    "properties": {
+                      "kind": {"const": "hard"},
+                      "hard_gate_profile": {"properties": {"method": {"enum": ["grouped_mean_absolute_error", "grouped_total_variation", "grouped_wasserstein_1d"]}}, "required": ["method"]}
+                    },
+                    "required": ["kind", "hard_gate_profile"]
+                  }
+                ]
+              }
+            ]
+          },
+          "then": {"required": ["conditional_group_weight_binding"]}
+        },
+        {
+          "if": {
+            "allOf": [
+              {"properties": {"metric_id": {"const": "persistent_state.position_role_dependence_residual_given_count_transition"}}, "required": ["metric_id"]},
+              {"not": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]}}
+            ]
+          },
+          "then": {"properties": {"score_profile": {"required": ["residual_baselines_by_group"]}}}
+        },
+        {
+          "if": {
+            "properties": {"metric_id": {"const": "value_symbol.assignment_value_distribution"}},
+            "required": ["metric_id", "owner_derivation_binding"]
+          },
+          "then": {
+            "properties": {
+              "owner_derivation_binding": {
+                "properties": {"primary_owner_metric_id": {"const": "multiplier.effective_value_distribution"}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"metric_id": {"const": "multiplier.effective_value_distribution"}},
+            "required": ["metric_id", "owner_derivation_binding"]
+          },
+          "then": {
+            "properties": {
+              "owner_derivation_binding": {
+                "properties": {"primary_owner_metric_id": {"const": "value_symbol.assignment_value_distribution"}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {"properties": {"kind": {"const": "score"}}, "required": ["kind"]},
+              {"not": {"properties": {"status": {"const": "不适用"}}, "required": ["status"]}},
+              {
+                "properties": {
+                  "score_profile": {
+                    "properties": {"method": {"enum": ["total_variation", "grouped_total_variation", "wasserstein_1d", "grouped_wasserstein_1d"]}},
+                    "required": ["method"]
+                  }
+                },
+                "required": ["score_profile"]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "score_profile": {
+                "required": ["reachable_support_source", "reachable_support_status"],
+                "properties": {"reachable_support_status": {"const": "active"}}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "score_profile": {
+                "properties": {"reachable_support_status": {"const": "all_degenerate"}},
+                "required": ["reachable_support_status"]
+              }
+            },
+            "required": ["score_profile"]
+          },
+          "then": {
+            "required": ["status", "inapplicability_reason_code", "inapplicability_evidence"],
+            "properties": {
+              "status": {"const": "不适用"},
+              "inapplicability_reason_code": {"const": "degenerate_reachable_support"}
+            }
+          }
+        }
+      ]
+    }
   }
 }

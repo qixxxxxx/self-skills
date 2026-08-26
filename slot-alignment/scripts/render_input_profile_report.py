@@ -43,7 +43,7 @@ def render(manifest, profile, authority, source_hashes):
     server_flow_policy = manifest.get("server_flow_policy", {})
     chains = qualification.get("consistency_checks", qualification.get("evidence", []))
     blockers = manifest.get("blockers", []) + profile.get("gaps", []) + authority.get("conflicts", [])
-    strict_contract = manifest.get("report_contract_version") in {"slot-alignment.reports.v2.6", "slot-alignment.reports.v2.7", "slot-alignment.reports.v2.8", "slot-alignment.reports.v2.9"}
+    strict_contract = manifest.get("report_contract_version") in {"slot-alignment.reports.v2.6", "slot-alignment.reports.v2.7", "slot-alignment.reports.v2.8", "slot-alignment.reports.v2.9", "slot-alignment.reports.v3.1", "slot-alignment.reports.v3.2"}
     certification_ready = (
         certification.get("status") == "通过"
         and certification.get("batch_count") == 1
