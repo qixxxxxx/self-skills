@@ -6,6 +6,8 @@ import math
 import sys
 from pathlib import Path
 
+from contract_io import load_contract, write_contract
+
 
 def load(path):
     with Path(path).open(encoding="utf-8") as stream:
@@ -163,12 +165,11 @@ def main():
     parser.add_argument("--policy", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    contract, profile, policy = load(args.contract), load(args.game_profile), load(args.policy)
+    contract, profile, policy = load_contract(args.contract), load(args.game_profile), load(args.policy)
     source_path = policy.get("source_path", f"assets/policies/{args.policy.name}")
     skill_root = args.policy.resolve().parents[2]
     contract["jackpot_materiality_policy"] = embedded_policy(contract, profile, policy, source_path, sha(args.policy), skill_root)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_contract(contract, args.output)
     print(json.dumps({"status": "通过", "output": str(args.output)}, ensure_ascii=False))
     return 0
 

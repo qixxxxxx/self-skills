@@ -12,15 +12,28 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from contract_io import ContractIOError, clear_contract_cache, contract_cache_stats, contract_content_identity, load_contract, metric_instance_id
+from compact_metric_contract import write_compact_contract
+from compile_metric_instances import build_extension_proposal, compile_instance_plan, required_capabilities
+from apply_automatic_waiver_policy import (
+    INSUFFICIENT,
+    UNATTAINABLE,
+    apply_insufficient_data_waivers,
+    apply_structural_unattainability_waivers,
+    validate_automatic_waiver_binding,
+)
+from apply_ordered_distance_policy import apply_policy as apply_ordered_distance_policy
 from validate_artifacts import validate_attainability_ceiling, validate_component_rtp_targets
-from report_common import TEMPLATE_PATHS, apply_metric_display_metadata, detail_rows, metric_blocks, metric_item_labels, metric_stage2_table, validate_report_against_template, validate_server_flow_policy, validate_template_text, validate_templates
+from report_common import TEMPLATE_PATHS, apply_metric_display_metadata, detail_rows, metric_blocks, metric_item_labels, metric_stage2_table, validate_continuous_execution_policy, validate_execution_qualification, validate_report_against_template, validate_template_text, validate_templates
 from apply_sample_capability_policy import apply_policy as apply_sample_capability_policy
+from apply_score_group_weight_policy import apply_policy as apply_score_group_weight_policy
 from score_alignment import anchors, distance, sample_capability_summary, validate_formal_sample_capability, validate_reachable_support, validate_sample_capability_binding
 from seal_delivery import delivery_report_contract_version
 from catalog_tool import METRIC_CATEGORIES, condition_implies, validate_grouped_distribution_degeneracy, validate_matched_position_joint_contract, validate_owner_direction_contracts, validate_relationships, validate_score_profile
 from semantic_contract_validation import (
     canonical_sha256,
     catalog_maps,
+    condition_matches,
     expected_metrics,
     format_instance,
     measurement_contract_sha256,
@@ -68,6 +81,328 @@ def dump(path, data):
 
 def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def contract_io_case(root):
+    root.mkdir(parents=True, exist_ok=True)
+    legacy = {"schema_version": "1.3", "task_id": "legacy", "metrics": []}
+    legacy_path = root / "legacy.json"
+    dump(legacy_path, legacy)
+    assert load_contract(legacy_path, SKILL_ROOT) == legacy
+
+    duplicate_path = root / "duplicate.json"
+    duplicate_path.write_text('{"schema_version":"1.4","schema_version":"1.4"}\n', encoding="utf-8")
+    try:
+        load_contract(duplicate_path, SKILL_ROOT)
+        raise AssertionError("重复JSON键未阻塞")
+    except ContractIOError as exc:
+        assert "重复键" in str(exc)
+
+    source_nodes = ["node-b", "node-a", "node-a"]
+    dimensions = {"state": "base_game", "component": "base"}
+    instance_id = metric_instance_id("core.rtp.total", source_nodes, dimensions)
+    assert instance_id == metric_instance_id("core.rtp.total", list(reversed(source_nodes)), dimensions)
+
+    external_dir = root / "metric_contract_data"
+    external_dir.mkdir()
+    external_path = external_dir / "metric-tensors.json"
+    dump(external_path, {
+        "schema_version": "slot-alignment.contract-data.v1",
+        "records": [{
+            "ref_id": f"target:{instance_id}",
+            "instance_id": instance_id,
+            "value": [0.95, 0.96],
+        }],
+    })
+    metric_index = SKILL_ROOT / "references/指标目录/index.json"
+    compact = {
+        "schema_version": "1.4",
+        "task_id": "compact",
+        "catalogs": {
+            "metrics_version": load_json(metric_index)["version"],
+            "hashes": {"metrics": sha(metric_index)},
+        },
+        "contract_storage": {
+            "layout": "compact_metric_instances_v1",
+            "instance_id_algorithm": "metric-instance-id-v1",
+        },
+        "metrics": [{
+            "instance_id": instance_id,
+            "metric_id": "core.rtp.total",
+            "source_node_ids": source_nodes,
+            "instance_dimensions": dimensions,
+            "scope": "normal:g1|component=base|mode=normal|state=base_game",
+            "status": "适用",
+            "target": {"$data_ref": f"target:{instance_id}"},
+            "hard_gate_profile_patch": {"tolerance": 0},
+        }],
+        "external_data": [{
+            "data_id": "metric-tensors",
+            "path": "metric_contract_data/metric-tensors.json",
+            "schema_version": "slot-alignment.contract-data.v1",
+            "sha256": sha(external_path),
+            "record_count": 1,
+            "instance_count": 1,
+        }],
+    }
+    compact_path = root / "metric_contract.json"
+    dump(compact_path, compact)
+    expanded = load_contract(compact_path, SKILL_ROOT)
+    assert expanded["metrics"][0]["name_zh"] == "总RTP"
+    assert expanded["metrics"][0]["target"] == [0.95, 0.96]
+    assert expanded["metrics"][0]["hard_gate_profile"]["method"] == "range_error"
+    assert expanded["metrics"][0]["hard_gate_profile"]["tolerance"] == 0
+    assert len(contract_content_identity(compact_path)) == 64
+    clear_contract_cache()
+    first = load_contract(compact_path, SKILL_ROOT)
+    second = load_contract(compact_path, SKILL_ROOT)
+    assert contract_cache_stats() == {"hits": 1, "misses": 1, "entries": 1, "max_entries": 4}
+    first["metrics"][0]["target"] = [0, 0]
+    assert second["metrics"][0]["target"] == [0.95, 0.96]
+    assert load_contract(compact_path, SKILL_ROOT)["metrics"][0]["target"] == [0.95, 0.96]
+
+    roundtrip_source = copy.deepcopy(expanded)
+    roundtrip_source["schema_version"] = "1.3"
+    roundtrip_source["report_contract_version"] = "slot-alignment.reports.v3.3"
+    roundtrip_path = root / "roundtrip/metric_contract.json"
+    write_compact_contract(roundtrip_source, roundtrip_path, SKILL_ROOT, threshold=1)
+    roundtrip = load_contract(roundtrip_path, SKILL_ROOT)
+    assert roundtrip["metrics"] == expanded["metrics"]
+    compact_roundtrip = load_json(roundtrip_path)
+    assert "name_zh" not in compact_roundtrip["metrics"][0]
+    assert compact_roundtrip["metrics"][0]["target"].keys() == {"$data_ref"}
+    compact_schema = load_json(SKILL_ROOT / "assets/schemas/metric-contract-compact.schema.json")
+    data_schema = load_json(SKILL_ROOT / "assets/schemas/contract-data.schema.json")
+    assert list(Draft202012Validator(compact_schema).iter_errors(compact_roundtrip)) == []
+    assert list(Draft202012Validator(data_schema).iter_errors(load_json(roundtrip_path.parent / "metric_contract_data/metric-data.json"))) == []
+    policy_output = root / "roundtrip/policy_metric_contract.json"
+    run(
+        ROOT / "apply_hard_gate_tolerance_policy.py",
+        "--contract", roundtrip_path,
+        "--policy", SKILL_ROOT / "assets/policies/hard_gate_tolerance_policy.v2.json",
+        "--output", policy_output,
+    )
+    assert load_json(policy_output)["schema_version"] == "1.4"
+    assert load_contract(policy_output, SKILL_ROOT)["hard_gate_tolerance_policy"]["policy_id"] == "future-default-hard-gate-tolerance-factors-v2"
+
+    tampered = load_json(external_path)
+    tampered["records"][0]["value"] = [0.94, 0.97]
+    dump(external_path, tampered)
+    try:
+        load_contract(compact_path, SKILL_ROOT)
+        raise AssertionError("外部数据Hash失效未阻塞")
+    except ContractIOError as exc:
+        assert "SHA-256失效" in str(exc)
+
+    compact["external_data"][0]["path"] = "../escape.json"
+    dump(compact_path, compact)
+    try:
+        load_contract(compact_path, SKILL_ROOT)
+        raise AssertionError("外部数据越界路径未阻塞")
+    except ContractIOError as exc:
+        assert "path不安全" in str(exc)
+
+
+def instance_compiler_case(root):
+    valid_root = root / "valid"
+    profile = load_json(valid_root / "game_profile.json")
+    manifest = load_json(valid_root / "input_manifest.json")
+    plan = compile_instance_plan(profile, manifest, valid_root, SKILL_ROOT)
+    contract = load_json(valid_root / "metric_contract.json")
+    assert plan["status"] == "待能力声明", plan["errors"]
+    plan_schema = load_json(SKILL_ROOT / "assets/schemas/metric-instance-plan.schema.json")
+    proposal_schema = load_json(SKILL_ROOT / "assets/schemas/metric-extension-proposal.schema.json")
+    capability_schema = load_json(SKILL_ROOT / "assets/schemas/measurement-capabilities.schema.json")
+    assert list(Draft202012Validator(plan_schema).iter_errors(plan)) == []
+    assert plan["preflight_decision_gate"] == {
+        "status": "通过",
+        "business_decision_window": "preflight",
+        "metric_library_gap_count": 0,
+        "extension_proposal_required": False,
+        "stage_execution_allowed": True,
+        "formal_execution_allowed": True,
+    }
+    no_extension = build_extension_proposal(plan)
+    assert list(Draft202012Validator(proposal_schema).iter_errors(no_extension)) == []
+    assert no_extension["status"] == "无需扩展" and no_extension["required_deliverables"] == []
+    assert plan["expected_instance_count"] == len(contract["metrics"])
+    assert len({item["instance_id"] for item in plan["instances"]}) == len(plan["instances"])
+    capabilities = {
+        "schema_version": "slot-alignment.measurement-capabilities.v1",
+        "instances": [{
+            "instance_id": item["instance_id"],
+            "measurement_contract_sha256": item["measurement_contract_sha256"],
+            "capabilities": item["required_capabilities"],
+        } for item in plan["instances"]],
+    }
+    assert list(Draft202012Validator(capability_schema).iter_errors(capabilities)) == []
+    passed = compile_instance_plan(profile, manifest, valid_root, SKILL_ROOT, capabilities)
+    assert passed["status"] == "通过"
+    capabilities["instances"][0]["capabilities"] = capabilities["instances"][0]["capabilities"][1:]
+    blocked = compile_instance_plan(profile, manifest, valid_root, SKILL_ROOT, capabilities)
+    assert blocked["status"] == "阻塞" and blocked["missing_capabilities"]
+    unknown_profile = copy.deepcopy(profile)
+    unknown_profile["mechanics"][0]["mechanic_id"] = "feature.future-bonus"
+    unknown_plan = compile_instance_plan(unknown_profile, manifest, valid_root, SKILL_ROOT)
+    assert unknown_plan["status"] == "阻塞"
+    assert unknown_plan["preflight_decision_gate"] == {
+        "status": "待用户决定",
+        "business_decision_window": "preflight",
+        "metric_library_gap_count": 1,
+        "extension_proposal_required": True,
+        "stage_execution_allowed": False,
+        "formal_execution_allowed": False,
+    }
+    assert unknown_plan["metric_library_gaps"][0]["gap_type"] == "unknown_mechanic_profile"
+    assert list(Draft202012Validator(plan_schema).iter_errors(unknown_plan)) == []
+    proposal = build_extension_proposal(unknown_plan)
+    assert list(Draft202012Validator(proposal_schema).iter_errors(proposal)) == []
+    assert proposal["decision_window"] == "preflight"
+    assert proposal["blocks_stage_execution"] is True and proposal["blocks_formal_execution"] is True
+    assert "metric_library" in proposal["gaps"][0]["extension_targets"]
+    continuous_path = SKILL_ROOT / "assets/policies/continuous_execution_policy.v1.json"
+    continuous = load_json(continuous_path)
+    sealed_continuous = {**continuous, "source_sha256": sha(continuous_path)}
+    assert validate_continuous_execution_policy(sealed_continuous, SKILL_ROOT) == []
+    invalid_continuous = copy.deepcopy(sealed_continuous)
+    invalid_continuous["business_decision_windows"] = ["runtime"]
+    assert any("字段与来源不一致" in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
+    compact_path = valid_root / "metric_contract-1.4.json"
+    write_compact_contract(contract, compact_path, SKILL_ROOT, threshold=1)
+    compact_errors = validate_semantic_contract(
+        valid_root / "game_profile.json",
+        compact_path,
+        SKILL_ROOT,
+        valid_root / "parameter_authority.json",
+        valid_root / "input_manifest.json",
+        task_root_path=valid_root,
+    )
+    assert compact_errors == [], compact_errors
+    compact_report = valid_root / "compact-stage2.md"
+    run(ROOT / "render_metric_matching_report.py", "--contract", compact_path, "--output", compact_report)
+    assert "阶段2-指标匹配报告" in compact_report.read_text(encoding="utf-8")
+    measurements_path = valid_root / "compact-measurements.json"
+    dump(measurements_path, {"measurements": [{
+        "metric_id": item["metric_id"],
+        "scope": item["scope"],
+        "status": "符合" if item["kind"] == "audit" else "有效",
+        "value": item["target"],
+    } for item in contract["metrics"] if item.get("status") != "不适用"]})
+    scorecard_path = valid_root / "compact-scorecard.json"
+    score_process = run_result(ROOT / "score_alignment.py", "--contract", compact_path, "--measurements", measurements_path, "--output", scorecard_path)
+    assert score_process.returncode in {0, 2} and scorecard_path.is_file()
+    assert load_json(scorecard_path)["schema_version"] == "1.3"
+    scoring_report = valid_root / "compact-stage3.md"
+    run(ROOT / "render_scoring_report.py", "--contract", compact_path, "--scorecard", scorecard_path, "--output", scoring_report)
+    assert "阶段3-评分报告" in scoring_report.read_text(encoding="utf-8")
+
+
+def full_catalog_matrix_case(root):
+    catalog = catalog_maps(SKILL_ROOT)
+    assert catalog["errors"] == []
+    assert len(catalog["mechanics"]) == 24
+    assert len(catalog["metric_packages"]) == 24
+    assert len(catalog["metrics"]) == 104
+
+    metrics = []
+    for metric_id, definition in sorted(catalog["metrics"].items()):
+        item = copy.deepcopy(definition)
+        source_ids = [] if definition["owner"] == "core.general" else [f"node-{definition['owner']}"]
+        dimensions = {"matrix_case": metric_id}
+        item.update({
+            "source_node_ids": source_ids,
+            "instance_dimensions": dimensions,
+            "scope": f"matrix|metric={metric_id}",
+            "status": "适用",
+            "target": {"低": 0.5, "高": 0.5},
+        })
+        assert required_capabilities(definition)
+        metrics.append(item)
+    full = {
+        "schema_version": "1.3",
+        "report_contract_version": "slot-alignment.reports.v3.3",
+        "task_id": "full-catalog-matrix",
+        "catalogs": {
+            "mechanics_version": catalog["mechanics_index"]["version"],
+            "metrics_version": catalog["metrics_index"]["version"],
+            "hashes": {
+                "mechanics": semantic_sha(catalog["mechanics_index_path"]),
+                "metrics": semantic_sha(catalog["metrics_index_path"]),
+            },
+        },
+        "metrics": metrics,
+    }
+    compact_path = root / "metric_contract.json"
+    write_compact_contract(full, compact_path, SKILL_ROOT, threshold=1)
+    expanded = load_contract(compact_path, SKILL_ROOT)
+    expected = copy.deepcopy(metrics)
+    for item in expected:
+        item["instance_id"] = metric_instance_id(item["metric_id"], item["source_node_ids"], item["instance_dimensions"])
+    assert expanded["metrics"] == expected
+    source_path = root / "source-1.3.json"
+    dump(source_path, full)
+    benchmark_path = root / "benchmark.json"
+    run(
+        ROOT / "benchmark_contract_io.py",
+        "--contract", source_path,
+        "--work-dir", root / "benchmark-work",
+        "--repetitions", 1,
+        "--output", benchmark_path,
+    )
+    assert load_json(benchmark_path)["status"] == "通过"
+    compact_benchmark_path = root / "benchmark-compact.json"
+    run(
+        ROOT / "benchmark_contract_io.py",
+        "--contract", compact_path,
+        "--work-dir", root / "benchmark-compact-work",
+        "--repetitions", 1,
+        "--output", compact_benchmark_path,
+    )
+    compact_benchmark = load_json(compact_benchmark_path)
+    assert compact_benchmark["status"] == "通过" and compact_benchmark["sizes"]["main_ratio"] is None
+
+    def mechanic_node(mechanic_id, suffix):
+        return {"node_id": f"{mechanic_id}-{suffix}", "mechanic_id": mechanic_id, "attributes": {}}
+
+    witness_count = 0
+    for package_id, package in sorted(catalog["metric_packages"].items()):
+        condition = package.get("applies_when", {})
+        if condition.get("always") is True:
+            assert package_id in required_package_ids([], catalog)
+            witness_count += 1
+            continue
+        any_ids = condition.get("mechanic_id_any") or [condition.get("mechanic_id")]
+        any_ids = [value for value in any_ids if value]
+        branches = any_ids or [None]
+        for branch_index, branch in enumerate(branches):
+            mechanic_ids = [branch] if branch else []
+            mechanic_ids += condition.get("mechanic_id_all", [])
+            mechanic_ids += [
+                row["mechanic_id"] for row in condition.get("attribute_conditions", [])
+                if isinstance(row, dict) and row.get("mechanic_id")
+            ]
+            mechanic_ids = list(dict.fromkeys(mechanic_ids))
+            nodes = [mechanic_node(mechanic_id, branch_index) for mechanic_id in mechanic_ids]
+            for attribute in condition.get("required_attributes", []):
+                target = next((
+                    node for node in nodes
+                    if attribute in set(catalog["mechanics"][node["mechanic_id"]].get("required_attributes", []))
+                    | set(catalog["mechanics"][node["mechanic_id"]].get("optional_attributes", []))
+                ), nodes[0])
+                target["attributes"][attribute] = True
+            for row in condition.get("attribute_conditions", []):
+                target = next(node for node in nodes if node["mechanic_id"] == row["mechanic_id"])
+                target["attributes"][row["attribute"]] = row.get("value", True)
+            for node in nodes:
+                if node["mechanic_id"].startswith("feature."):
+                    node["attributes"].update({
+                        "entry_sources": ["natural"],
+                        "entry_source_semantics": {"natural": {"origin": "endogenous", "source_kind": "game_rule"}},
+                    })
+            assert condition_matches(condition, nodes), (package_id, branch)
+            assert package_id in required_package_ids(nodes, catalog), (package_id, branch)
+            witness_count += 1
+    assert witness_count >= len(catalog["metric_packages"])
 
 
 def sha(path):
@@ -248,6 +583,82 @@ def sample_capability_case(root):
     assert scorecard["schema_version"] == "1.3"
     assert scorecard["sample_capability_policy"] == sample_capability_summary(load_json(scored_contract_path))
     assert scorecard["alignment_status"] == "通过" and not scorecard["blocking_reasons"]
+
+    automatic_policy_path = SKILL_ROOT / "assets/policies/automatic_metric_waiver_policy.v1.json"
+    automatic_policy = load_json(automatic_policy_path)
+    ordered_policy_path = SKILL_ROOT / "assets/policies/ordered_distance_policy.v1.json"
+    score_policy_path = SKILL_ROOT / "assets/policies/score_group_weight_policy.v1.json"
+    auto_contract = copy.deepcopy(contract)
+    auto_contract.pop("sample_capability_policy", None)
+    for metric in auto_contract["metrics"]:
+        metric.pop("sample_capability", None)
+    auto_contract["metrics"][0]["sample_capability_input"]["formal_sample_count"] = 1
+    apply_ordered_distance_policy(auto_contract, load_json(ordered_policy_path), ordered_policy_path)
+    apply_score_group_weight_policy(auto_contract, load_json(score_policy_path), score_policy_path)
+    apply_sample_capability_policy(auto_contract, policy, policy_path)
+    created = apply_insufficient_data_waivers(auto_contract, automatic_policy, automatic_policy_path, SKILL_ROOT)
+    assert len(created) == 1 and created[0]["reason_code"] == INSUFFICIENT
+    assert created[0]["evidence"]["blocking_reasons"][0]["actual"] == 1
+    assert auto_contract["metrics"][0]["waiver"]["status"] == "已批准"
+    assert auto_contract["sample_capability_policy"]["status"] == "通过"
+    assert validate_automatic_waiver_binding(auto_contract, SKILL_ROOT) == []
+
+    structural_contract = copy.deepcopy(contract)
+    apply_ordered_distance_policy(structural_contract, load_json(ordered_policy_path), ordered_policy_path)
+    apply_score_group_weight_policy(structural_contract, load_json(score_policy_path), score_policy_path)
+    affected_metric = structural_contract["metrics"][0]
+    affected_instance = metric_instance_id(
+        affected_metric["metric_id"],
+        affected_metric.get("source_node_ids", []),
+        affected_metric.get("instance_dimensions", {}),
+    )
+    evidence = {
+        "schema_version": "slot-alignment.attainability-evidence.v1",
+        "task_id": structural_contract["task_id"],
+        "status": "结构不可达",
+        "budget_expansion_allowed": False,
+        "proof": {
+            "authorized_space_static_check": True,
+            "direction_perturbation": True,
+            "independent_and_joint_validation": True,
+            "stable_unattainability_evidence": True,
+            "sample_qualification_valid": True,
+        },
+        "affected_metric_instances": [{
+            "instance_id": affected_instance,
+            "metric_id": affected_metric["metric_id"],
+            "scope": affected_metric["scope"],
+            "conflict_evidence": "边界扫描证明目标交集为空",
+            "minimal_authority_expansion": "扩大demo控制簇授权范围",
+        }],
+        "evidence_files": [{"path": "attainability-scan.json", "sha256": "a" * 64}],
+    }
+    evidence_path = root / "attainability-evidence.json"
+    dump(evidence_path, evidence)
+    structural = apply_structural_unattainability_waivers(
+        structural_contract,
+        evidence,
+        evidence_path,
+        automatic_policy,
+        automatic_policy_path,
+        SKILL_ROOT,
+    )
+    assert len(structural) == 1 and structural[0]["reason_code"] == UNATTAINABLE
+    assert validate_automatic_waiver_binding(structural_contract, SKILL_ROOT) == []
+    invalid_evidence = copy.deepcopy(evidence)
+    invalid_evidence["proof"]["stable_unattainability_evidence"] = False
+    try:
+        apply_structural_unattainability_waivers(
+            copy.deepcopy(contract),
+            invalid_evidence,
+            evidence_path,
+            automatic_policy,
+            automatic_policy_path,
+            SKILL_ROOT,
+        )
+        raise AssertionError("缺少结构不可达完整证明时不应自动豁免")
+    except ValueError as exc:
+        assert "缺少完整" in str(exc)
 
 
 def assert_distance_error(method, target, candidate, profile, expected):
@@ -2131,7 +2542,7 @@ def step_return_owner_partition_case(base):
 
 def semantic_contract_gate_case(base):
     catalog = catalog_maps(SKILL_ROOT)
-    report_version = "slot-alignment.reports.v3.2"
+    report_version = "slot-alignment.reports.v3.3"
 
     def clone(value):
         return json.loads(json.dumps(value))
@@ -2594,8 +3005,8 @@ def semantic_contract_gate_case(base):
     check("tampered-owner", lambda _, __, ___, contract: contract["metrics"][0].update({"owner": "tampered"}), "篡改目录语义")
     check("fake-coverage", lambda _, __, ___, contract: contract["coverage"].update({"metric_required": 1}), "coverage自报不一致")
     check("stale-catalog", lambda _, __, ___, contract: contract["catalogs"]["hashes"].update({"metrics": "0" * 64}), "目录hash失效")
-    check("missing-report-version", lambda _, __, manifest, ___: manifest.pop("report_contract_version"), "input_manifest必须使用slot-alignment.reports.v3.2")
-    check("future-report-version", lambda _, __, ___, contract: contract.update({"report_contract_version": "slot-alignment.reports.v3.3"}), "metric_contract必须使用slot-alignment.reports.v3.2")
+    check("missing-report-version", lambda _, __, manifest, ___: manifest.pop("report_contract_version"), "input_manifest必须使用slot-alignment.reports.v3.3")
+    check("future-report-version", lambda _, __, ___, contract: contract.update({"report_contract_version": "slot-alignment.reports.v3.4"}), "metric_contract必须使用slot-alignment.reports.v3.3")
 
     def duplicate_node(root, profile, manifest, _):
         source = profile["mechanics"][0]
@@ -2722,10 +3133,6 @@ def semantic_contract_gate_case(base):
     })
     for field in ("target_evidence", "sealed_event_set_id", "sealed_event_set_path", "sealed_event_set_sha256", "sealed_event_count", "scope_weight"):
         inactive_item.pop(field, None)
-    inactive_contract["coverage"].update({
-        "metric_measurable": inactive_contract["coverage"]["metric_required"] - 1,
-        "metric_measurability": (inactive_contract["coverage"]["metric_required"] - 1) / inactive_contract["coverage"]["metric_required"],
-    })
     dump(inactive_root / "game_profile.json", inactive_profile)
     dump(inactive_root / "input_manifest.json", inactive_manifest)
     inactive_contract["input_hashes"].update({
@@ -2808,7 +3215,7 @@ def semantic_contract_gate_case(base):
     legacy_manifest.pop("report_contract_version")
     dump(legacy_root / "input_manifest.json", legacy_manifest)
     assert validate_case(legacy_root, "historical_replay")
-    legacy_manifest["report_contract_version"] = "slot-alignment.reports.v3.2"
+    legacy_manifest["report_contract_version"] = "slot-alignment.reports.v3.3"
     dump(legacy_root / "input_manifest.json", legacy_manifest)
     assert validate_case(legacy_root, "historical_replay")
 
@@ -3634,9 +4041,12 @@ def main():
     mode_and_owner_semantic_contract_case()
     catalog_semantic_contract_case()
     root = Path(tempfile.mkdtemp(prefix="slot-alignment-self-test-"))
+    contract_io_case(root / "contract-io")
     step_return_owner_partition_case(root / "step-return-owner-partition")
     sample_capability_case(root / "sample-capability")
     semantic_contract_gate_case(root / "semantic-contract-gate")
+    instance_compiler_case(root / "semantic-contract-gate")
+    full_catalog_matrix_case(root / "full-catalog-matrix")
     degenerate_support_case(root / "degenerate-support")
     audit_gate_case(root / "audit-gate")
     catalog_summary_case(root / "catalog-copy")
@@ -3718,13 +4128,17 @@ def main():
     reports.mkdir(parents=True, exist_ok=True)
     formal_runtime.mkdir(parents=True, exist_ok=True)
     certification_sha = "a" * 64
-    dump(artifacts / "01-input-profile/input_manifest.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "scope": {"game_code": "demo", "mode": "base", "rtp_group": "96", "target_rtp": 0.96}, "paths": {"simulation_script": "/tmp/demo_simulator.py"}, "hashes": {}, "script_qualification": {"status": "通过", "certified_execution_path": "python", "server_flow_certification": {"status": "通过", "batch_count": 1, "critical_state_chains": ["entry", "feature", "collect", "cap"], "evidence_path": "certification.json", "evidence_sha256": certification_sha}, "consistency_checks": [{"check_id": "python-vs-server", "subjects": "Python/Kotlin", "seed_or_trace": "trace-001", "sample_count": 1000, "status": "一致", "evidence": "certification.json"}], "semantic_checks": [{"semantic": "entry-feature-collect-cap", "expected": "一致", "actual": "一致", "status": "通过", "evidence": "certification.json"}]}, "server_flow_policy": {"stage1_certification_batches": 1, "stage2_to_stage5_calls_allowed": False, "stage2_to_stage5_python_only": True, "post_delivery_audit_attempts": 1, "post_delivery_audit_affects_status": False}})
+    script_sha = "b" * 64
+    dump(artifacts / "01-input-profile/input_manifest.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "scope": {"game_code": "demo", "mode": "base", "rtp_group": 1, "target_rtp": 0.96}, "paths": {"simulation_script": "/tmp/demo_simulator.py"}, "hashes": {"simulation_script": script_sha}, "script_qualification": {"status": "通过", "certified_execution_path": "python", "certification_method": "user_direct", "user_certification": {"status": "通过", "certified_by": "user", "approved_at": "2026-01-01T00:00:00Z", "evidence_path": "user-approval.json", "evidence_sha256": certification_sha, "certified_script_sha256": script_sha, "certified_scope": ["RTP与派奖账本", "玩法状态与统计输出"]}, "evidence": []}})
     valid_input_manifest = json.loads((artifacts / "01-input-profile/input_manifest.json").read_text(encoding="utf-8"))
-    assert validate_server_flow_policy(valid_input_manifest) == []
+    assert validate_execution_qualification(valid_input_manifest) == []
     invalid_python_path = json.loads(json.dumps(valid_input_manifest))
     invalid_python_path["script_qualification"]["certified_execution_path"] = "kotlin"
-    assert "阶段2至阶段5的已认证执行路径必须是Python" in validate_server_flow_policy(invalid_python_path)
-    legacy_scope = {"game_code": "demo", "mode": "base", "rtp_group": "96", "target_rtp": 0.96}
+    assert "用户认证的执行路径必须是Python" in validate_execution_qualification(invalid_python_path)
+    missing_user_certification = json.loads(json.dumps(valid_input_manifest))
+    missing_user_certification["script_qualification"]["user_certification"]["status"] = "未开始"
+    assert "缺少有效的用户直接认证" in validate_execution_qualification(missing_user_certification)
+    legacy_scope = {"game_code": "demo", "mode": "base", "rtp_group": 1, "target_rtp": 0.96}
     dump(artifacts / "01-input-profile/game_profile.json", {
         "schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6",
         "task_id": "self-test", "status": "已完成", "scope": legacy_scope,
@@ -3757,6 +4171,13 @@ def main():
         metric.setdefault("status", "适用")
         metric.setdefault("unit", "ratio")
         metric.setdefault("measurement", f"legacy measurement for {metric['metric_id']}")
+        display = metric.setdefault("display", {})
+        display.setdefault("description_zh", f"衡量{metric.get('name_zh', metric['metric_id'])}。")
+        display.setdefault("usage_scene_zh", "用于当前自测合同的对齐验证。")
+        display.setdefault("target_meaning_zh", "目标值来自自测密封样本。")
+        display.setdefault("display_unit", "%")
+        if isinstance(metric.get("target"), list):
+            display.setdefault("item_labels", [f"实际档位{i}" for i in range(1, len(metric["target"]) + 1)])
         if metric.get("kind") == "score":
             metric["score_group"] = "feature_experience"
             metric.setdefault("score_budget_key", metric["metric_id"])
@@ -3841,11 +4262,11 @@ def main():
     run(ROOT / "render_scoring_report.py", "--contract", contract_path, "--scorecard", scorecard_path, "--output", report_path)
     run(ROOT / "validate_stage_transition.py", "--historical-replay", "--artifacts", artifacts, "--reports", reports, "--output", gate_path)
     gate_hash = sha(gate_path)
-    dump(artifacts / "04-alignment/alignment_manifest.json", {"schema_version": "1.4", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "input_hashes": {}, "server_flow_policy": {"calibration_calls_allowed": False, "formal_calls_allowed": False, "python_only_execution": True, "post_delivery_audit_affects_status": False}, "stage3_gate": {"path": "03-scoring/stage3_gate.json", "sha256": gate_hash, "stage4_allowed": True}, "budget_policy": {"auto_expand": True, "attainability_ceiling": {"enabled": True, "stop_status": "结构不可达", "prohibit_budget_only_expansion": True}}})
-    dump(artifacts / "04-alignment/candidate_archive.json", {"schema_version": "1.3", "task_id": "self-test", "stage3_gate_sha256": gate_hash, "server_flow_call_count": 0, "candidates": [{"candidate_id": "baseline", "parent_id": "—", "parameter_summary": {"demo.weight": 2}, "hard_gate_status": "通过", "overall_score": 90, "sample_count": 1000, "risk": "低", "decision_reason": "基线通过", "status": "冻结"}], "stop_reason": "基线通过", "budget": {"calibration_samples": 1000, "formal_samples": 1000}, "attainability": {"status": "可达", "evidence_path": "", "evidence_sha256": "", "budget_expansion_allowed": True}})
+    dump(artifacts / "04-alignment/alignment_manifest.json", {"schema_version": "1.4", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "status": "已完成", "input_hashes": {}, "execution_policy": {"calibration_execution_path": "python", "formal_execution_path": "python", "certification_method": "user_direct"}, "stage3_gate": {"path": "03-scoring/stage3_gate.json", "sha256": gate_hash, "stage4_allowed": True}, "budget_policy": {"auto_expand": True, "attainability_ceiling": {"enabled": True, "stop_status": "结构不可达", "prohibit_budget_only_expansion": True}}})
+    dump(artifacts / "04-alignment/candidate_archive.json", {"schema_version": "1.3", "task_id": "self-test", "stage3_gate_sha256": gate_hash, "candidates": [{"candidate_id": "baseline", "parent_id": "—", "parameter_summary": {"demo.weight": 2}, "hard_gate_status": "通过", "overall_score": 90, "sample_count": 1000, "risk": "低", "decision_reason": "基线通过", "status": "冻结"}], "stop_reason": "基线通过", "budget": {"calibration_samples": 1000, "formal_samples": 1000}, "attainability": {"status": "可达", "evidence_path": "", "evidence_sha256": "", "budget_expansion_allowed": True}})
     dump(artifacts / "04-alignment/aligned_parameters.json", {"schema_version": "1.0", "task_id": "self-test", "candidate_id": "baseline", "status": "已完成", "parameters": [{"path": "demo.weight", "before": 1, "after": 2, "delta": 1, "authorization_status": "已授权", "control_cluster": "demo", "affected_metrics": ["demo.a", "demo.b"], "risk": "低"}]})
     formal_scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
-    dump(artifacts / "04-alignment/formal_result.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "candidate_id": "baseline", "plan_id": "formal-1", "status": "通过", "execution_valid": True, "independent_from_calibration": True, "execution_path": "python", "stage1_server_flow_certification_sha256": certification_sha, "server_flow_call_count": 0, "input_hashes": {"metric_contract": "e" * 64, "candidate": "f" * 64}, "sample": {"paid_entry_count": 1000}, "scorecard": formal_scorecard, "attempt": 1, "audits": {"long_tail": [], "max_win": {"status": "已审计", "observed_max": 1200, "theoretical_max": 5000, "cap": 5000, "cap_hit_count": 0, "overflow_event_count": 0, "overflow_rule_status": "符合"}}})
+    dump(artifacts / "04-alignment/formal_result.json", {"schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v2.6", "task_id": "self-test", "candidate_id": "baseline", "plan_id": "formal-1", "status": "通过", "execution_valid": True, "independent_from_calibration": True, "execution_path": "python", "user_script_certification_sha256": certification_sha, "input_hashes": {"metric_contract": "e" * 64, "candidate": "f" * 64}, "sample": {"paid_entry_count": 1000}, "scorecard": formal_scorecard, "attempt": 1, "audits": {"long_tail": [], "max_win": {"status": "已审计", "observed_max": 1200, "theoretical_max": 5000, "cap": 5000, "cap_hit_count": 0, "overflow_event_count": 0, "overflow_rule_status": "符合"}}})
     run(ROOT / "render_alignment_report.py", "--artifacts", artifacts, "--output", reports / "阶段4-数值对齐报告.md")
     alignment_report = reports / "阶段4-数值对齐报告.md"
     alignment_text = alignment_report.read_text(encoding="utf-8")
@@ -3887,43 +4308,6 @@ def main():
     run(ROOT / "validate_artifacts.py", "--historical-replay", "--artifacts", artifacts, "--reports", reports)
     for report_path in sorted(reports.glob("*.md")):
         assert_report_display(report_path)
-    delivery_manifest_path = artifacts / "05-delivery/delivery_manifest.json"
-    delivery_hash_before_audit = sha(delivery_manifest_path)
-    delivery_manifest = json.loads(delivery_manifest_path.read_text(encoding="utf-8"))
-    audit_dir = root / "post-delivery-server-flow" / delivery_manifest["delivery_version"]
-    audit_json = audit_dir / "post_delivery_server_flow_audit.json"
-    audit_input_hashes = {"server": "b" * 64, "runtime": "c" * 64, "candidate": "d" * 64, "formal_result": sha(artifacts / "04-alignment/formal_result.json"), "scorecard": sha(scorecard_path)}
-    dump(audit_json, {"schema_version": "slot-alignment.post-delivery-server-flow-audit.v1", "task_id": "self-test", "delivery_version": delivery_manifest["delivery_version"], "delivery_manifest_sha256": delivery_hash_before_audit, "attempt_count": 1, "execution_status": "失败", "status_effect": "无", "input_hashes": audit_input_hashes, "sample": {"paid_entry_count": 0, "seed_set_hash": ""}, "hard_metric_comparisons": [], "warnings": ["模拟执行失败"], "error": "test failure"})
-    audit_report = reports / "交付后ServerFlow验证报告.md"
-    audit_args = [ROOT / "render_post_delivery_server_flow_report.py", "--audit", audit_json, "--delivery-manifest", delivery_manifest_path, "--formal-result", artifacts / "04-alignment/formal_result.json", "--scorecard", scorecard_path]
-    run(*audit_args, "--output", audit_report)
-    assert "警告" in audit_report.read_text(encoding="utf-8")
-    empty_report = reports / "空硬指标报告.md"
-    dump(audit_json, {"schema_version": "slot-alignment.post-delivery-server-flow-audit.v1", "task_id": "self-test", "delivery_version": delivery_manifest["delivery_version"], "delivery_manifest_sha256": delivery_hash_before_audit, "attempt_count": 1, "execution_status": "成功", "status_effect": "无", "input_hashes": audit_input_hashes, "sample": {"paid_entry_count": 1000, "seed_set_hash": "e" * 64}, "hard_metric_comparisons": [], "warnings": []})
-    run(*audit_args, "--output", empty_report)
-    assert "未生成任何硬指标数值对照" in empty_report.read_text(encoding="utf-8")
-    malformed_report = reports / "畸形硬指标报告.md"
-    malformed = json.loads(audit_json.read_text(encoding="utf-8"))
-    malformed["hard_metric_comparisons"] = {"bad": "shape"}
-    dump(audit_json, malformed)
-    run(*audit_args, "--output", malformed_report)
-    assert "hard_metric_comparisons字段不是数组" in malformed_report.read_text(encoding="utf-8")
-    invalid_json = audit_dir / "invalid-audit.json"
-    invalid_json.write_text("{", encoding="utf-8")
-    invalid_report = reports / "无效JSON报告.md"
-    invalid_args = [ROOT / "render_post_delivery_server_flow_report.py", "--audit", invalid_json, "--delivery-manifest", delivery_manifest_path, "--formal-result", artifacts / "04-alignment/formal_result.json", "--scorecard", scorecard_path]
-    run(*invalid_args, "--output", invalid_report)
-    assert "审计JSON读取失败" in invalid_report.read_text(encoding="utf-8")
-    final_scorecard = json.loads(scorecard_path.read_text(encoding="utf-8"))
-    hard_gate = final_scorecard["hard_gates"][0]
-    success_report = reports / "成功报告.md"
-    valid_comparison = {"metric_id": hard_gate["metric_id"], "scope": hard_gate["scope"], "formal_value": hard_gate["candidate"], "server_flow_value": hard_gate["candidate"], "difference": 0, "tolerance": hard_gate["tolerance"], "sample_qualification": "有效", "status": "一致"}
-    valid_audit = json.loads(audit_json.read_text(encoding="utf-8"))
-    valid_audit["hard_metric_comparisons"] = [valid_comparison]
-    dump(audit_json, valid_audit)
-    run(*audit_args, "--output", success_report)
-    assert "审计通过" in success_report.read_text(encoding="utf-8")
-    assert sha(delivery_manifest_path) == delivery_hash_before_audit
     delivery_report = reports / "阶段5-交付清单.md"
     delivery_original = delivery_report.read_text(encoding="utf-8")
     delivery_report.write_text(delivery_original.replace("## 七、回退与复算方法", "## 错误章节"), encoding="utf-8")
@@ -3931,7 +4315,7 @@ def main():
     assert tampered_delivery.returncode == 1
     delivery_report.write_text(delivery_original, encoding="utf-8")
     run(ROOT / "validate_artifacts.py", "--historical-replay", "--artifacts", artifacts, "--reports", reports)
-    print(json.dumps({"status": "通过", "scenarios": ["五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.2动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "阶段1单次Server Flow认证", "阶段2至阶段5仅Python", "阶段2至FORMAL禁止Server Flow", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "交付后Server Flow失败只警告且不改交付hash", "空硬指标不得审计通过", "畸形审计数据降级警告", "无效审计JSON降级警告", "完整硬指标审计通过"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
+    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Compact Metric Contract 1.4",
+  "type": "object",
+  "required": ["schema_version", "report_contract_version", "task_id", "catalogs", "contract_storage", "metrics", "external_data"],
+  "properties": {
+    "schema_version": {"const": "1.4"},
+    "report_contract_version": {"const": "slot-alignment.reports.v3.3"},
+    "task_id": {"type": "string", "minLength": 1},
+    "catalogs": {
+      "type": "object",
+      "required": ["metrics_version", "hashes"],
+      "properties": {
+        "metrics_version": {"type": "string", "minLength": 1},
+        "hashes": {
+          "type": "object",
+          "required": ["metrics"],
+          "properties": {"metrics": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+        }
+      }
+    },
+    "contract_storage": {
+      "type": "object",
+      "required": ["layout", "catalog_inheritance_version", "instance_id_algorithm", "external_data_schema_version", "canonical_json"],
+      "properties": {
+        "layout": {"const": "compact_metric_instances_v1"},
+        "catalog_inheritance_version": {"const": "1"},
+        "instance_id_algorithm": {"const": "metric-instance-id-v1"},
+        "external_data_schema_version": {"const": "slot-alignment.contract-data.v1"},
+        "canonical_json": {"const": "utf8-sort_keys-compact-v1"}
+      },
+      "additionalProperties": false
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["instance_id", "metric_id", "source_node_ids", "instance_dimensions", "scope", "status"],
+        "properties": {
+          "instance_id": {"type": "string", "pattern": "^mi_[0-9a-f]{24}$"},
+          "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+          "source_node_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "instance_dimensions": {"type": "object"},
+          "scope": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "external_data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["data_id", "path", "schema_version", "sha256", "record_count", "instance_count"],
+        "properties": {
+          "data_id": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "schema_version": {"const": "slot-alignment.contract-data.v1"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "record_count": {"type": "integer", "minimum": 1},
+          "instance_count": {"type": "integer", "minimum": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

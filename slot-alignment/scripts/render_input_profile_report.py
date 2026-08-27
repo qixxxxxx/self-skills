@@ -39,25 +39,26 @@ def render(manifest, profile, authority, source_hashes):
     shares = manifest.get("component_rtp_shares", [])
     gates = manifest.get("data_gates", [])
     qualification = manifest.get("script_qualification", {})
-    certification = qualification.get("server_flow_certification", {})
-    server_flow_policy = manifest.get("server_flow_policy", {})
-    chains = qualification.get("consistency_checks", qualification.get("evidence", []))
+    preflight = manifest.get("preflight_decision_gate", {})
+    certification = qualification.get("user_certification", {})
     blockers = manifest.get("blockers", []) + profile.get("gaps", []) + authority.get("conflicts", [])
-    strict_contract = manifest.get("report_contract_version") in {"slot-alignment.reports.v2.6", "slot-alignment.reports.v2.7", "slot-alignment.reports.v2.8", "slot-alignment.reports.v2.9", "slot-alignment.reports.v3.1", "slot-alignment.reports.v3.2"}
+    strict_contract = manifest.get("report_contract_version") == "slot-alignment.reports.v3.3"
     certification_ready = (
         certification.get("status") == "通过"
-        and certification.get("batch_count") == 1
-        and bool(certification.get("critical_state_chains"))
+        and certification.get("certified_by") == "user"
         and bool(certification.get("evidence_sha256"))
         and qualification.get("certified_execution_path") == "python"
+        and qualification.get("certification_method") == "user_direct"
+        and certification.get("certified_script_sha256") == manifest.get("hashes", {}).get("simulation_script")
         and str(manifest.get("paths", {}).get("simulation_script", "")).endswith(".py")
-        and server_flow_policy.get("stage2_to_stage5_python_only") is True
-        and bool(qualification.get("consistency_checks"))
-        and all(item.get("status") in {"通过", "一致"} for item in qualification.get("consistency_checks", []))
-        and bool(qualification.get("semantic_checks"))
-        and all(item.get("status") == "通过" for item in qualification.get("semantic_checks", []))
     )
-    ready = all(x.get("status") == "已完成" for x in (manifest, profile, authority)) and profile.get("semantic_gap_count", 0) == 0 and not blockers and (certification_ready or not strict_contract)
+    preflight_ready = (
+        not strict_contract
+        or preflight.get("status") == "通过"
+        and preflight.get("metric_library_gap_count") == 0
+        and preflight.get("extension_decision_status") in {"无需扩展", "已完成"}
+    )
+    ready = all(x.get("status") == "已完成" for x in (manifest, profile, authority)) and profile.get("semantic_gap_count", 0) == 0 and not blockers and preflight_ready and (certification_ready or not strict_contract)
     tree = profile.get("mechanic_tree") or "\n".join(f"- {x.get('mechanic_id', '未命名')}：{x.get('name_zh', '—')}" for x in mechanics) or "- 无已识别玩法节点"
     input_summary_rows, input_path_rows = [], []
     path_purposes = {
@@ -114,24 +115,19 @@ def render(manifest, profile, authority, source_hashes):
         mechanic_summary_rows.append([mechanic_id, item.get("name_zh"), item.get("parent_id"), item.get("scope"), item.get("required", item.get("status")), item.get("status"), item.get("confidence", item.get("confidence_status"))])
         mechanic_attribute_rows.extend([[mechanic_id, field, value] for field, value in detail_rows(item.get("attributes"))])
         mechanic_evidence_rows.extend([[mechanic_id, field, value] for field, value in detail_rows(item.get("evidence"))])
-    consistency_rows, comparison_rows, consistency_evidence_rows = [], [], []
-    for index, item in enumerate(chains, 1):
-        if not isinstance(item, dict):
-            continue
-        check_id = item.get("check_id")
-        ref = f"V{index:02d}"
-        consistency_rows.append([certification.get("certification_id", "cert-001"), check_id, item.get("seed_or_trace"), item.get("sample_count"), item.get("status"), ref])
-        comparison_rows.extend([[check_id, field, value] for field, value in detail_rows(item.get("subjects"), "比较对象")])
-        consistency_evidence_rows.extend([[ref, field, value] for field, value in detail_rows(item.get("evidence"), "证据")])
-    semantic_summary_rows, semantic_evidence_rows = [], []
-    for index, item in enumerate(qualification.get("semantic_checks", []), 1):
-        ref = f"Q{index:02d}"
-        if isinstance(item, dict):
-            semantic_summary_rows.append([item.get("semantic"), item.get("expected"), item.get("actual"), item.get("status"), ref])
-            semantic_evidence_rows.extend([[ref, field, value] for field, value in detail_rows(item.get("evidence"), "证据")])
-        else:
-            semantic_summary_rows.append([item, "—", "—", "无法判定", ref])
-            semantic_evidence_rows.append([ref, "证据", "未提供结构化证据"])
+    certification_summary_rows = [[
+        qualification.get("certification_method"), certification.get("certified_by"),
+        qualification.get("certified_execution_path"), certification.get("status"), "V01",
+    ]]
+    certification_evidence_rows = [["V01", field, value] for field, value in detail_rows({
+        "evidence_path": certification.get("evidence_path"),
+        "evidence_sha256": certification.get("evidence_sha256"),
+        "certified_script_sha256": certification.get("certified_script_sha256"),
+        "approved_at": certification.get("approved_at"),
+    })]
+    certification_scope_rows = []
+    for index, item in enumerate(certification.get("certified_scope", []), 1):
+        certification_scope_rows.append([item, "用户直接确认", "通过", f"V{index:02d}"])
     parameter_summary_rows, parameter_path_rows, parameter_metric_rows, parameter_detail_rows = [], [], [], []
     for index, item in enumerate(params, 1):
         ref = f"A{index:02d}"
@@ -157,7 +153,7 @@ def render(manifest, profile, authority, source_hashes):
             ["游戏 / 模式 / RTP组", f"{scope.get('game_code', '')} / {scope.get('mode', '')} / {scope.get('rtp_group', '')}", "任务作用域"],
             ["阶段状态", "通过" if ready else "阻塞", "资料、画像、权限、缺口联合判定"],
             ["资料状态", manifest.get("status"), "input_manifest.json"],
-            ["脚本资格", qualification.get("status"), "一致性证据"],
+            ["脚本资格", qualification.get("status"), "用户直接认证"],
             ["必需玩法节点", f"{len(required)} / {profile.get('required_node_count', len(required))}", "game_profile.json"],
             ["语义缺口", profile.get("semantic_gap_count", 0), "缺口必须为0"],
             ["授权参数", len(allowed), "parameter_authority.json"],
@@ -191,18 +187,23 @@ def render(manifest, profile, authority, source_hashes):
         "### 5.1 玩法树", "", "字段：玩法层级、mechanic_id、中文名。", "", tree, "",
         "### 5.2 玩法节点明细", "", table(["mechanic_id", "中文名", "父节点", "作用域", "必需性", "状态", "置信状态"], mechanic_summary_rows), "", table(["mechanic_id", "属性", "值"], mechanic_attribute_rows), "", table(["mechanic_id", "证据项", "证据"], mechanic_evidence_rows), "",
         "## 六、模拟脚本与执行链资格", "",
-        "### 6.1 阶段1单次 Server Flow 一致性认证", "",
-        f"阶段1认证批次：{fmt(certification.get('batch_count'))}；认证路径：{fmt(qualification.get('certified_execution_path'))}；阶段2至阶段5：仅Python，Server Flow调用{'禁止' if server_flow_policy.get('stage2_to_stage5_calls_allowed') is False else '未密封'}。", "",
-        table(["认证批次", "检查项", "种子/RNG trace", "样本", "结果", "证据ID"], consistency_rows), "", table(["检查项", "对象项", "比较对象"], comparison_rows), "", table(["证据ID", "证据项", "路径/标识"], consistency_evidence_rows), "",
-        "### 6.2 状态链、结算与封顶证据", "", table(["语义", "预期", "实测", "状态", "证据ID"], semantic_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], semantic_evidence_rows), "",
+        "### 6.1 Python脚本用户直接认证", "",
+        f"认证方式：{fmt(qualification.get('certification_method'))}；认证人：{fmt(certification.get('certified_by'))}；执行路径：{fmt(qualification.get('certified_execution_path'))}。", "",
+        table(["认证方式", "认证人", "执行路径", "状态", "证据ID"], certification_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], certification_evidence_rows), "",
+        "### 6.2 状态链、结算与封顶证据", "", table(["认证范围", "确认方式", "状态", "证据ID"], certification_scope_rows), "", table(["证据ID", "证据项", "路径/标识"], certification_evidence_rows), "",
         "## 七、参数权限与控制拓扑", "",
         "### 7.1 授权参数", "", table(["参数ID", "类型", "当前值/范围", "授权状态", "控制簇"], parameter_summary_rows), "", table(["参数ID", "参数路径"], parameter_path_rows), "", table(["参数ID", "指标项", "影响指标"], parameter_metric_rows), "", table(["参数ID", "详情项", "内容"], parameter_detail_rows), "",
         "### 7.2 禁止修改项", "", table(["禁止类别", "原因", "执行要求"], [[x, "改变玩法或公共语义", "发现需求即停止并请求扩权"] for x in authority.get("forbidden_categories", [])]), "",
-        "## 八、数据门禁、缺口与风险", "", table(["门禁/风险", "要求", "当前状态", "证据ID", "失败影响"], gate_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], gate_evidence_rows), "",
+        "## 八、数据门禁、缺口与风险", "", table(["门禁/风险", "要求", "当前状态", "证据ID", "失败影响"], gate_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], gate_evidence_rows), "", table(["开工前决策项", "当前值", "要求"], [
+            ["决策窗口", preflight.get("business_decision_window"), "必须为preflight"],
+            ["指标库缺口", preflight.get("metric_library_gap_count"), "正式执行前必须为0"],
+            ["扩展决策", preflight.get("extension_decision_status"), "无需扩展或已完成"],
+            ["开工前门禁", preflight.get("status"), "必须通过"],
+        ]), "",
         "## 九、阻塞与恢复动作", "", table(["阻塞ID", "原因", "责任方", "恢复动作", "恢复后返回阶段"], rows(blockers, ["id", "reason", "owner", "recovery_action", "return_stage"])), "",
         "## 十、阶段2准入结论", "", table(["条件", "状态", "结论"], [
             ["资料、版本和hash已密封", manifest.get("status"), "必须已完成"], ["玩法语义无缺口", profile.get("semantic_gap_count", 0), "必须为0"],
-            ["参数权限无冲突", authority.get("status"), "必须已完成"], ["最终准入", "允许" if ready else "禁止", "禁止时不得开始指标匹配"],
+            ["参数权限无冲突", authority.get("status"), "必须已完成"], ["指标库扩展决策", preflight.get("status"), "必须在开工前完成"], ["最终准入", "允许" if ready else "禁止", "禁止时不得开始指标匹配"],
         ]), "",
         "## 十一、版本、Hash与复算", "", table(["对象", "Schema/版本", "SHA-256"], [
             ["input_manifest.json", manifest.get("schema_version"), source_hashes.get("input_manifest")], ["game_profile.json", profile.get("schema_version"), source_hashes.get("game_profile")],

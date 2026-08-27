@@ -1,6 +1,6 @@
 {
   "schema_version": "1.3",
-  "report_contract_version": "slot-alignment.reports.v3.2",
+  "report_contract_version": "slot-alignment.reports.v3.3",
   "task_id": "",
   "status": "未开始",
   "scope": {
@@ -193,6 +193,18 @@
     "active_metric_instances_sha256": "",
     "blocking_reasons": [],
     "status": "阻塞"
+  },
+  "automatic_waiver_policy": {
+    "source_schema_version": "slot-alignment.automatic-metric-waiver-policy.v1",
+    "policy_id": "automatic-metric-waiver-v1",
+    "version": "1.0.0",
+    "source_path": "assets/policies/automatic_metric_waiver_policy.v1.json",
+    "source_sha256": "",
+    "authorization_source": "user_pre_authorized_skill_policy",
+    "allowed_reason_codes": ["AUTO_WAIVED_INSUFFICIENT_DATA", "AUTO_WAIVED_STRUCTURALLY_UNATTAINABLE"],
+    "decision_count": 0,
+    "decision_bindings_sha256": "",
+    "status": "无自动豁免"
   },
   "coverage": {"mechanic_required": 0, "mechanic_owned": 0, "mechanic_coverage": null, "metric_required": 0, "metric_measurable": 0, "metric_measurability": null, "metric_resolved": 0, "metric_resolution": null},
   "group_weights": {},

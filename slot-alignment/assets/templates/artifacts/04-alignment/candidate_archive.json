@@ -2,7 +2,6 @@
   "schema_version": "1.3",
   "task_id": "",
   "stage3_gate_sha256": "",
-  "server_flow_call_count": 0,
   "candidates": [],
   "stop_reason": "",
   "budget": {"candidate": null, "cluster": null, "calibration": null, "formal": null},

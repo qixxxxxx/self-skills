@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Measurement Capabilities",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "instances"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.measurement-capabilities.v1"},
+    "instances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["instance_id", "measurement_contract_sha256", "capabilities"],
+        "properties": {
+          "instance_id": {"type": "string", "pattern": "^mi_[0-9a-f]{24}$"},
+          "measurement_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

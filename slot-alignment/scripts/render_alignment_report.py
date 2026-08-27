@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from contract_io import load_contract
 from report_common import apply_metric_display_metadata, detail_rows, metric_brief_result, metric_groups, metric_key, metric_meta_lines, metric_result_summary, metric_sample_capability_lines, metric_stage4_table, sample_capability_policy_table, table
 
 
@@ -25,7 +26,7 @@ def render(a, display_metadata=None):
     inputs = load(a / "01-input-profile/input_manifest.json")
     profile = load(a / "01-input-profile/game_profile.json")
     authority = load(a / "01-input-profile/parameter_authority.json")
-    contract = apply_metric_display_metadata(load(a / "02-metric-matching/metric_contract.json"), display_metadata)
+    contract = apply_metric_display_metadata(load_contract(a / "02-metric-matching/metric_contract.json"), display_metadata)
     score = load(a / "03-scoring/scorecard.json")
     manifest = load(a / "04-alignment/alignment_manifest.json")
     candidates = load(a / "04-alignment/candidate_archive.json")
@@ -37,7 +38,7 @@ def render(a, display_metadata=None):
         "hard_gates", "scores", "budget_scores", "groups", "overall_score",
         "overall_band", "alignment_status", "blocking_reasons",
     }
-    if formal.get("report_contract_version") in {"slot-alignment.reports.v3.1", "slot-alignment.reports.v3.2"}:
+    if formal.get("report_contract_version") in {"slot-alignment.reports.v3.1", "slot-alignment.reports.v3.2", "slot-alignment.reports.v3.3"}:
         required_final_score_fields.add("audits")
     if not isinstance(final_score, dict):
         raise ValueError("FORMAL缺少完整scorecard")
@@ -208,6 +209,9 @@ def render(a, display_metadata=None):
     sample_capability_policy = contract.get("sample_capability_policy", {})
     if sample_capability_policy.get("source_sha256"):
         hashes["sample_capability_policy"] = sample_capability_policy["source_sha256"]
+    automatic_waiver_policy = contract.get("automatic_waiver_policy", {})
+    if automatic_waiver_policy.get("source_sha256"):
+        hashes["automatic_waiver_policy"] = automatic_waiver_policy["source_sha256"]
     component_rows, component_target_rows = [], []
     for item in hard:
         if "component_contribution" not in item.get("metric_id", ""):
@@ -221,6 +225,7 @@ def render(a, display_metadata=None):
     budget_table = table(["预算项", "值"], detail_rows(candidates.get("budget", {})))
     attainability_table = table(["可达性项", "值"], detail_rows(candidates.get("attainability", {})))
     ceiling_table = table(["上限项", "值"], detail_rows(manifest.get("budget_policy", {}).get("attainability_ceiling", {})))
+    execution_policy_table = table(["连续执行政策项", "值"], detail_rows(manifest.get("execution_policy", {})))
     source_summary_rows, source_path_rows = [], []
     source_names = {"workspace_root": "工作区", "slot_docs_root": "游戏资料根目录", "server_root": "Server根目录", "runtime": "Runtime", "simulation_script": "模拟脚本"}
     for index, (key, value) in enumerate(inputs.get("paths", {}).items(), 1):
@@ -230,13 +235,18 @@ def render(a, display_metadata=None):
     if sample_capability_policy:
         source_summary_rows.append(["POL01", "样本能力政策", "候选前密封；FORMAL按实际逐指标、逐条件组复验"])
         source_path_rows.append(["POL01", sample_capability_policy.get("source_path"), sample_capability_policy.get("source_sha256")])
+    if automatic_waiver_policy:
+        source_summary_rows.append(["POL02", "自动豁免政策", "用户预授权；只允许纯样本不足和已证明结构不可达"])
+        source_path_rows.append(["POL02", automatic_waiver_policy.get("source_path"), automatic_waiver_policy.get("source_sha256")])
     formal_hash_rows = [[name, value] for name, value in sorted(formal.get("input_hashes", {}).items())]
     waiver_summary_rows, waiver_approval_rows = [], []
+    waiver_evidence_rows = []
     for item in waivers:
-        metric_id = item.get("metric_id")
+        metric_id = item.get("instance_id", item.get("metric_id"))
         approval = item.get("approval")
-        waiver_summary_rows.append([metric_id, item.get("status"), item.get("reason"), approval.get("status") if isinstance(approval, dict) else approval])
+        waiver_summary_rows.append([metric_id, item.get("reason_code", "人工审查"), item.get("status"), item.get("reason"), item.get("authorization_source", "用户单次决定"), approval.get("status") if isinstance(approval, dict) else approval])
         waiver_approval_rows.extend([[metric_id, field, value] for field, value in detail_rows(approval, "批准")])
+        waiver_evidence_rows.extend([[metric_id, field, value] for field, value in detail_rows(item.get("evidence"), "证据")])
     scope_rows = [[name, value, "不得跨作用域"] for name, value in named_rows({key: value for key, value in scope.items() if key != "target_rtp"}, {"game_code": "游戏", "mode": "模式", "rtp_group": "RTP组"})]
     scope_target_rows = detail_rows(scope.get("target_rtp"), "目标RTP")
     rtp_items = [item for item in hard if item.get("metric_id") == "core.rtp.total"]
@@ -280,9 +290,9 @@ def render(a, display_metadata=None):
         "## 3. 综合评分汇总", "", "### 3.1 评分组汇总", "", budget_score_table, "", group_table, "", "### 3.2 低于85分项", "", table(["指标", "得分", "档位", "差距"], [[x.get("name_zh"), x.get("score"), x.get("band"), x.get("distance")] for x in low]), "",
         "## 4. 玩法画像与指标覆盖", "", "### 4.1 玩法画像", "", mechanic_table, "", mechanic_attribute_table, "", mechanic_evidence_table, "", "### 4.2 指标包匹配", "", metric_table, "", "### 4.3 覆盖率", "", table(["项目", "结果"], named_rows(contract.get("coverage", {}), {"mechanic_required": "必需玩法节点", "mechanic_owned": "已有Owner玩法节点", "mechanic_coverage": "玩法覆盖率", "metric_required": "必需指标", "metric_measurable": "可测指标", "metric_measurability": "指标可测率"})), "",
         "## 5. 参数变化", "", parameter_table, "", parameter_metric_table, "", "### 5.1 权限与玩法边界确认", "", table(["边界", "结论", "依据"], [["参数授权", authority.get("status", "未知"), "parameter_authority.json"], ["Normal / Ante", "未修改", "作用域限制"], ["paytable / 价格 / 初始次数 / 重触", "未修改", "禁止类别"], ["状态机 / 触发与结算 / RNG顺序", "未修改", "禁止类别"], ["封顶 / 最大中奖 / 公共接口", "未修改", "禁止类别"]]), "",
-        "## 6. CALIBRATION过程", "", "### 6.1 搜索与预算", "", budget_table, "", attainability_table, "", ceiling_table, "", "### 6.2 候选演进", "", candidate_table, "", candidate_parameter_table, "", "### 6.3 停止原因", "", f"停止原因：{candidates.get('stop_reason', '—')}", "",
-        "## 7. FORMAL验收", "", table(["项目", "计划/要求", "实际结果"], [["冻结候选", manifest.get("frozen_candidate_id"), formal.get("candidate_id")], ["计划ID", manifest.get("formal_plan_id"), formal.get("plan_id")], ["执行路径", "仅Python；Server Flow/JVM调用数=0", formal.get("execution_path", "未记录")], ["独立种子集", "与CALIBRATION不同", formal.get("sample", {}).get("seed_set_hash")], ["样本数", formal.get("planned_sample_count"), formal.get("sample", {}).get("paid_entry_count")], ["有效尝试上限", manifest.get("formal_attempt_limit"), formal.get("attempt")], ["执行有效性", True, formal.get("execution_valid")], ["真实结论", "硬指标+综合分+FORMAL联合判定", formal.get("status")]]), "", "### 7.1 独立性证明", "", table(["检查项", "要求", "结果"], [["候选冻结", "FORMAL前参数hash固定", formal.get("candidate_hash", "未记录")], ["种子/trace", "与CALIBRATION独立", formal.get("sample", {}).get("seed_set_hash")], ["执行进程/输入", "独立且hash密封", f"{len(formal_hash_rows)}项"], ["阶段1Server Flow认证", "绑定认证证据hash", formal.get("stage1_server_flow_certification_sha256", "未记录")], ["FORMAL Server Flow调用数", 0, formal.get("server_flow_call_count", "未记录")], ["独立性总判定", True, formal.get("independent_from_calibration")]]), "", table(["输入对象", "SHA-256"], formal_hash_rows), "",
-        "## 8. 豁免、不可达与阻塞", "", table(["指标", "状态", "原因", "批准状态"], waiver_summary_rows), "", table(["指标", "批准项", "内容"], waiver_approval_rows), "", "## 9. 最终交付建议", "", "进入阶段5封存；封存后执行一次非阻塞ServerFlow硬指标审计，审计结果只警告且不改变既有状态。" if formal.get("execution_valid") else "等待有效FORMAL或补充证据后再封存。", "",
+        "## 6. CALIBRATION过程", "", "### 6.1 搜索与预算", "", budget_table, "", attainability_table, "", ceiling_table, "", execution_policy_table, "", "### 6.2 候选演进", "", candidate_table, "", candidate_parameter_table, "", "### 6.3 停止原因", "", f"停止原因：{candidates.get('stop_reason', '—')}", "",
+        "## 7. FORMAL验收", "", table(["项目", "计划/要求", "实际结果"], [["冻结候选", manifest.get("frozen_candidate_id"), formal.get("candidate_id")], ["计划ID", manifest.get("formal_plan_id"), formal.get("plan_id")], ["执行路径", "用户认证的Python脚本", formal.get("execution_path", "未记录")], ["独立种子集", "与CALIBRATION不同", formal.get("sample", {}).get("seed_set_hash")], ["样本数", manifest.get("planned_sample_count"), formal.get("sample", {}).get("paid_entry_count")], ["有效尝试上限", manifest.get("formal_attempt_limit"), formal.get("attempt")], ["执行有效性", True, formal.get("execution_valid")], ["真实结论", "硬指标+综合分+FORMAL联合判定", formal.get("status")]]), "", "### 7.1 独立性证明", "", table(["检查项", "要求", "结果"], [["候选冻结", "FORMAL前参数hash固定", formal.get("candidate_hash", "未记录")], ["种子/trace", "与CALIBRATION独立", formal.get("sample", {}).get("seed_set_hash")], ["执行进程/输入", "独立且hash密封", f"{len(formal_hash_rows)}项"], ["Python脚本认证", "绑定用户认证证据hash", formal.get("user_script_certification_sha256", "未记录")], ["独立性总判定", True, formal.get("independent_from_calibration")]]), "", table(["输入对象", "SHA-256"], formal_hash_rows), "",
+        "## 8. 豁免、不可达与阻塞", "", table(["指标实例", "原因码", "状态", "原因", "授权来源", "批准状态"], waiver_summary_rows), "", table(["指标实例", "批准项", "内容"], waiver_approval_rows), "", table(["指标实例", "证据项", "内容"], waiver_evidence_rows), "", "## 9. 最终交付建议", "", "进入阶段5封存并完成交付。" if formal.get("execution_valid") else "等待有效FORMAL或补充证据后再封存。", "",
         "## 10. 版本、Hash与复算", "", table(["对象", "SHA-256"], sorted(hashes.items())), "", "### 10.1 复算命令", "", "```bash", "<python_bin> <skill_root>/scripts/score_alignment.py --contract <artifacts>/02-metric-matching/metric_contract.json --measurements <formal_measurements.json> --output <formal_scorecard.json>", "```", "", "## 附录索引", "", "- `<artifacts>/01-input-profile/`：资料、玩法画像与参数权限", "- `<artifacts>/02-metric-matching/`：指标合同、扩展与豁免", "- `<artifacts>/03-scoring/scorecard.json`：权威基线评分", "- `<artifacts>/04-alignment/`：对齐与FORMAL机器结果", ""
     ]
     return "\n".join(lines), status

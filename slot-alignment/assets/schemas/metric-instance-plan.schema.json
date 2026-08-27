@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Metric Instance Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "status", "catalogs", "required_packages", "preflight_decision_gate", "metric_library_gaps", "expected_instance_count", "capability_check", "instances", "missing_capabilities", "errors"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.metric-instance-plan.v1"},
+    "task_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["待能力声明", "通过", "阻塞"]},
+    "catalogs": {"type": "object"},
+    "required_packages": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "preflight_decision_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "business_decision_window", "metric_library_gap_count", "extension_proposal_required", "stage_execution_allowed", "formal_execution_allowed"],
+      "properties": {
+        "status": {"enum": ["通过", "待用户决定"]},
+        "business_decision_window": {"const": "preflight"},
+        "metric_library_gap_count": {"type": "integer", "minimum": 0},
+        "extension_proposal_required": {"type": "boolean"},
+        "stage_execution_allowed": {"type": "boolean"},
+        "formal_execution_allowed": {"type": "boolean"}
+      }
+    },
+    "metric_library_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gap_id", "gap_type", "package_id", "mechanic_ids", "source_node_ids", "reason", "proposed_action", "extension_targets", "decision_status"],
+        "properties": {
+          "gap_id": {"type": "string", "pattern": "^metric-gap-[0-9]{3}$"},
+          "gap_type": {"enum": ["unknown_mechanic_profile", "unknown_required_package", "no_effective_metric_owner"]},
+          "package_id": {"type": ["string", "null"]},
+          "mechanic_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "source_node_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "reason": {"type": "string", "minLength": 1},
+          "proposed_action": {"type": "string", "minLength": 1},
+          "extension_targets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["mechanic_catalog", "metric_library", "measurement_contract", "report_display"]}},
+          "decision_status": {"const": "待用户决定"}
+        }
+      }
+    },
+    "expected_instance_count": {"type": "integer", "minimum": 0},
+    "capability_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "provided_instance_count", "missing_instance_count", "unknown_instance_ids"],
+      "properties": {
+        "status": {"enum": ["未执行", "通过", "阻塞"]},
+        "provided_instance_count": {"type": "integer", "minimum": 0},
+        "missing_instance_count": {"type": "integer", "minimum": 0},
+        "unknown_instance_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    },
+    "instances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["instance_id", "metric_id", "owner", "kind", "source_node_ids", "instance_dimensions", "scope_instance_id", "scope", "measurement_contract_sha256", "required_capabilities"],
+        "properties": {
+          "instance_id": {"type": "string", "pattern": "^mi_[0-9a-f]{24}$"},
+          "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+          "owner": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["hard", "score", "audit"]},
+          "source_node_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "instance_dimensions": {"type": "object"},
+          "scope_instance_id": {"type": ["string", "null"]},
+          "scope": {"type": ["string", "null"]},
+          "measurement_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "required_capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "capability_status": {"enum": ["通过", "缺失"]}
+        }
+      }
+    },
+    "missing_capabilities": {"type": "array"},
+    "errors": {"type": "array", "items": {"type": "string"}}
+  }
+}

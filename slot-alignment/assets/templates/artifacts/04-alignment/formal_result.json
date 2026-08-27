@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.2",
-  "report_contract_version": "slot-alignment.reports.v3.2",
+  "schema_version": "1.3",
+  "report_contract_version": "slot-alignment.reports.v3.3",
   "task_id": "",
   "candidate_id": "",
   "plan_id": "",
@@ -8,8 +8,7 @@
   "execution_valid": false,
   "independent_from_calibration": false,
   "execution_path": "python",
-  "stage1_server_flow_certification_sha256": "",
-  "server_flow_call_count": 0,
+  "user_script_certification_sha256": "",
   "sample": {"paid_entry_count": 0, "seed_set_hash": "", "metric_sample_counts": []},
   "scorecard": {
     "status": "阻塞",
@@ -29,6 +28,16 @@
       "source_sha256": "",
       "active_metric_instances_sha256": "",
       "status": "阻塞"
+    },
+    "automatic_waiver_policy": {
+      "policy_id": "automatic-metric-waiver-v1",
+      "version": "1.0.0",
+      "source_path": "assets/policies/automatic_metric_waiver_policy.v1.json",
+      "source_sha256": "",
+      "authorization_source": "user_pre_authorized_skill_policy",
+      "decision_count": 0,
+      "decision_bindings_sha256": "",
+      "status": "无自动豁免"
     }
   },
   "audits": {

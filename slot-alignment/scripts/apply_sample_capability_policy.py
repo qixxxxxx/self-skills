@@ -6,6 +6,8 @@ import math
 import sys
 from pathlib import Path
 
+from contract_io import load_contract, write_contract
+
 
 GROUPED_METHODS = {
     "grouped_mean_absolute_error",
@@ -381,15 +383,25 @@ def apply_policy(contract, policy, policy_path):
         row = {
             "metric_id": metric.get("metric_id"),
             "scope": metric.get("scope"),
+            "source_node_ids": sorted(metric.get("source_node_ids", [])),
+            "instance_dimensions": metric.get("instance_dimensions", {}),
             "kind": metric.get("kind"),
             "method": evaluation.get("method"),
             "sample_capability_sha256": canonical_sha256(capability),
         }
         active.append(row)
-        blockers.extend({"metric_id": row["metric_id"], "scope": row["scope"], **item} for item in capability["blocking_reasons"])
-    if not active:
-        raise ValueError("合同没有活动的受检分布或残差指标")
-    active.sort(key=lambda item: (item["metric_id"], item["scope"]))
+        blockers.extend({
+            "metric_id": row["metric_id"],
+            "scope": row["scope"],
+            "source_node_ids": row["source_node_ids"],
+            "instance_dimensions": row["instance_dimensions"],
+            **item,
+        } for item in capability["blocking_reasons"])
+    active.sort(key=lambda item: (
+        item["metric_id"],
+        item["source_node_ids"],
+        sorted(item["instance_dimensions"].items()),
+    ))
     contract["sample_capability_policy"] = {
         "source_schema_version": policy["schema_version"],
         **{field: policy[field] for field in SOURCE_FIELDS},
@@ -399,6 +411,7 @@ def apply_policy(contract, policy, policy_path):
         "blocking_reasons": blockers,
         "status": "通过" if not blockers else "阻塞",
     }
+    contract["status"] = "已完成" if not blockers else "阻塞"
     return blockers
 
 
@@ -406,16 +419,29 @@ def main():
     parser = argparse.ArgumentParser(description="按版本化统计上界生成指标样本能力门禁")
     parser.add_argument("--contract", required=True, type=Path)
     parser.add_argument("--policy", required=True, type=Path)
+    parser.add_argument("--automatic-waiver-policy", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    contract, policy = load(args.contract), load(args.policy)
+    contract, policy = load_contract(args.contract), load(args.policy)
     blockers = apply_policy(contract, policy, args.policy)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    automatic_waivers = []
+    if args.automatic_waiver_policy:
+        from apply_automatic_waiver_policy import apply_insufficient_data_waivers
+
+        automatic_policy = load(args.automatic_waiver_policy)
+        automatic_waivers = apply_insufficient_data_waivers(
+            contract,
+            automatic_policy,
+            args.automatic_waiver_policy,
+            Path(__file__).resolve().parent.parent,
+        )
+        blockers = contract.get("sample_capability_policy", {}).get("blocking_reasons", [])
+    write_contract(contract, args.output)
     result = {
         "status": "通过" if not blockers else "阻塞",
         "policy_id": policy.get("policy_id"),
         "metric_instances": len(contract["sample_capability_policy"]["active_metric_instances"]),
+        "automatic_waiver_count": len(automatic_waivers),
         "blocking_reasons": blockers,
         "output": str(args.output),
     }

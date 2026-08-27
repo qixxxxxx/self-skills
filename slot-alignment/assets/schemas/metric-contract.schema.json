@@ -913,7 +913,6 @@
         "rules": {"type": "object", "minProperties": 7, "additionalProperties": {"const": true}},
         "active_metric_instances": {
           "type": "array",
-          "minItems": 1,
           "uniqueItems": true,
           "items": {
             "type": "object",

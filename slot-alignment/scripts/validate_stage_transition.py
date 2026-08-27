@@ -7,10 +7,12 @@ import sys
 import tempfile
 from pathlib import Path
 
+from contract_io import load_contract
+from apply_automatic_waiver_policy import validate_automatic_waiver_binding
 from render_scoring_report import render
 from render_input_profile_report import render as render_stage1
 from render_metric_matching_report import render as render_stage2
-from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_templates
+from report_common import TEMPLATE_PATHS, validate_execution_qualification, validate_report_against_template, validate_templates
 from score_alignment import sample_capability_summary, schema_is, validate_sample_capability_binding
 from semantic_contract_validation import validate_contract as validate_semantic_contract
 from workspace_paths import REPORT_FILES, latest_report_dir, report_path as workspace_report_path, task_root
@@ -96,8 +98,10 @@ def validate(root, reports=None, validation_mode="stage_transition"):
     input_manifest = load(paths["01-input-profile/input_manifest.json"])
     game_profile = load(paths["01-input-profile/game_profile.json"])
     authority = load(paths["01-input-profile/parameter_authority.json"])
-    contract = load(paths["02-metric-matching/metric_contract.json"])
+    contract = load_contract(paths["02-metric-matching/metric_contract.json"])
     scorecard = load(paths["03-scoring/scorecard.json"])
+    if validation_mode == "stage_transition" and contract.get("schema_version") != "1.4":
+        errors.append("新任务进入阶段3前必须把指标合同紧凑化为metric_contract 1.4")
     errors += validate_semantic_compatible(
         paths["01-input-profile/game_profile.json"],
         paths["02-metric-matching/metric_contract.json"],
@@ -108,21 +112,22 @@ def validate(root, reports=None, validation_mode="stage_transition"):
         task_root(root),
     )
     errors += validate_sample_capability_binding(contract, skill_root)
-    if schema_is(contract, "1.3"):
+    errors += validate_automatic_waiver_binding(contract, skill_root)
+    if schema_is(contract, "1.3") or schema_is(contract, "1.4"):
         if scorecard.get("schema_version") != "1.3":
-            errors.append("1.3指标合同必须生成1.3阶段3 scorecard")
+            errors.append("1.3或1.4指标合同必须生成1.3阶段3 scorecard")
         if scorecard.get("sample_capability_policy") != sample_capability_summary(contract):
             errors.append("阶段3 scorecard样本能力政策摘要与指标合同不一致")
     task_ids = {item.get("task_id") for item in (input_manifest, game_profile, authority, contract, scorecard) if item.get("task_id")}
     if len(task_ids) != 1:
         errors.append(f"阶段1至3 task_id不一致: {sorted(task_ids)}")
     report_versions = {item.get("report_contract_version") for item in (input_manifest, game_profile, authority, contract, scorecard)}
-    if report_versions != {"slot-alignment.reports.v3.2"} and validation_mode == "stage_transition":
-        errors.append(f"新任务阶段1至3必须统一使用slot-alignment.reports.v3.2: {sorted(str(value) for value in report_versions)}")
+    if report_versions != {"slot-alignment.reports.v3.3"} and validation_mode == "stage_transition":
+        errors.append(f"新任务阶段1至3必须统一使用slot-alignment.reports.v3.3: {sorted(str(value) for value in report_versions)}")
     for name, item in (("input_manifest", input_manifest), ("game_profile", game_profile), ("parameter_authority", authority), ("metric_contract", contract)):
         if item.get("status") != "已完成":
             errors.append(f"上游阶段状态未完成: {name}={item.get('status')}")
-    errors += validate_server_flow_policy(input_manifest)
+    errors += validate_execution_qualification(input_manifest)
     if scorecard.get("status") != "已完成" or scorecard.get("blocking_reasons"):
         errors.append("阶段3评分未完成或仍有阻塞")
     if scorecard.get("alignment_status") == "无法判定":

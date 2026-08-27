@@ -6,6 +6,8 @@ import math
 import sys
 from pathlib import Path
 
+from contract_io import load_contract, write_contract
+
 
 def load(path):
     with path.open(encoding="utf-8") as stream:
@@ -50,8 +52,32 @@ def normalized_weights(base_weights, groups):
     unknown = sorted(set(groups) - set(base))
     if unknown:
         raise ValueError(f"政策未登记活动评分组: {','.join(unknown)}")
+    if not groups:
+        return base, {}
     total = sum(base[name] for name in groups)
     return base, {name: base[name] / total for name in groups}
+
+
+def apply_policy(contract, policy, policy_path):
+    if policy.get("method") != "normalize_active_base_weights":
+        raise ValueError("不支持的评分组权重政策方法")
+    groups = active_score_groups(contract)
+    budget_keys = active_score_budget_keys(contract)
+    base, weights = normalized_weights(policy.get("base_weights"), groups)
+    contract["score_group_weight_policy"] = {
+        "policy_id": policy["policy_id"],
+        "version": policy["version"],
+        "source_path": policy.get("source_path", f"assets/policies/{Path(policy_path).name}"),
+        "source_sha256": hashlib.sha256(Path(policy_path).read_bytes()).hexdigest(),
+        "method": policy["method"],
+        "base_weights": base,
+        "active_groups": groups,
+        "active_score_budget_keys": budget_keys,
+        "active_score_budget_keys_sha256": budget_keys_sha256(budget_keys),
+        "legacy_contracts_unchanged": bool(policy.get("legacy_contracts_unchanged")),
+    }
+    contract["group_weights"] = weights
+    return weights
 
 
 def validate_embedded_policy(contract):
@@ -62,8 +88,6 @@ def validate_embedded_policy(contract):
         raise ValueError("不支持的评分组权重政策方法")
     groups = active_score_groups(contract)
     budget_keys = active_score_budget_keys(contract)
-    if not groups:
-        raise ValueError("合同没有活动评分组")
     if policy.get("active_groups") != groups:
         raise ValueError("评分组权重政策的active_groups与合同活动评分组不一致")
     if policy.get("active_score_budget_keys") != budget_keys:
@@ -112,33 +136,13 @@ def main():
     parser.add_argument("--policy", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    contract, policy = load(args.contract), load(args.policy)
-    if policy.get("method") != "normalize_active_base_weights":
-        raise ValueError("不支持的评分组权重政策方法")
-    groups = active_score_groups(contract)
-    budget_keys = active_score_budget_keys(contract)
-    if not groups:
-        raise ValueError("合同没有活动评分组")
-    base, weights = normalized_weights(policy.get("base_weights"), groups)
-    contract["score_group_weight_policy"] = {
-        "policy_id": policy["policy_id"],
-        "version": policy["version"],
-        "source_path": policy.get("source_path", f"assets/policies/{args.policy.name}"),
-        "source_sha256": hashlib.sha256(args.policy.read_bytes()).hexdigest(),
-        "method": policy["method"],
-        "base_weights": base,
-        "active_groups": groups,
-        "active_score_budget_keys": budget_keys,
-        "active_score_budget_keys_sha256": budget_keys_sha256(budget_keys),
-        "legacy_contracts_unchanged": bool(policy.get("legacy_contracts_unchanged")),
-    }
-    contract["group_weights"] = weights
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    contract, policy = load_contract(args.contract), load(args.policy)
+    weights = apply_policy(contract, policy, args.policy)
+    write_contract(contract, args.output)
     print(json.dumps({
         "status": "通过",
         "policy_id": policy["policy_id"],
-        "active_groups": groups,
+        "active_groups": active_score_groups(contract),
         "group_weights": weights,
         "output": str(args.output),
     }, ensure_ascii=False))

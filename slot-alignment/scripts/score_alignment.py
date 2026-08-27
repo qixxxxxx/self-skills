@@ -7,6 +7,8 @@ import math
 import sys
 from pathlib import Path
 
+from contract_io import load_contract
+from apply_automatic_waiver_policy import validate_automatic_waiver_binding
 from apply_ordered_distance_policy import validate_policy_source_binding as validate_ordered_distance_policy
 from apply_sample_capability_policy import apply_policy as apply_sample_capability_policy
 from apply_sample_capability_policy import metric_capability, validate_policy_definition
@@ -43,6 +45,10 @@ def schema_is(contract, version):
     return str(contract.get("schema_version", "")) == version
 
 
+def supports_sample_capability(contract):
+    return str(contract.get("schema_version", "")) in {"1.3", "1.4"}
+
+
 def safe_policy_path(skill_root, source_path):
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("样本能力政策缺少source_path")
@@ -67,7 +73,7 @@ def sample_capability_summary(contract):
 
 def validate_sample_capability_binding(contract, skill_root):
     """复算1.3合同的政策绑定和逐指标样本能力；1.2及更早版本保持原行为。"""
-    if not schema_is(contract, "1.3"):
+    if not supports_sample_capability(contract):
         return []
     actual_policy = contract.get("sample_capability_policy")
     if not isinstance(actual_policy, dict):
@@ -103,10 +109,10 @@ def validate_sample_capability_binding(contract, skill_root):
 
 def validate_formal_sample_capability(contract, formal, skill_root):
     """用FORMAL实际逐指标、逐组样本复验1.3合同，不信任阶段2计划中的FORMAL计数。"""
-    if not schema_is(contract, "1.3"):
+    if not supports_sample_capability(contract):
         return []
-    if not isinstance(formal, dict) or formal.get("schema_version") != "1.2":
-        return ["1.3指标合同必须使用formal_result.schema_version=1.2"]
+    if not isinstance(formal, dict) or formal.get("schema_version") not in {"1.2", "1.3"}:
+        return ["1.3或1.4指标合同必须使用formal_result.schema_version=1.2或1.3"]
     errors = validate_sample_capability_binding(contract, skill_root)
     if errors:
         return errors
@@ -136,13 +142,15 @@ def validate_formal_sample_capability(contract, formal, skill_root):
     }
     for missing in sorted(active - set(row_map)):
         errors.append(f"FORMAL缺少指标实际样本计数: {missing[0]} / {missing[1]}")
+    metric_map = {key(item): item for item in contract.get("metrics", []) if isinstance(item, dict)}
     for extra in sorted(set(row_map) - active):
-        errors.append(f"FORMAL存在额外指标样本计数: {extra[0]} / {extra[1]}")
+        metric = metric_map.get(extra, {})
+        if metric.get("waiver", {}).get("status") != "已批准":
+            errors.append(f"FORMAL存在额外指标样本计数: {extra[0]} / {extra[1]}")
     if errors:
         return errors
     policy_path = safe_policy_path(skill_root, contract["sample_capability_policy"]["source_path"])
     policy = load(policy_path)
-    metric_map = {key(item): item for item in contract.get("metrics", []) if isinstance(item, dict)}
     for item_key in sorted(active):
         metric = copy.deepcopy(metric_map[item_key])
         row = row_map[item_key]
@@ -557,7 +565,7 @@ def main():
     parser.add_argument("--measurements", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    contract, measured = load(args.contract), load(args.measurements)
+    contract, measured = load_contract(args.contract), load(args.measurements)
     measurement_items = measured.get("measurements", [])
     measurements = {key(x): x for x in measurement_items}
     hard_gates, scores, audits, blockers = [], [], [], []
@@ -574,6 +582,8 @@ def main():
             blockers.append({"metric_id": "*", "scope": "*", "reason": reason})
     for reason in validate_sample_capability_binding(contract, skill_root):
         blockers.append({"metric_id": "*", "scope": "*", "reason": reason})
+    for reason in validate_automatic_waiver_binding(contract, skill_root):
+        blockers.append({"metric_id": "*", "scope": "*", "reason": reason})
     waiver_count = 0
     for metric in sorted(contract.get("metrics", []), key=key):
         kind = metric.get("kind")
@@ -586,7 +596,7 @@ def main():
         not_applicable = metric.get("status") == "不适用"
         if waived:
             waiver_count += 1
-        if kind == "score" and contract.get("schema_version") not in {"1.0", "1.1"}:
+        if kind == "score" and not waived and contract.get("schema_version") not in {"1.0", "1.1"}:
             try:
                 validate_reachable_support(metric)
             except (TypeError, ValueError) as exc:
@@ -628,6 +638,42 @@ def main():
             elif (mismatch or field_mismatch) and profile.get("blocking_on_mismatch"):
                 blockers.append({"metric_id": item_key[0], "scope": item_key[1], "reason": field_mismatch or f"审计结果不符合要求: 期望{required_status or '符合'}，实际{audit_status}"})
             continue
+        if waived:
+            candidate = measurement.get("value") if isinstance(measurement, dict) else None
+            gap = None
+            profile = metric.get("hard_gate_profile") if kind == "hard" else metric.get("score_profile")
+            if isinstance(measurement, dict) and measurement.get("status", "有效") == "有效" and isinstance(profile, dict):
+                try:
+                    gap = distance(profile["method"], metric["target"], candidate, profile.get("zero_floor", 1e-12), profile)
+                except (KeyError, TypeError, ValueError):
+                    gap = None
+            base = {
+                "metric_id": item_key[0],
+                "name_zh": metric.get("name_zh", item_key[0]),
+                "scope": item_key[1],
+                "target": metric.get("target"),
+                "candidate": candidate,
+                "distance": gap,
+                "waiver": waiver,
+            }
+            if kind == "hard":
+                if isinstance(profile, dict):
+                    try:
+                        base_tolerance, tolerance_factor, tolerance, policy_id = hard_tolerance(contract, metric, profile)
+                        base.update({
+                            "base_tolerance": base_tolerance,
+                            "tolerance_factor": tolerance_factor,
+                            "tolerance": tolerance,
+                            "tolerance_policy_id": policy_id,
+                        })
+                    except (TypeError, ValueError):
+                        pass
+                base["status"] = "硬指标已豁免"
+                hard_gates.append(base)
+            else:
+                base.update({"status": "已豁免", "score": None, "band": "不适用", "weight": 0})
+                scores.append(base)
+            continue
         if not measurement or measurement.get("status", "有效") != "有效":
             blockers.append({"metric_id": item_key[0], "scope": item_key[1], "reason": "测量缺失或无效"})
             continue
@@ -661,9 +707,6 @@ def main():
             passed = gap <= tolerance
             base.update({"base_tolerance": base_tolerance, "tolerance_factor": tolerance_factor, "tolerance": tolerance, "tolerance_policy_id": policy_id, "status": "硬指标已豁免" if waived else ("通过" if passed else "不通过")})
             hard_gates.append(base)
-        elif waived:
-            base.update({"status": "已豁免", "score": None, "band": "不适用", "weight": 0})
-            scores.append(base)
         else:
             value = max(0.0, min(100.0, score_from_distance(gap, profile)))
             aggregation = metric.get("scope_aggregation", "weighted_mean")
@@ -779,7 +822,7 @@ def main():
     else:
         status = "通过"
     result = {
-        "schema_version": "1.3" if schema_is(contract, "1.3") else "1.2",
+        "schema_version": "1.3" if supports_sample_capability(contract) else "1.2",
         "report_contract_version": contract.get("report_contract_version"),
         "task_id": contract.get("task_id", ""),
         "status": "已完成" if not blockers else "阻塞",
@@ -809,8 +852,10 @@ def main():
                 "active_ordered_metric_instances_sha256",
             )
         }
-    if schema_is(contract, "1.3"):
+    if supports_sample_capability(contract):
         result["sample_capability_policy"] = sample_capability_summary(contract)
+    if isinstance(contract.get("automatic_waiver_policy"), dict):
+        result["automatic_waiver_policy"] = contract["automatic_waiver_policy"]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({"status": status, "overall_score": overall, "output": str(args.output)}, ensure_ascii=False))

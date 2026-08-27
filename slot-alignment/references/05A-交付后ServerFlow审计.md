@@ -1,5 +1,7 @@
 # 交付后 Server Flow 审计
 
+> 历史只读兼容文档。`slot-alignment.reports.v3.3`及之后的新任务不得读取或执行本流程。
+
 ## 执行前提
 
 只在`seal_delivery.py`成功生成不可变`dv####`且`validate_artifacts.py`最终校验通过后执行。读取已封存的候选参数、Runtime、阶段 4 FORMAL硬指标和阶段 5 delivery manifest，全部只读。

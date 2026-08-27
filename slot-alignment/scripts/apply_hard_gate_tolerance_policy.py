@@ -6,6 +6,8 @@ import math
 import sys
 from pathlib import Path
 
+from contract_io import load_contract, write_contract
+
 
 def load(path):
     with path.open(encoding="utf-8") as stream:
@@ -24,7 +26,7 @@ def main():
     parser.add_argument("--policy", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    contract, policy = load(args.contract), load(args.policy)
+    contract, policy = load_contract(args.contract), load(args.policy)
     factors = policy.get("metric_factors", {})
     default_factor = finite_nonnegative(policy.get("default_factor"), "default_factor")
     if default_factor == 0:
@@ -61,8 +63,7 @@ def main():
         "locked_metrics": sorted(locked),
         "legacy_contracts_unchanged": bool(policy.get("legacy_contracts_unchanged")),
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_contract(contract, args.output)
     print(json.dumps({"status": "通过", "applied_hard_metrics": applied, "policy_id": policy["policy_id"], "output": str(args.output)}, ensure_ascii=False))
     return 0
 

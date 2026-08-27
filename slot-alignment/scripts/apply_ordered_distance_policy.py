@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+from contract_io import load_contract, write_contract
+
 
 ORDERED_METHODS = {"wasserstein_1d", "grouped_wasserstein_1d"}
 AXIS_SEMANTICS = {"natural_linear", "nonnegative_multiplicative"}
@@ -132,18 +134,32 @@ def ordered_instance_rows(metrics):
         metric_id, scope = metric.get("metric_id"), metric.get("scope")
         if not non_empty(metric_id) or not non_empty(scope):
             raise ValueError("活动有序指标缺少metric_id或scope")
-        identity = (metric_id, scope)
+        source_node_ids = metric.get("source_node_ids")
+        instance_dimensions = metric.get("instance_dimensions")
+        if not isinstance(source_node_ids, list) or not isinstance(instance_dimensions, dict):
+            raise ValueError("活动有序指标缺少完整实例来源或维度")
+        identity = (
+            metric_id,
+            tuple(sorted(source_node_ids)),
+            tuple(sorted(instance_dimensions.items())),
+        )
         if identity in identities:
-            raise ValueError(f"活动有序指标实例重复: {metric_id} / {scope}")
+            raise ValueError(f"活动有序指标实例重复: {metric_id} / {source_node_ids} / {instance_dimensions}")
         identities.add(identity)
         rows.append({
             "metric_id": metric_id,
             "scope": scope,
+            "source_node_ids": sorted(source_node_ids),
+            "instance_dimensions": instance_dimensions,
             "kind": metric.get("kind"),
             "profile_field": profile_field(metric),
             "axis_semantics": ordered_profile(metric).get("axis_semantics"),
         })
-    return sorted(rows, key=lambda item: (item["metric_id"], item["scope"]))
+    return sorted(rows, key=lambda item: (
+        item["metric_id"],
+        item["source_node_ids"],
+        sorted(item["instance_dimensions"].items()),
+    ))
 
 
 def resolve_axis(metric, policy):
@@ -249,13 +265,7 @@ def validate_policy_source_binding(contract, skill_root):
     return errors
 
 
-def main():
-    parser = argparse.ArgumentParser(description="按轴语义政策解析 Slot 有序分布距离")
-    parser.add_argument("--contract", required=True, type=Path)
-    parser.add_argument("--policy", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
-    contract, policy = load(args.contract), load(args.policy)
+def apply_policy(contract, policy, policy_path):
     validate_policy_definition(policy)
     metrics = active_ordered_metrics(contract)
     for metric in metrics:
@@ -264,15 +274,25 @@ def main():
     contract["ordered_distance_policy"] = {
         "source_schema_version": policy["schema_version"],
         **{field: policy[field] for field in SOURCE_FIELDS},
-        "source_sha256": hashlib.sha256(args.policy.read_bytes()).hexdigest(),
+        "source_sha256": hashlib.sha256(Path(policy_path).read_bytes()).hexdigest(),
         "active_ordered_metric_instances": rows,
         "active_ordered_metric_instances_sha256": canonical_sha256(rows),
     }
+    return rows
+
+
+def main():
+    parser = argparse.ArgumentParser(description="按轴语义政策解析 Slot 有序分布距离")
+    parser.add_argument("--contract", required=True, type=Path)
+    parser.add_argument("--policy", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    contract, policy = load_contract(args.contract), load(args.policy)
+    rows = apply_policy(contract, policy, args.policy)
     errors = validate_policy_source_binding(contract, Path(__file__).resolve().parent.parent)
     if errors:
         raise ValueError("；".join(errors))
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_contract(contract, args.output)
     print(json.dumps({
         "status": "通过",
         "policy_id": policy["policy_id"],

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Structural Unattainability Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "status", "budget_expansion_allowed", "proof", "affected_metric_instances", "evidence_files"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.attainability-evidence.v1"},
+    "task_id": {"type": "string", "minLength": 1},
+    "status": {"const": "结构不可达"},
+    "budget_expansion_allowed": {"const": false},
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authorized_space_static_check", "direction_perturbation", "independent_and_joint_validation", "stable_unattainability_evidence", "sample_qualification_valid"],
+      "properties": {
+        "authorized_space_static_check": {"const": true},
+        "direction_perturbation": {"const": true},
+        "independent_and_joint_validation": {"const": true},
+        "stable_unattainability_evidence": {"const": true},
+        "sample_qualification_valid": {"const": true}
+      }
+    },
+    "affected_metric_instances": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["instance_id", "metric_id", "scope", "target_gap", "conflict_evidence", "minimal_authority_expansion"],
+        "properties": {
+          "instance_id": {"type": "string", "pattern": "^mi_[0-9a-f]{24}$"},
+          "metric_id": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+          "scope": {"type": "string", "minLength": 1},
+          "target_gap": {},
+          "conflict_evidence": {"type": "string", "minLength": 1},
+          "minimal_authority_expansion": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "evidence_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

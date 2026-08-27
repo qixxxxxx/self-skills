@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from contract_io import load_contract
 from report_common import apply_metric_display_metadata, detail_rows, metric_brief_result, metric_groups, metric_key, metric_meta_lines, metric_result_summary, metric_sample_capability_lines, metric_stage3_table, sample_capability_policy_table, table
 
 
@@ -81,15 +82,17 @@ def render(contract, scorecard, contract_hash, scorecard_hash):
         ["S05", "评分组权重政策", "按活动体验语义组固定预算", contract.get("score_group_weight_policy", {}).get("source_path"), contract.get("score_group_weight_policy", {}).get("source_sha256")],
         ["S06", "有序距离政策", "自然计数线性、回报奖值倍率固定长尾尺度", contract.get("ordered_distance_policy", {}).get("source_path"), contract.get("ordered_distance_policy", {}).get("source_sha256")],
         ["S07", "样本能力政策", "评分前核对原版与FORMAL计划样本均达到逐指标、逐条件组要求", contract.get("sample_capability_policy", {}).get("source_path"), contract.get("sample_capability_policy", {}).get("source_sha256")],
+        ["S08", "自动豁免政策", "仅按用户预授权处理纯样本不足和已证明结构不可达", contract.get("automatic_waiver_policy", {}).get("source_path"), contract.get("automatic_waiver_policy", {}).get("source_sha256")],
     ]
     review_summary_rows, review_evidence_rows = [], []
     for item in blockers:
         object_id = item.get("metric_id")
-        review_summary_rows.append([object_id, item.get("scope"), "阻塞", item.get("reason"), item.get("status")])
+        review_summary_rows.append([object_id, item.get("scope"), "阻塞", item.get("reason_code", "执行阻塞"), item.get("reason"), "非豁免", item.get("status")])
         review_evidence_rows.extend([[object_id, field, value] for field, value in detail_rows(item.get("evidence"), "证据")])
     for item in waivers:
         object_id = item.get("metric_id")
-        review_summary_rows.append([object_id, item.get("scope"), "豁免", item.get("waiver", {}).get("reason"), item.get("waiver", {}).get("status")])
+        waiver = item.get("waiver", {})
+        review_summary_rows.append([object_id, item.get("scope"), "豁免", waiver.get("reason_code"), waiver.get("reason"), waiver.get("authorization_source"), waiver.get("status")])
         review_evidence_rows.extend([[object_id, field, value] for field, value in detail_rows(item.get("waiver", {}).get("evidence"), "证据")])
 
     lines = [
@@ -114,7 +117,7 @@ def render(contract, scorecard, contract_hash, scorecard_hash):
             ["阶段3机器状态", scorecard.get("status"), "必须已完成"],
             ["未豁免硬指标", f"{hard_passed} / {len(hard_required)}", "阶段3展示基线差距，不以基线不通过阻断调参"],
             ["综合分 / 档位", f"{scorecard.get('overall_score')} / {scorecard.get('overall_band')}", "非硬指标汇总"],
-            ["低于85分项", len(low), "逐项列入第六章"], ["豁免项", len(waivers), "必须有批准证据"],
+            ["低于85分项", len(low), "逐项列入第六章"], ["豁免项", len(waivers), "必须有用户单次批准或预授权自动政策证据"],
             ["阶段职责", "冻结标准并验证基线可测", "不得在本阶段计算新候选"],
             ["阶段4资格", "待阶段转换门禁校验" if not blockers else "阻塞", "以stage3_gate.json为准"],
         ]), "",
@@ -127,7 +130,7 @@ def render(contract, scorecard, contract_hash, scorecard_hash):
         table(["评分预算键", "评分组", "作用域实例数", "作用域聚合", "预算得分", "档位", "指标权重"], [[item.get("score_budget_key"), item.get("group"), item.get("scope_count"), item.get("scope_aggregation"), item.get("score"), item.get("band"), item.get("weight")] for item in budget_scores]), "",
         table(["评分组", "得分", "档位", "组权重", "有效评分预算数", "汇总方法"], [[item.get("group"), item.get("score"), item.get("band"), item.get("weight"), item.get("budget_count", item.get("metric_count")), item.get("method", "按评分预算加权后参与综合分")] for item in groups]), "",
         "## 五、低于85分项与差距说明", "", table(["指标", "作用域", "得分", "档位", "差距", "主要影响控制簇", "阶段4优先级"], [[item.get("name_zh", item.get("metric_id")), item.get("scope"), item.get("score"), item.get("band"), item.get("distance"), source(item).get("control_cluster"), source(item).get("priority", "按分数和硬门禁联合排序")] for item in low]), "",
-        "## 六、阻塞、豁免与不可判定项", "", table(["对象", "作用域", "类型", "原因", "批准/恢复状态"], review_summary_rows), "", table(["对象", "证据项", "证据"], review_evidence_rows), "",
+        "## 六、阻塞、豁免与不可判定项", "", table(["对象", "作用域", "类型", "原因码", "原因", "授权来源", "批准/恢复状态"], review_summary_rows), "", table(["对象", "证据项", "证据"], review_evidence_rows), "",
         "## 七、覆盖率与可测性复核", "", table(["检查项", "当前值", "通过标准", "结论"], [
             ["必需玩法节点", coverage.get("mechanic_required"), "全部有Owner", "通过" if coverage.get("mechanic_coverage") in {1, 1.0} else "阻塞"],
             ["玩法覆盖率", coverage.get("mechanic_coverage"), "100%", "通过" if coverage.get("mechanic_coverage") in {1, 1.0} else "阻塞"],
@@ -136,7 +139,7 @@ def render(contract, scorecard, contract_hash, scorecard_hash):
             ["评分指标结果数量", len(scores), len([x for x in contract.get("metrics", []) if x.get("kind") == "score" and x.get("status") != "不适用"]), "必须一致"],
             ["审计指标结果数量", len(audits), len([x for x in contract.get("metrics", []) if x.get("kind") == "audit" and x.get("status") != "不适用"]), "必须一致"],
         ]), "",
-        "## 八、版本、Hash与复算", "", table(["对象ID", "对象", "SHA-256"], [[ref, name, hash_value] for ref, name, _, _, hash_value in source_items] + [["S08", "生成器", "由Skill版本绑定"]]), "", table(["对象ID", "路径"], [[ref, path] for ref, _, _, path, _ in source_items] + [["S08", "render_scoring_report.py"]]), "", "```bash", "<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> --output <report_dir>/阶段3-评分报告.md", "```", "",
+        "## 八、版本、Hash与复算", "", table(["对象ID", "对象", "SHA-256"], [[ref, name, hash_value] for ref, name, _, _, hash_value in source_items] + [["S09", "生成器", "由Skill版本绑定"]]), "", table(["对象ID", "路径"], [[ref, path] for ref, _, _, path, _ in source_items] + [["S09", "render_scoring_report.py"]]), "", "```bash", "<python_bin> <skill_root>/scripts/render_scoring_report.py --contract <metric_contract.json> --scorecard <scorecard.json> --output <report_dir>/阶段3-评分报告.md", "```", "",
         "## 九、阶段3到阶段4门禁", "", table(["门禁项", "要求", "当前状态/动作"], [
             ["固定scorecard", "来自当前合同和基线测量", scorecard.get("status")], ["报告确定性", "与当前JSON重新渲染完全一致", "由validate_stage_transition.py校验"],
             ["评分可判定", "alignment_status不得为无法判定", scorecard.get("alignment_status")], ["阶段4启动", "stage3_gate.json通过且stage4_allowed=true", "未通过前禁止敏感性、CALIBRATION和候选计算"],
@@ -153,7 +156,7 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
-        contract = apply_metric_display_metadata(load(args.contract), load(args.display_metadata) if args.display_metadata else None)
+        contract = apply_metric_display_metadata(load_contract(args.contract), load(args.display_metadata) if args.display_metadata else None)
         scorecard = load(args.scorecard)
         if contract.get("task_id") != scorecard.get("task_id"):
             raise ValueError("指标合同与评分task_id不一致")

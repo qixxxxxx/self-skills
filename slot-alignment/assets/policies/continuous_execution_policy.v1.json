@@ -1,0 +1,20 @@
+{
+  "schema_version": "slot-alignment.continuous-execution-policy.v1",
+  "policy_id": "continuous-alignment-execution-v1",
+  "version": "1.0.0",
+  "source_path": "assets/policies/continuous_execution_policy.v1.json",
+  "retry_limit": 2,
+  "formal_candidate_limit": 3,
+  "auto_regenerate_reports": true,
+  "auto_rebuild_invalid_samples": true,
+  "auto_expand_formal_samples_within_sealed_budget": true,
+  "auto_return_to_calibration_after_formal_failure": true,
+  "auto_continue_after_candidate_failure": true,
+  "auto_fix_task_runtime_metadata": true,
+  "auto_waive_insufficient_data": true,
+  "auto_waive_structurally_unattainable": true,
+  "finish_with_blocked_or_waived_report": true,
+  "interrupt_user_during_execution": false,
+  "business_decision_windows": ["preflight", "final_report"],
+  "preflight_metric_extension_decision_required": true
+}

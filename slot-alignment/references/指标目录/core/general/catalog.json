@@ -4,7 +4,7 @@
   "package_id": "core.general",
   "type": "core",
   "category": "core",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "applies_when": {
     "always": true
   },
@@ -47,7 +47,7 @@
         "display_unit": "%（返还率）"
       },
       "hard_gate_profile": {
-        "method": "absolute_error",
+        "method": "range_error",
         "tolerance_source": "task_contract",
         "confidence_required": true
       }
@@ -268,7 +268,7 @@
         "display_unit": "%（占总投注）"
       },
       "hard_gate_profile": {
-        "method": "absolute_error",
+        "method": "range_error",
         "tolerance_source": "task_contract",
         "confidence_required": true
       }

@@ -53,6 +53,7 @@
       }
     },
     "sample_capability_policy": {"$ref": "#/$defs/sample_capability_policy_summary"},
+    "automatic_waiver_policy": {"type": "object"},
     "source_paths": {"type": "object", "required": ["metric_contract", "measurements"]},
     "source_hashes": {"type": "object", "required": ["metric_contract", "measurements"]},
     "generator": {"const": "score_alignment.py"}

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import copy
+import hashlib
+import json
 import re
+from pathlib import Path
 
 
 REPORT_HEADINGS = {
@@ -21,7 +24,7 @@ REPORT_HEADINGS = {
         "### 5.1 玩法树",
         "### 5.2 玩法节点明细",
         "## 六、模拟脚本与执行链资格",
-        "### 6.1 阶段1单次 Server Flow 一致性认证",
+        "### 6.1 Python脚本用户直接认证",
         "### 6.2 状态链、结算与封顶证据",
         "## 七、参数权限与控制拓扑",
         "### 7.1 授权参数",
@@ -122,7 +125,8 @@ REPORT_CONTRACT_V28 = "slot-alignment.reports.v2.8"
 REPORT_CONTRACT_V29 = "slot-alignment.reports.v2.9"
 REPORT_CONTRACT_V31 = "slot-alignment.reports.v3.1"
 REPORT_CONTRACT_V32 = "slot-alignment.reports.v3.2"
-STRICT_REPORT_CONTRACTS = {REPORT_CONTRACT_V26, REPORT_CONTRACT_V27, REPORT_CONTRACT_V28, REPORT_CONTRACT_V29, REPORT_CONTRACT_V31, REPORT_CONTRACT_V32}
+REPORT_CONTRACT_V33 = "slot-alignment.reports.v3.3"
+STRICT_REPORT_CONTRACTS = {REPORT_CONTRACT_V26, REPORT_CONTRACT_V27, REPORT_CONTRACT_V28, REPORT_CONTRACT_V29, REPORT_CONTRACT_V31, REPORT_CONTRACT_V32, REPORT_CONTRACT_V33}
 METRIC_HEADING_PATTERN = re.compile(r"^#### M\d{2,}\s+.+$")
 METRIC_GROUPS = (
     ("hard", "硬指标"),
@@ -346,7 +350,7 @@ LEGACY_METRIC_DISPLAY_DEFAULTS["core.return_distribution.lt200"] = dict(
 
 
 def validate_server_flow_policy(input_manifest, alignment_manifest=None, candidate_archive=None, formal_result=None):
-    if input_manifest.get("report_contract_version") not in STRICT_REPORT_CONTRACTS:
+    if input_manifest.get("report_contract_version") not in STRICT_REPORT_CONTRACTS - {REPORT_CONTRACT_V33}:
         return []
     errors = []
     qualification = input_manifest.get("script_qualification", {})
@@ -398,6 +402,97 @@ def validate_server_flow_policy(input_manifest, alignment_manifest=None, candida
         if formal_result.get("stage1_server_flow_certification_sha256") != evidence_sha:
             errors.append("FORMAL绑定的阶段1Server Flow认证证据hash无效")
     return errors
+
+
+def validate_python_user_certification(input_manifest, alignment_manifest=None, formal_result=None):
+    if input_manifest.get("report_contract_version") != REPORT_CONTRACT_V33 and input_manifest.get("script_qualification", {}).get("certification_method") != "user_direct":
+        return []
+    errors = []
+    qualification = input_manifest.get("script_qualification", {})
+    certification = qualification.get("user_certification", {})
+    evidence_sha = certification.get("evidence_sha256", "")
+    script_sha = input_manifest.get("hashes", {}).get("simulation_script", "")
+    if qualification.get("status") != "通过":
+        errors.append("阶段1模拟脚本资格未通过")
+    if qualification.get("certified_execution_path") != "python":
+        errors.append("用户认证的执行路径必须是Python")
+    if qualification.get("certification_method") != "user_direct":
+        errors.append("Python脚本必须由用户直接认证")
+    if certification.get("status") != "通过" or certification.get("certified_by") != "user":
+        errors.append("缺少有效的用户直接认证")
+    if not certification.get("evidence_path") or len(evidence_sha) != 64:
+        errors.append("用户直接认证证据hash无效")
+    if len(script_sha) != 64 or certification.get("certified_script_sha256") != script_sha:
+        errors.append("用户直接认证未绑定当前Python脚本hash")
+    simulation_script = input_manifest.get("paths", {}).get("simulation_script", "")
+    if not isinstance(simulation_script, str) or not simulation_script.endswith(".py"):
+        errors.append("模拟脚本必须是.py文件")
+    if input_manifest.get("report_contract_version") == REPORT_CONTRACT_V33:
+        preflight = input_manifest.get("preflight_decision_gate", {})
+        if preflight.get("status") != "通过":
+            errors.append("开工前业务决策门禁未通过")
+        if preflight.get("business_decision_window") != "preflight":
+            errors.append("指标库扩展决策必须位于开工前窗口")
+        if preflight.get("metric_library_gap_count") != 0:
+            errors.append("正式执行前仍有未关闭的指标库缺口")
+        if preflight.get("extension_decision_status") not in {"无需扩展", "已完成"}:
+            errors.append("开工前指标库扩展决策尚未完成")
+    if alignment_manifest is not None:
+        policy = alignment_manifest.get("execution_policy", {})
+        if policy.get("calibration_execution_path") != "python" or policy.get("formal_execution_path") != "python":
+            errors.append("CALIBRATION和FORMAL执行路径必须锁定为Python")
+        if policy.get("certification_method") != "user_direct":
+            errors.append("阶段4未绑定用户直接认证方式")
+        if input_manifest.get("report_contract_version") == REPORT_CONTRACT_V33:
+            errors += validate_continuous_execution_policy(policy, Path(__file__).resolve().parent.parent)
+    if formal_result is not None:
+        if formal_result.get("execution_path") != "python":
+            errors.append("FORMAL执行路径不是Python")
+        if formal_result.get("user_script_certification_sha256") != evidence_sha:
+            errors.append("FORMAL绑定的用户脚本认证证据hash无效")
+    return errors
+
+
+def validate_continuous_execution_policy(sealed, skill_root):
+    errors = []
+    source = sealed.get("source_path") if isinstance(sealed, dict) else None
+    if not isinstance(source, str) or not source or Path(source).is_absolute() or ".." in Path(source).parts:
+        return ["连续执行政策来源路径无效"]
+    root = Path(skill_root).resolve()
+    path = (root / source).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return ["连续执行政策来源越出Skill目录"]
+    if not path.is_file():
+        return ["连续执行政策源文件不存在"]
+    source_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    if sealed.get("source_sha256") != source_sha:
+        errors.append("连续执行政策来源SHA-256失效")
+    try:
+        policy = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return errors + [f"连续执行政策无法读取: {exc}"]
+    fields = (
+        "policy_id", "version", "source_path", "retry_limit", "formal_candidate_limit",
+        "auto_regenerate_reports", "auto_rebuild_invalid_samples",
+        "auto_expand_formal_samples_within_sealed_budget",
+        "auto_return_to_calibration_after_formal_failure", "auto_continue_after_candidate_failure",
+        "auto_fix_task_runtime_metadata", "auto_waive_insufficient_data",
+        "auto_waive_structurally_unattainable", "finish_with_blocked_or_waived_report",
+        "interrupt_user_during_execution", "business_decision_windows",
+        "preflight_metric_extension_decision_required",
+    )
+    mismatches = [field for field in fields if sealed.get(field) != policy.get(field)]
+    if mismatches:
+        errors.append(f"连续执行政策合同字段与来源不一致: {','.join(mismatches)}")
+    return errors
+
+
+def validate_execution_qualification(input_manifest, alignment_manifest=None, candidate_archive=None, formal_result=None):
+    if input_manifest.get("report_contract_version") == REPORT_CONTRACT_V33 or input_manifest.get("script_qualification", {}).get("certification_method") == "user_direct":
+        return validate_python_user_certification(input_manifest, alignment_manifest, formal_result)
+    return validate_server_flow_policy(input_manifest, alignment_manifest, candidate_archive, formal_result)
 
 
 def fmt(value):
@@ -452,8 +547,8 @@ def apply_metric_display_metadata(contract, metadata=None):
     exact = {(item.get("metric_id"), item.get("scope")): item for item in entries if item.get("scope")}
     generic = {item.get("metric_id"): item for item in entries if not item.get("scope")}
     version = result.get("report_contract_version")
-    require_business_labels = metadata is not None or version in {REPORT_CONTRACT_V29, REPORT_CONTRACT_V31, REPORT_CONTRACT_V32}
-    allow_legacy_defaults = version not in {REPORT_CONTRACT_V31, REPORT_CONTRACT_V32}
+    require_business_labels = metadata is not None or version in {REPORT_CONTRACT_V29, REPORT_CONTRACT_V31, REPORT_CONTRACT_V32, REPORT_CONTRACT_V33}
+    allow_legacy_defaults = version not in {REPORT_CONTRACT_V31, REPORT_CONTRACT_V32, REPORT_CONTRACT_V33}
     required_display = {"description_zh", "usage_scene_zh", "target_meaning_zh", "display_unit"}
     for metric in result.get("metrics", []):
         display = dict(metric.get("display", {}))

@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0",
   "catalog_type": "metric_index",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "summary_path": "指标汇总.md",
   "categories": [
     {
@@ -95,8 +95,8 @@
       "applies_when": {
         "always": true
       },
-      "version": "2.1.0",
-      "sha256": "8d22dcd00d848ac75751fc1b950cdf730c17781c3bb10f6491232cd348731502"
+      "version": "2.2.0",
+      "sha256": "625f927394eff64518b9fed0631a5ac3d576769e9d5ad95370fb341ac4f759a4"
     },
     {
       "package_id": "atomic.board-diversity",

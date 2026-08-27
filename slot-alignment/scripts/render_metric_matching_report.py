@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from contract_io import load_contract
 from report_common import apply_metric_display_metadata, detail_rows, labeled_detail_rows, metric_groups, metric_meta_lines, metric_sample_capability_lines, metric_stage2_table, sample_capability_policy_table, table
 
 
@@ -65,11 +66,16 @@ def render(contract, contract_hash):
     score_group_policy = contract.get("score_group_weight_policy", {})
     ordered_distance_policy = contract.get("ordered_distance_policy", {})
     sample_capability_policy = contract.get("sample_capability_policy", {})
+    automatic_waiver_policy = contract.get("automatic_waiver_policy", {})
     component_policy = contract.get("component_rtp_target_policy", {})
     component_metrics = [x for x in hard if x.get("metric_id") == "core.rtp.component_contribution"]
     all_measurable = coverage.get("metric_measurability") in {1, 1.0}
     all_covered = coverage.get("mechanic_coverage") in {1, 1.0}
-    ready = contract.get("status") == "已完成" and all_measurable and all_covered and not gaps and not conflicts
+    ready = (
+        contract.get("status") == "已完成"
+        and sample_capability_policy.get("status") == "通过"
+        and all_measurable and all_covered and not gaps and not conflicts
+    )
 
     package_summary_rows, package_metric_rows, package_evidence_rows = [], [], []
     for item in contract.get("package_matches", contract.get("mechanic_metric_matches", [])):
@@ -110,11 +116,14 @@ def render(contract, contract_hash):
         gap_path_rows.append([gap_id, item.get("proposal_path")])
     review_summary_rows, approval_rows, bound_hash_rows = [], [], []
     for item, review_type in [(x, "豁免") for x in waivers] + [(x, "Owner冲突") for x in conflicts]:
-        object_id = item.get("metric_id", item.get("mechanic_id"))
+        object_id = item.get("instance_id", item.get("metric_id", item.get("mechanic_id")))
         approval = item.get("approval", item.get("resolution"))
-        review_summary_rows.append([object_id, review_type, item.get("reason"), item.get("owner", item.get("owners")), item.get("status", approval.get("status") if isinstance(approval, dict) else approval), item.get("audit_retained", True)])
+        review_summary_rows.append([object_id, review_type, item.get("reason_code", "人工审查"), item.get("reason"), item.get("authorization_source", "用户单次决定"), item.get("status", approval.get("status") if isinstance(approval, dict) else approval), item.get("audit_retained", True)])
         approval_rows.extend([[object_id, field, value] for field, value in detail_rows(approval, "批准/处理")])
         bound_hash_rows.extend([[object_id, field, value] for field, value in detail_rows(item.get("bound_hashes"), "绑定Hash")])
+        for field in ("policy_sha256", "target_sha256", "evidence_sha256"):
+            if item.get(field):
+                bound_hash_rows.append([object_id, field, item[field]])
     input_hash_rows = [[name, value] for name, value in sorted(contract.get("input_hashes", {}).items())]
     component_evidence_rows = [[x.get("scope"), x.get("target_derivation", {}).get("source_evidence")] for x in component_metrics]
     policy_identity_rows = [
@@ -123,6 +132,7 @@ def render(contract, contract_hash):
         ["有序距离政策", ordered_distance_policy.get("policy_id"), ordered_distance_policy.get("version"), "自然次数按线性距离；回报、奖值和倍率按固定长尾尺度"],
         ["评分组权重政策", score_group_policy.get("policy_id"), score_group_policy.get("version"), "按活动体验语义组的基础预算归一化"],
         ["样本能力政策", sample_capability_policy.get("policy_id"), sample_capability_policy.get("version"), "原版与FORMAL逐指标、逐条件组达到统一置信要求"],
+        ["自动豁免政策", automatic_waiver_policy.get("policy_id"), automatic_waiver_policy.get("version"), "只自动处理纯样本不足和有密封证明的结构不可达"],
     ]
     policy_source_rows = [
         ["硬指标容差政策", policy.get("source_path"), policy.get("source_sha256")],
@@ -130,6 +140,7 @@ def render(contract, contract_hash):
         ["有序距离政策", ordered_distance_policy.get("source_path"), ordered_distance_policy.get("source_sha256")],
         ["评分组权重政策", score_group_policy.get("source_path"), score_group_policy.get("source_sha256")],
         ["样本能力政策", sample_capability_policy.get("source_path"), sample_capability_policy.get("source_sha256")],
+        ["自动豁免政策", automatic_waiver_policy.get("source_path"), automatic_waiver_policy.get("source_sha256")],
     ]
     lines = [
         "# 阶段2-指标匹配报告", "",
@@ -138,7 +149,7 @@ def render(contract, contract_hash):
             ["任务ID", contract.get("task_id"), "与阶段1一致"], ["游戏 / 模式 / RTP组", f"{scope.get('game_code', '')} / {scope.get('mode', '')} / {scope.get('rtp_group', '')}", "作用域唯一"],
             ["合同状态", contract.get("status"), "已完成"], ["玩法覆盖率", coverage.get("mechanic_coverage"), "100%"], ["指标可测率", coverage.get("metric_measurability"), "100%"],
             ["硬指标 / 评分指标 / 审计指标", f"{len(hard)} / {len(scores)} / {len(audits)}", "全部适用项已实例化"], ["必需缺口", len(gaps), "0"], ["多Owner冲突", len(conflicts), "0"],
-            ["豁免", len(waivers), "必须有用户批准和绑定hash"], ["阶段3准入", "允许" if ready else "禁止", "合同完整且无阻塞"],
+            ["豁免", len(waivers), "用户单次批准或预授权自动政策，并保留完整证据"], ["阶段3准入", "允许" if ready else "禁止", "合同完整且无阻塞"],
         ]), "",
         "## 二、上游画像与目录版本绑定", "", table(["对象", "版本/值", "用途"], [
             ["玩法语义目录", contract.get("catalogs", {}).get("mechanics_version"), "确定mechanic_id语义"],
@@ -155,9 +166,10 @@ def render(contract, contract_hash):
         table(["政策项", "值", "要求"], [["映射方法", component_policy.get("method"), "original_component_share_mapped_to_authoritative_total_rtp"], ["允许原版绝对RTP作目标", component_policy.get("original_absolute_rtp_as_target"), "必须为false"], ["占比合计目标", component_policy.get("share_sum_target"), "1.0"]]), "",
         "## 六、控制关系与结构可达性", "", table(["控制簇", "独立性/耦合", "可达性状态", "预算扩张"], cluster_summary_rows), "", table(["控制簇", "参数项", "授权参数"], cluster_parameter_rows), "", table(["控制簇", "指标项", "受影响指标"], cluster_metric_rows), "", table(["控制簇", "证据项", "证据"], cluster_evidence_rows), "",
         "## 七、指标缺口与扩展提案", "", table(["缺口ID", "玩法节点", "缺失能力", "批准状态", "停止原因"], gap_summary_rows), "", table(["缺口ID", "指标项", "影响指标"], gap_metric_rows), "", table(["缺口ID", "提案路径"], gap_path_rows), "",
-        "## 八、豁免与多Owner审查", "", table(["指标/节点", "类型", "原因", "Owner", "批准状态", "审计保留"], review_summary_rows), "", table(["指标/节点", "批准/处理项", "内容"], approval_rows), "", table(["指标/节点", "绑定对象", "SHA-256"], bound_hash_rows), "",
+        "## 八、豁免与多Owner审查", "", table(["指标实例/节点", "类型", "原因码", "原因", "授权来源", "批准状态", "审计保留"], review_summary_rows), "", table(["指标实例/节点", "批准/处理项", "内容"], approval_rows), "", table(["指标实例/节点", "绑定对象", "SHA-256"], bound_hash_rows), "",
         "## 九、合同密封、Hash与复算", "", table(["对象", "Schema/版本", "SHA-256", "密封时间/状态"], [
             ["metric_contract.json", contract.get("schema_version"), contract_hash, contract.get("sealed_at")], ["硬指标容差政策", policy.get("version"), policy.get("source_sha256"), policy.get("policy_id")], ["Jackpot物质性政策", jackpot_policy.get("version"), jackpot_policy.get("source_sha256"), jackpot_policy.get("policy_id")], ["有序距离政策", ordered_distance_policy.get("version"), ordered_distance_policy.get("source_sha256"), ordered_distance_policy.get("policy_id")], ["评分组权重政策", score_group_policy.get("version"), score_group_policy.get("source_sha256"), score_group_policy.get("policy_id")], ["样本能力政策", sample_capability_policy.get("version"), sample_capability_policy.get("source_sha256"), sample_capability_policy.get("policy_id")],
+            ["自动豁免政策", automatic_waiver_policy.get("version"), automatic_waiver_policy.get("source_sha256"), automatic_waiver_policy.get("policy_id")],
             ["玩法目录", contract.get("catalogs", {}).get("mechanics_version"), contract.get("catalogs", {}).get("hashes", {}).get("mechanics"), "已绑定"], ["指标目录", contract.get("catalogs", {}).get("metrics_version"), contract.get("catalogs", {}).get("hashes", {}).get("metrics"), "已绑定"],
         ]), "", table(["Jackpot封存项", "值"], [["命中率物质性阈值", ratio_with_machine_value(jackpot_policy.get("hit_rate_threshold"))], ["组件RTP物质性阈值", percentage_points_with_machine_value(jackpot_policy.get("component_rtp_tolerance_threshold"))], ["分类冻结规则", "候选前按原版暴露冻结；候选不得重新分类"], ["分类SHA-256", jackpot_policy.get("classifications_sha256")], ["source_path", jackpot_policy.get("source_path")], ["source_sha256", jackpot_policy.get("source_sha256")]]), "", "```bash", "<python_bin> <skill_root>/scripts/render_metric_matching_report.py --contract <artifacts/02-metric-matching/metric_contract.json> --output <report_dir>/阶段2-指标匹配报告.md", "```", "",
         "## 十、阶段3准入结论", "", table(["条件", "当前值", "通过标准", "结论"], [
@@ -175,7 +187,7 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
-        contract = apply_metric_display_metadata(load(args.contract), load(args.display_metadata) if args.display_metadata else None)
+        contract = apply_metric_display_metadata(load_contract(args.contract), load(args.display_metadata) if args.display_metadata else None)
         text = render(contract, sha(args.contract))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text, encoding="utf-8")

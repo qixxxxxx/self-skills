@@ -1,9 +1,17 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "slot-alignment.metric-extension-proposal.v1",
   "task_id": "",
-  "status": "待用户批准",
+  "status": "待用户决定",
+  "decision_window": "preflight",
+  "blocks_stage_execution": true,
+  "blocks_formal_execution": true,
   "gaps": [],
-  "proposed_packages": [],
+  "required_deliverables": [
+    "更新玩法语义目录（存在未知玩法时）",
+    "更新指标包与唯一Owner",
+    "更新测量合同与Python统计能力",
+    "通过目录、Schema、Owner和正反例校验",
+    "由用户重新认证最终Python脚本hash"
+  ],
   "approval": {"status": "待确认", "user_decision": "", "decided_at": ""}
 }
-

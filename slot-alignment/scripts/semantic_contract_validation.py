@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 
+from contract_io import load_contract, load_json_strict
 from apply_ordered_distance_policy import validate_policy_source_binding as validate_ordered_distance_policy_binding
 from apply_score_group_weight_policy import validate_policy_source_binding as validate_score_group_weight_policy_binding
 from apply_jackpot_materiality_policy import validate_policy_source_binding as validate_jackpot_materiality_policy_binding
@@ -210,7 +211,7 @@ FEATURE_RESOURCE_SOURCE_METRICS = {
 }
 VALIDATION_MODES = {"stage_transition", "historical_replay"}
 LEGACY_REPORT_VERSIONS = {f"slot-alignment.reports.v2.{minor}" for minor in range(5, 10)}
-CURRENT_REPORT_VERSION = "slot-alignment.reports.v3.2"
+CURRENT_REPORT_VERSION = "slot-alignment.reports.v3.3"
 AUDIT_TARGET_STATUSES = {"符合", "不符合", "无法证明", "有证据不适用", "置信不足"}
 CATALOG_IMMUTABLE_FIELDS = (
     "name_zh",
@@ -270,6 +271,20 @@ def safe_evidence_path(root, relative):
 
 def sealed_event_count(path, sample_unit=None, dimensions=None):
     data = load(path)
+    if isinstance(data, dict) and data.get("representation") == "counted_semantic_universe_index":
+        count = data.get("event_count")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+            raise ValueError("计数型密封事件集event_count必须为正整数")
+        if sample_unit is not None and data.get("sample_unit") != sample_unit:
+            raise ValueError("计数型密封事件集sample_unit与scope_instance不一致")
+        dimensions = dimensions or {}
+        if data.get("dimensions") != dimensions:
+            raise ValueError("计数型密封事件集dimensions与scope_instance不一致")
+        if not non_empty(data.get("semantic_event_set_id")) or not non_empty(data.get("event_id_pattern")):
+            raise ValueError("计数型密封事件集缺少事件集ID或事件ID模式")
+        if not is_sha256(data.get("source_set_sha256")):
+            raise ValueError("计数型密封事件集缺少原始事件源hash")
+        return count
     if isinstance(data, list):
         events = data
     elif isinstance(data, dict) and isinstance(data.get("events"), list):
@@ -3462,7 +3477,7 @@ def required_core_component_ids(active_nodes):
     return components
 
 
-def expected_metrics(active_nodes, scope_instances, package_ids, catalog, errors):
+def expected_metrics(active_nodes, scope_instances, package_ids, catalog, errors, gap_sink=None):
     expected, package_metrics, expected_bindings = set(), {}, {}
     active_node_map = {node["node_id"]: node for node in active_nodes}
 
@@ -3519,6 +3534,22 @@ def expected_metrics(active_nodes, scope_instances, package_ids, catalog, errors
         package = catalog["metric_packages"].get(package_id)
         if package is None:
             errors.append(f"玩法要求引用未知指标包: {package_id}")
+            if gap_sink is not None:
+                sources = [
+                    node for node in active_nodes
+                    if package_id in catalog["mechanics"][node["mechanic_id"]].get("metric_requirements", {}).get("required_packages", [])
+                ]
+                gap_sink.append({
+                    "gap_id": f"metric-gap-{len(gap_sink) + 1:03d}",
+                    "gap_type": "unknown_required_package",
+                    "package_id": package_id,
+                    "mechanic_ids": sorted({node["mechanic_id"] for node in sources}),
+                    "source_node_ids": sorted({node["node_id"] for node in sources}),
+                    "reason": "玩法画像要求的指标包不存在于当前指标库",
+                    "proposed_action": "开工前扩展指标库并完成目录、Schema、Owner和测量合同校验",
+                    "extension_targets": ["metric_library", "measurement_contract", "report_display"],
+                    "decision_status": "待用户决定",
+                })
             continue
         matched = []
         for metric in package.get("metrics", []):
@@ -3618,6 +3649,22 @@ def expected_metrics(active_nodes, scope_instances, package_ids, catalog, errors
         ]
         if package_id != "core.general" and not effective:
             errors.append(f"必需指标包没有命中有效承接指标: {package_id}")
+            if gap_sink is not None:
+                sources = [
+                    node for node in active_nodes
+                    if package_id in catalog["mechanics"][node["mechanic_id"]].get("metric_requirements", {}).get("required_packages", [])
+                ]
+                gap_sink.append({
+                    "gap_id": f"metric-gap-{len(gap_sink) + 1:03d}",
+                    "gap_type": "no_effective_metric_owner",
+                    "package_id": package_id,
+                    "mechanic_ids": sorted({node["mechanic_id"] for node in sources}),
+                    "source_node_ids": sorted({node["node_id"] for node in sources}),
+                    "reason": "指标包存在，但没有命中Primary、Guard或阻塞型Audit承接当前玩法画像",
+                    "proposed_action": "开工前补充或调整指标Owner与画像匹配条件，并完成防重复校验",
+                    "extension_targets": ["metric_library", "measurement_contract", "report_display"],
+                    "decision_status": "待用户决定",
+                })
     return expected, package_metrics, expected_bindings
 
 
@@ -3938,7 +3985,7 @@ def validate_metric_target(item):
         weights = profile.get("group_weights")
         if not isinstance(weights, dict) or set(weights) != set(groups) or any(not finite_number(value) or value <= 0 for value in weights.values()) or abs(sum(weights.values()) - 1.0) > 1e-6:
             errors.append(f"{label}的group_weights必须覆盖全部组并归一化")
-        if method == "grouped_wasserstein_1d":
+        if method == "grouped_wasserstein_1d" and profile.get("reachable_support_status") != "all_degenerate":
             positions = profile.get("bin_positions_by_group")
             if not isinstance(positions, dict) or set(positions) != set(groups):
                 errors.append(f"{label}缺少完整bin_positions_by_group")
@@ -4951,8 +4998,8 @@ def validate_feature_return_zero_bucket(item, active_nodes=None):
             if bucket == "0x":
                 if lower != 0 or upper != 0 or position != 0:
                     errors.append(f"Feature路径0x桶必须精确绑定[0,0]: {group}")
-            elif lower <= 0 or upper is not None and upper <= lower:
-                errors.append(f"Feature路径正回报桶下界必须大于0且上界必须大于下界: {group} / {bucket}")
+            elif lower < 0 or upper is not None and upper <= lower:
+                errors.append(f"Feature路径正回报桶下界不得小于0且上界必须大于下界: {group} / {bucket}")
             if (upper is not None and not lower <= position <= upper) or (upper is None and position < lower):
                 errors.append(f"Feature路径回报桶代表位置必须落在边界内: {group} / {bucket}")
             if previous_upper is not None and lower < previous_upper:
@@ -5231,25 +5278,39 @@ def validate_derived_diagnostic_projection(item, items_by_key, active_nodes):
     ]
     if len(nodes) != 1:
         return ["可变网格容量派生必须唯一绑定一个可变网格节点"]
+    board_node_id = nodes[0].get("node_id")
     bindings = nodes[0].get("attributes", {}).get("layout_capacity_projection_bindings", [])
     candidates = []
     for binding in bindings if isinstance(bindings, list) else []:
         source_id = binding.get("source_metric_id") if isinstance(binding, dict) else None
-        source = items_by_key.get(same_metric_instance_key(item, source_id)) if source_id else None
-        if isinstance(source, dict) and source.get("status") != INACTIVE_METRIC_STATUS:
-            candidates.append((binding, source))
+        sources = [
+            source
+            for source in items_by_key.values()
+            if isinstance(source, dict)
+            and source.get("metric_id") == source_id
+            and source.get("status") != INACTIVE_METRIC_STATUS
+            and source.get("instance_dimensions") == item.get("instance_dimensions")
+            and board_node_id in source.get("source_node_ids", [])
+        ]
+        candidates.extend((binding, source) for source in sources)
     if len(candidates) != 1:
         return ["可变网格容量派生必须命中唯一活动几何Owner及其投影绑定"]
     binding, source = candidates[0]
     source_distribution = labeled_distribution(source)
     mapping = binding.get("source_layout_to_capacity")
-    if not isinstance(source_distribution, dict) or not isinstance(mapping, dict) or set(mapping) != set(source_distribution):
-        return ["可变网格容量投影映射未完整且仅覆盖活动布局Owner支持"]
+    if not isinstance(source_distribution, dict) or not isinstance(mapping, dict) or not set(source_distribution) <= set(mapping):
+        return ["可变网格容量投影映射未完整覆盖活动布局Owner支持"]
     projected = {}
     for label, probability in source_distribution.items():
         capacity = float(mapping[label])
         projected[capacity] = projected.get(capacity, 0.0) + probability
-    actual = distribution_positions(item)
+    actual_labels = labeled_distribution(item)
+    actual = None
+    if isinstance(actual_labels, dict):
+        try:
+            actual = {float(label): probability for label, probability in actual_labels.items()}
+        except (TypeError, ValueError):
+            actual = None
     if not isinstance(actual, dict) or set(actual) != set(projected) or any(
         not close_probability(actual[capacity], projected[capacity]) for capacity in projected
     ):
@@ -6194,16 +6255,32 @@ def validate_cascade_capacity_contract(item, items_by_key):
         }
     capacity_weights = capacity.get("score_profile", {}).get("group_weights")
     if capacity_groups:
-        active_exposure_total = sum(exposure[layer] for layer in capacity_depths)
-        expected_capacity_weights = {
-            group: exposure[int(single_numeric_token(group))] / active_exposure_total
-            for group in capacity_groups
-            if single_numeric_token(group) is not None and int(single_numeric_token(group)) in capacity_depths
-        }
+        binding = capacity.get("conditional_group_weight_binding")
+        raw_exposure = binding.get("token_multipliers") if isinstance(binding, dict) else None
+        expected_capacity_weights = normalized_weights(raw_exposure) if isinstance(raw_exposure, dict) else {}
         if not isinstance(capacity_weights, dict) or set(capacity_weights) != set(expected_capacity_weights):
             errors.append("Cascade容量group_weights未覆盖全部且仅覆盖非退化深度组")
         elif any(not close_probability(capacity_weights[group], expected) for group, expected in expected_capacity_weights.items()):
-            errors.append("Cascade容量group_weights未由原版深度暴露概率确定性生成")
+            errors.append("Cascade容量group_weights未由密封原版逐层步骤暴露确定性生成")
+        depth_sample_count = depth.get("sample_capability_input", {}).get("original_sample_count")
+        tail_layers = {
+            int(single_numeric_token(label))
+            for label in depth.get("target", {})
+            if "以上" in label and single_numeric_token(label) is not None
+        }
+        if finite_number(depth_sample_count) and depth_sample_count > 0 and isinstance(raw_exposure, dict):
+            raw_by_layer = {
+                int(single_numeric_token(group)): count
+                for group, count in raw_exposure.items()
+                if single_numeric_token(group) is not None
+            }
+            for layer in capacity_depths:
+                expected_count = round(exposure[layer] * depth_sample_count)
+                actual_count = raw_by_layer.get(layer)
+                if actual_count is None or (layer in tail_layers and actual_count < expected_count) or (
+                    layer not in tail_layers and actual_count != expected_count
+                ):
+                    errors.append(f"Cascade容量第{layer}层步骤暴露与终态深度目标不一致")
     elif capacity.get("status") != INACTIVE_METRIC_STATUS:
         errors.append("Cascade容量没有活动条件组时必须按退化支持标记不适用")
 
@@ -6230,8 +6307,16 @@ def validate_cascade_capacity_contract(item, items_by_key):
             if labels != expected_labels:
                 errors.append(f"Cascade层回报容量支持集与容量Owner不一致: 第{layer}层")
                 continue
+            capacity_group = next(
+                group for group in capacity_groups
+                if int(single_numeric_token(group)) == layer
+            )
+            layer_weight = capacity_weights.get(capacity_group) if isinstance(capacity_weights, dict) else None
+            if not finite_number(layer_weight) or layer_weight <= 0:
+                errors.append(f"Cascade层回报缺少第{layer}层密封步骤暴露权重")
+                continue
             for label, probability in capacity_depths[layer].items():
-                expected_step_weights[(layer, label)] = q_layer * probability
+                expected_step_weights[(layer, label)] = layer_weight * probability
         else:
             if len(labels) != 1:
                 errors.append(f"Cascade容量Owner缺少非退化层条件边际: 第{layer}层")
@@ -7199,6 +7284,34 @@ def sealed_scope_events(scope, evidence_root, label, errors, identity_field="set
     return dict(zip(identities, events))
 
 
+def counted_scope_index(scope, evidence_root, label, errors):
+    """读取不可变计数型事件宇宙；仅用于无需展开逐事件字段的完整同集证明。"""
+    path = safe_evidence_path(evidence_root, scope.get("event_set_path")) if isinstance(scope, dict) else None
+    if path is None or not path.is_file():
+        return None
+    try:
+        data = load(path)
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("representation") != "counted_semantic_universe_index":
+        return None
+    if not is_sha256(scope.get("event_set_sha256")) or sha(path) != scope.get("event_set_sha256"):
+        errors.append(f"{label}密封事件集hash失效")
+        return None
+    try:
+        count = sealed_event_count(path, scope.get("sample_unit"), scope.get("dimensions"))
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        errors.append(f"{label}计数型密封事件集格式无效: {exc}")
+        return None
+    if count != scope.get("event_count"):
+        errors.append(f"{label}密封事件数与声明不一致")
+        return None
+    if data.get("semantic_event_set_id") != scope.get("semantic_event_set_id"):
+        errors.append(f"{label}计数型密封事件集ID与scope_instance不一致")
+        return None
+    return data
+
+
 def step_return_owner_metric_id(event, active_node_map, label, errors):
     source_ids = event.get("source_node_ids") if isinstance(event, dict) else None
     if (
@@ -7313,6 +7426,70 @@ def validate_step_return_owner_partitions(
             profile_partition.get("universe_scope_instance_id"),
             f"步骤回报父全集{partition_id}",
         )
+        compact_universe = counted_scope_index(
+            universe_scope,
+            evidence_root,
+            f"步骤回报父全集{partition_id}",
+            errors,
+        ) if universe_scope else None
+        if compact_universe is not None:
+            owner_bindings = contract_partition.get("owner_bindings")
+            if not isinstance(owner_bindings, list) or len(owner_bindings) != 1:
+                errors.append(f"计数型步骤回报父全集必须恰有一个完整同集Owner: {partition_id}")
+                continue
+            binding = owner_bindings[0]
+            reference = binding.get("metric_instance") if isinstance(binding, dict) else None
+            if not isinstance(reference, dict):
+                errors.append(f"步骤回报Owner绑定缺少metric_instance: {partition_id}/1")
+                continue
+            key = metric_instance_key(reference)
+            active_item = active_owners.get(key)
+            if active_item is None:
+                errors.append(f"步骤回报Owner绑定未命中活动指标实例: {format_instance(key)}")
+                continue
+            binding_counts[key] += 1
+            subset_scope = exact_scope(
+                binding.get("subset_scope_instance_id"),
+                f"步骤回报Owner子集{partition_id}/{format_instance(key)}",
+            )
+            if subset_scope is None:
+                continue
+            compact_subset = counted_scope_index(
+                subset_scope,
+                evidence_root,
+                f"步骤回报Owner子集{partition_id}/{format_instance(key)}",
+                errors,
+            )
+            if compact_subset is None:
+                errors.append(f"计数型步骤回报Owner子集缺少同类密封索引: {partition_id}/{format_instance(key)}")
+                continue
+            if any(
+                universe_scope.get(field) != subset_scope.get(field)
+                for field in ("event_set_path", "event_set_sha256", "event_count")
+            ):
+                errors.append(f"计数型步骤回报Owner子集必须与父全集为完整同集: {partition_id}/{format_instance(key)}")
+            if any(
+                active_item.get(metric_field) != subset_scope.get(scope_field)
+                for metric_field, scope_field in (
+                    ("sealed_event_set_id", "semantic_event_set_id"),
+                    ("sealed_event_set_path", "event_set_path"),
+                    ("sealed_event_set_sha256", "event_set_sha256"),
+                    ("sealed_event_count", "event_count"),
+                )
+            ):
+                errors.append(f"步骤回报Owner指标实例与子集密封事件集不一致: {format_instance(key)}")
+            expected_owner = step_return_owner_metric_id(
+                compact_universe,
+                active_node_map,
+                f"步骤回报父全集{partition_id}",
+                errors,
+            )
+            if expected_owner is not None and expected_owner != key[0]:
+                errors.append(f"步骤回报Owner优先级复算不一致: {partition_id} / 期望{expected_owner} / 实际{key[0]}")
+            event_dimensions = compact_universe.get("dimensions")
+            if not isinstance(event_dimensions, dict) or any(event_dimensions.get(name) != value for name, value in key[2]):
+                errors.append(f"步骤回报Owner实例维度与父事件不一致: {partition_id} / {format_instance(key)}")
+            continue
         universe_events = scope_events(universe_scope, f"步骤回报父全集{partition_id}") if universe_scope else {}
         expected_owner_by_event = {
             step_id: step_return_owner_metric_id(
@@ -7471,6 +7648,11 @@ def validate_active_owner_conflicts(items, catalog, active_nodes):
         exclusive.update(next(iter(pair - {left_id})) for pair in EXCLUSIVE_METRIC_PAIRS if left_id in pair)
         for right in active[index + 1:]:
             right_id = right.get("metric_id")
+            if left_id in STEP_RETURN_OWNER_PRIORITY and right_id in STEP_RETURN_OWNER_PRIORITY:
+                left_event_set = left.get("sealed_event_set_id")
+                right_event_set = right.get("sealed_event_set_id")
+                if non_empty(left_event_set) and non_empty(right_event_set) and left_event_set != right_event_set:
+                    continue
             if right_id in exclusive and overlaps(left, right):
                 errors.append(f"同一语义作用域存在互斥评分Owner: {format_instance(metric_instance_key(left))},{format_instance(metric_instance_key(right))}")
     return errors
@@ -7488,7 +7670,10 @@ def validate_new_task_identity(profile, contract, input_manifest, authority):
     if len(task_ids) != len(documents) or any(not non_empty(value) for value in task_ids.values()) or len(set(task_ids.values())) != 1:
         errors.append("新任务四份阶段1/2文件task_id缺失或不一致")
     for name, value in documents.items():
-        if not isinstance(value, dict) or value.get("status") != COMPLETE_STATUS:
+        allowed = {COMPLETE_STATUS}
+        if name == "metric_contract" and isinstance(value, dict) and value.get("sample_capability_policy", {}).get("status") == "阻塞":
+            allowed.add("阻塞")
+        if not isinstance(value, dict) or value.get("status") not in allowed:
             errors.append(f"新任务完成态无效: {name}={value.get('status') if isinstance(value, dict) else '非对象'}")
     scopes = {
         name: value.get("scope") if isinstance(value, dict) and isinstance(value.get("scope"), dict) else {}
@@ -7523,7 +7708,9 @@ def validate_contract(
     if validation_mode not in VALIDATION_MODES:
         return [f"未知语义校验模式: {validation_mode}"]
     profile_path, contract_path, skill_root = map(Path, (profile_path, contract_path, skill_root))
-    profile, contract = load(profile_path), load(contract_path)
+    profile = load(profile_path)
+    contract = load_contract(contract_path, skill_root)
+    raw_contract = load_json_strict(contract_path) if contract.get("schema_version") == "1.4" else contract
     manifest_path = Path(input_manifest_path) if input_manifest_path is not None else None
     input_manifest = load(manifest_path) if manifest_path is not None and manifest_path.is_file() else {}
     authority_path = Path(parameter_authority_path) if parameter_authority_path is not None else None
@@ -7544,8 +7731,8 @@ def validate_contract(
     catalog_errors, _, _ = validate_catalogs(skill_root)
     errors += [f"目录校验失败: {error}" for error in catalog_errors]
     schema_pair = profile.get("schema_version"), contract.get("schema_version")
-    if schema_pair != ("1.2", "1.3"):
-        errors.append("新任务必须成对使用game_profile.schema_version=1.2与metric_contract.schema_version=1.3")
+    if schema_pair not in {("1.2", "1.3"), ("1.2", "1.4")}:
+        errors.append("新任务必须使用game_profile.schema_version=1.2与metric_contract.schema_version=1.3或1.4")
     report_versions = {
         "game_profile": profile.get("report_contract_version"),
         "metric_contract": contract.get("report_contract_version"),
@@ -7556,8 +7743,9 @@ def validate_contract(
             errors.append(f"新任务{label}必须使用{CURRENT_REPORT_VERSION}")
     errors += validate_new_task_identity(profile, contract, input_manifest, authority)
     errors += validate_schema(profile, skill_root / "assets/schemas/game-profile.schema.json", "game_profile")
-    errors += validate_schema(contract, skill_root / "assets/schemas/metric-contract.schema.json", "metric_contract")
-    if contract.get("schema_version") == "1.3":
+    contract_schema = "metric-contract-compact.schema.json" if contract.get("schema_version") == "1.4" else "metric-contract.schema.json"
+    errors += validate_schema(raw_contract, skill_root / "assets/schemas" / contract_schema, "metric_contract")
+    if contract.get("schema_version") in {"1.3", "1.4"}:
         errors += validate_jackpot_materiality_policy_binding(contract, profile, skill_root)
     errors += validate_score_group_weight_policy_binding(contract, skill_root)
     errors += validate_ordered_distance_policy_binding(contract, skill_root)
@@ -7748,6 +7936,7 @@ def validate_contract(
                 item_errors += validate_inapplicability(item, active_nodes, resolved_fact_items_by_key, catalog, evidence_root, input_manifest)
             if not item_errors:
                 resolved_instances.add(key)
+                measurable_instances.add(key)
         elif item.get("status") in {"缺口", "不可测", "缺失", "无效"} or not non_empty(item.get("target")):
             item_errors.append(f"适用指标缺少有效目标或可测状态: {format_instance(key)}")
         else:

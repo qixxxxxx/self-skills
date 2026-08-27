@@ -8,6 +8,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from contract_io import load_contract
+from apply_automatic_waiver_policy import validate_automatic_waiver_binding
 from apply_ordered_distance_policy import validate_policy_source_binding as validate_ordered_distance_policy_binding
 from apply_score_group_weight_policy import validate_policy_source_binding as validate_score_group_weight_policy_binding
 from render_alignment_report import render as render_stage4
@@ -15,7 +17,7 @@ from render_delivery_report import render as render_stage5
 from render_input_profile_report import render as render_stage1
 from render_metric_matching_report import render as render_stage2
 from render_scoring_report import render as render_stage3
-from report_common import TEMPLATE_PATHS, validate_report_against_template, validate_server_flow_policy, validate_templates
+from report_common import TEMPLATE_PATHS, validate_execution_qualification, validate_report_against_template, validate_templates
 from score_alignment import sample_capability_summary, schema_is, validate_formal_sample_capability, validate_sample_capability_binding
 from semantic_contract_validation import validate_contract as validate_semantic_contract
 from workspace_paths import REPORT_FILES, REPORT_VERSION_PATTERN, RUNTIME_FILES, latest_report_dir, report_path as workspace_report_path, resolve_manifest_path, task_root
@@ -211,6 +213,17 @@ def validate_attainability_ceiling(root):
 
 def required_stage14(root):
     required = list(REQUIRED_STAGE14)
+    contract_path = root / "02-metric-matching/metric_contract.json"
+    if contract_path.is_file():
+        try:
+            raw_contract = load(contract_path)
+            if raw_contract.get("schema_version") == "1.4":
+                for declaration in raw_contract.get("external_data", []):
+                    relative = declaration.get("path") if isinstance(declaration, dict) else None
+                    if isinstance(relative, str) and relative:
+                        required.append(f"02-metric-matching/{relative}")
+        except (OSError, json.JSONDecodeError):
+            pass
     manifest_path = root / "04-alignment/alignment_manifest.json"
     if manifest_path.is_file():
         try:
@@ -218,7 +231,7 @@ def required_stage14(root):
                 required.append(STAGE3_GATE_REL)
         except (OSError, json.JSONDecodeError):
             pass
-    return required
+    return list(dict.fromkeys(required))
 
 
 def validate_stage3_gate(root):
@@ -294,8 +307,8 @@ def validate(root, require_delivery=True, reports=None, validation_mode="stage_t
                 errors.append(f"JSON无效 {rel}: {exc}")
     if len(task_ids) > 1:
         errors.append(f"task_id不一致: {sorted(task_ids)}")
-    if validation_mode == "stage_transition" and report_versions != {"slot-alignment.reports.v3.2"}:
-        errors.append(f"新任务全部阶段机器产物必须统一使用slot-alignment.reports.v3.2: {sorted(report_versions)}")
+    if validation_mode == "stage_transition" and report_versions != {"slot-alignment.reports.v3.3"}:
+        errors.append(f"新任务全部阶段机器产物必须统一使用slot-alignment.reports.v3.3: {sorted(report_versions)}")
     required_reports = range(1, 6 if require_delivery else 5)
     for stage in required_reports:
         path = workspace_report_path(reports, stage)
@@ -314,7 +327,9 @@ def validate(root, require_delivery=True, reports=None, validation_mode="stage_t
             errors.append("阶段1报告不是当前机器JSON的确定性完整输出")
     contract_path = root / "02-metric-matching/metric_contract.json"
     if contract_path.is_file():
-        contract = load(contract_path)
+        contract = load_contract(contract_path)
+        if validation_mode == "stage_transition" and contract.get("schema_version") != "1.4":
+            errors.append("新任务固定产物必须使用metric_contract 1.4")
         game_profile_path = root / "01-input-profile/game_profile.json"
         parameter_authority_path = root / "01-input-profile/parameter_authority.json"
         if game_profile_path.is_file() and parameter_authority_path.is_file():
@@ -328,6 +343,7 @@ def validate(root, require_delivery=True, reports=None, validation_mode="stage_t
                 task_root(root),
             )
         errors += validate_sample_capability_binding(contract, skill_root)
+        errors += validate_automatic_waiver_binding(contract, skill_root)
         errors += validate_tolerance_policy(contract)
         errors += validate_score_group_weight_policy(contract, skill_root)
         errors += validate_ordered_distance_policy(contract, skill_root)
@@ -344,10 +360,10 @@ def validate(root, require_delivery=True, reports=None, validation_mode="stage_t
     stage3_report_path = workspace_report_path(reports, 3)
     if score_path.is_file() and contract_path.is_file() and stage3_report_path.is_file():
         score = load(score_path)
-        contract = load(contract_path)
-        if schema_is(contract, "1.3"):
+        contract = load_contract(contract_path)
+        if schema_is(contract, "1.3") or schema_is(contract, "1.4"):
             if score.get("schema_version") != "1.3":
-                errors.append("1.3指标合同必须生成1.3阶段3 scorecard")
+                errors.append("1.3或1.4指标合同必须生成1.3阶段3 scorecard")
             if score.get("sample_capability_policy") != sample_capability_summary(contract):
                 errors.append("阶段3 scorecard样本能力政策摘要与指标合同不一致")
         measurement_path = Path(score.get("source_paths", {}).get("measurements", ""))
@@ -355,7 +371,7 @@ def validate(root, require_delivery=True, reports=None, validation_mode="stage_t
             errors += validate_scorecard_recomputation(contract_path, measurement_path, score_path)
         actual = stage3_report_path.read_text(encoding="utf-8")
         errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[3]).read_text(encoding="utf-8"), 3)
-        if actual != render_stage3(load(contract_path), score, sha(contract_path), sha(score_path)):
+        if actual != render_stage3(load_contract(contract_path), score, sha(contract_path), sha(score_path)):
             errors.append("阶段3报告不是当前合同与scorecard的确定性完整输出")
     report_path = workspace_report_path(reports, 4)
     formal_path = root / "04-alignment/formal_result.json"
@@ -383,9 +399,9 @@ def validate(root, require_delivery=True, reports=None, validation_mode="stage_t
         if formal_scorecard.get("blocking_reasons"):
             errors.append("FORMAL内嵌scorecard仍有阻塞，禁止交付")
         if contract_path.is_file():
-            contract = load(contract_path)
+            contract = load_contract(contract_path)
             errors += validate_formal_sample_capability(contract, formal, skill_root)
-            if schema_is(contract, "1.3") and score_path.is_file():
+            if (schema_is(contract, "1.3") or schema_is(contract, "1.4")) and score_path.is_file():
                 score = load(score_path)
                 formal_policy = formal.get("scorecard", {}).get("sample_capability_policy")
                 if formal_policy != score.get("sample_capability_policy"):
@@ -393,9 +409,9 @@ def validate(root, require_delivery=True, reports=None, validation_mode="stage_t
         alignment_manifest_path = root / "04-alignment/alignment_manifest.json"
         candidate_archive_path = root / "04-alignment/candidate_archive.json"
         if input_manifest is not None and alignment_manifest_path.is_file() and candidate_archive_path.is_file():
-            errors += validate_server_flow_policy(input_manifest, load(alignment_manifest_path), load(candidate_archive_path), formal)
+            errors += validate_execution_qualification(input_manifest, load(alignment_manifest_path), load(candidate_archive_path), formal)
         elif input_manifest is not None:
-            errors += validate_server_flow_policy(input_manifest)
+            errors += validate_execution_qualification(input_manifest)
     manifest_path = root / "05-delivery/delivery_manifest.json"
     if require_delivery and manifest_path.is_file():
         delivery_manifest = load(manifest_path)
