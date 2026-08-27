@@ -4,12 +4,12 @@
   "task_id": "",
   "status": "未开始",
   "scope": {"game_code": "", "mode": "", "rtp_group": 1, "target_rtp": null},
-  "paths": {"workspace_root": "", "slot_docs_root": "", "runtime": "", "simulation_script": ""},
+  "paths": {"workspace_root": "", "slot_docs_root": "", "runtime": "", "certified_simulation_script": "", "simulation_script": ""},
   "evidence": [],
   "excluded_evidence": [],
   "source_samples": [],
   "component_rtp_shares": [],
-  "hashes": {},
+  "hashes": {"certified_simulation_script": "", "simulation_script": ""},
   "preflight_input_confirmation": {
     "status": "未开始",
     "decision_window": "preflight",
@@ -50,6 +50,7 @@
     "status": "未开始",
     "certified_execution_path": "python",
     "certification_method": "user_direct",
+    "execution_qualification_method": "user_direct",
     "user_certification": {
       "status": "未开始",
       "certified_by": "user",
@@ -58,6 +59,23 @@
       "evidence_sha256": "",
       "certified_script_sha256": "",
       "certified_scope": []
+    },
+    "script_equivalence": {
+      "status": "不适用",
+      "validation_method": "deterministic_same_seed_and_statistical",
+      "change_scope": "none",
+      "source_certified_script_sha256": "",
+      "execution_script_sha256": "",
+      "evidence_path": "",
+      "evidence_sha256": "",
+      "checks": {
+        "same_seed_bet_payout_state_match": true,
+        "rng_call_order_match": true,
+        "total_rtp_match": true,
+        "component_rtp_match": true,
+        "key_metric_match": true
+      },
+      "repair_attempts": []
     },
     "evidence": []
   },

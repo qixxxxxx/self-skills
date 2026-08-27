@@ -9,6 +9,8 @@
   "independent_from_calibration": false,
   "execution_path": "python",
   "user_script_certification_sha256": "",
+  "execution_script_sha256": "",
+  "script_equivalence_evidence_sha256": "",
   "sample": {"paid_entry_count": 0, "seed_set_hash": "", "metric_sample_counts": []},
   "scorecard": {
     "status": "阻塞",

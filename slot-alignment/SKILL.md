@@ -1,9 +1,9 @@
 ---
 name: slot-alignment
-description: 基于Slot原版采集协议、规则/规格、Runtime和用户直接认证的Python模拟脚本，建立玩法画像与版本化指标合同，执行开工前样本/脚本/指标覆盖确认、RTP与体验评分、受控CALIBRATION、独立FORMAL验收和五阶段中文交付。用于老虎机原版数值或体验对齐、盘面或中奖构成诊断、指标规划、参数搜索、候选验收、结构不可达与豁免审查，以及生成阶段1至阶段5固定产物。
+description: 基于Slot原版采集协议、规则/规格、Runtime和用户一次直接认证的原始Python模拟脚本，自动派生并等价校验观测/输出增强脚本，建立玩法画像与版本化指标合同，执行开工前样本/脚本/指标覆盖确认、RTP与体验评分、受控CALIBRATION、独立FORMAL验收和五阶段中文交付。用于老虎机原版数值或体验对齐、盘面或中奖构成诊断、指标规划、参数搜索、候选验收、结构不可达与豁免审查，以及生成阶段1至阶段5固定产物。
 ---
 
-# Slot 原版数值对齐 v4.0
+# Slot 原版数值对齐 v4.1
 
 ## 目标与硬边界
 
@@ -16,7 +16,7 @@ description: 基于Slot原版采集协议、规则/规格、Runtime和用户直�
 - 总RTP目标必须来自外部权威来源；Base、Feature和其他组件目标按原版贡献占比映射权威总RTP，原版组件绝对RTP只作诊断。
 - 候选出现前密封指标合同、评价合同、权重、样本计划、预算和FORMAL计划；不得看结果后放宽标准。
 - 机器JSON是权威事实。中文报告只能由确定性生成器产生，不得手工修改状态、分数、豁免或FORMAL结论。
-- Skill不负责服务端一致性认证；阶段1只接收用户对当前Python脚本及hash的直接认证。阶段2至5、CALIBRATION和FORMAL只能执行该已认证脚本。
+- Skill不负责服务端一致性认证；阶段1只接收用户对原始Python脚本及hash的一次直接认证。原始脚本只读；仅为补充观测或兼容输出生成的派生脚本，必须自动证明与原始脚本的RTP、RNG顺序、逐局投注/派奖和状态语义等价。阶段2至5、CALIBRATION和FORMAL只能执行原始认证脚本或通过该等价门禁的派生脚本。
 - 不执行配置同步、Git提交、热更新或发布，除非用户另行明确授权。
 
 ## 环境与最低输入
@@ -49,15 +49,15 @@ target_rtp
 4. 生成`metric_extension_proposal.json`，汇总未知玩法、缺少指标包、Owner缺口和观测能力缺口。
 5. 第一次合并确认同时向用户展示样本数、是否全量重算、脚本身份、目标、作用域、指标扩展和参数权限。
 
-用户确认现有统计时直接封存；用户要求重新统计时，必须处理`all_discovered_sources`中的全部已发现源，密封处理源数、最终有效入口数、结果路径和hash，再追加一次最终样本数确认。任何脚本修改都会使认证失效，扩展和观测适配完成后必须由用户重新认证最终脚本hash。
+用户确认现有统计时直接封存；用户要求重新统计时，必须处理`all_discovered_sources`中的全部已发现源，密封处理源数、最终有效入口数、结果路径和hash，再追加一次最终样本数确认。观测或输出适配不得修改原始认证脚本，应生成派生脚本并自动运行等价门禁；失败时读取差异、仅修正观测/输出实现并重复校验，不得要求用户重新认证。只有必须改变玩法、状态机、RNG或结算语义才能继续时才停止并报告实现阻塞。
 
 只有以下条件全部满足才正式开工：
 
 - `preflight_input_confirmation.status=通过`；
 - `preflight_decision_gate.status=通过`；
-- 用户确认最终有效样本数、脚本文件名、绝对路径和hash；
+- 用户确认最终有效样本数，以及原始认证脚本的文件名、绝对路径和hash；
 - 指标库缺口数为0，扩展决策为“无需扩展”或“已完成”；
-- 当前脚本已有有效用户直接认证。
+- 原始脚本已有有效用户直接认证；当前执行脚本为该原始脚本，或其派生脚本等价门禁已通过。
 
 详细门禁见[01-资料确认与玩法画像.md](references/01-资料确认与玩法画像.md)、[02-指标匹配.md](references/02-指标匹配.md)和[02A-可达性与豁免.md](references/02A-可达性与豁免.md)。
 
@@ -89,7 +89,7 @@ target_rtp
 
 | 阶段 | 必读规范 | 核心动作 | 固定结果 |
 |---|---|---|---|
-| 1. 资料确认与玩法画像 | [01](references/01-资料确认与玩法画像.md)、[92](references/92-命名与状态规范.md)、[玩法画像索引](references/玩法画像/index.json) | 密封输入、脚本认证、模式与付费配置、玩法画像和参数权限 | `artifacts/01-input-profile/`三份JSON及阶段1报告 |
+| 1. 资料确认与玩法画像 | [01](references/01-资料确认与玩法画像.md)、[92](references/92-命名与状态规范.md)、[玩法画像索引](references/玩法画像/index.json) | 密封输入、原始脚本一次认证、派生脚本等价资格、模式与付费配置、玩法画像和参数权限 | `artifacts/01-input-profile/`三份JSON及阶段1报告 |
 | 2. 指标匹配 | [02](references/02-指标匹配.md)、[02A](references/02A-可达性与豁免.md)、[03A](references/03A-指标评价合同.md)、[03B](references/03B-硬指标容差系数.md)、[指标索引](references/指标目录/index.json) | 编译实例、匹配Core/Atomic/Composite/Interaction、确定唯一Owner、生成目标、应用政策并紧凑化为1.4 | `artifacts/02-metric-matching/metric_contract.json`及阶段2报告 |
 | 3. 基线评分 | [03](references/03-评分系统.md)、[90](references/90-跨阶段一致性.md) | 先判硬指标，再计算0至100分和综合分，生成真实阶段3门禁 | `scorecard.json`、`stage3_gate.json`及阶段3报告 |
 | 4. 自动对齐与FORMAL | [04](references/04-自动对齐与正式验收.md)、[04A](references/04A-搜索效率与预算.md) | 读取通过的阶段3门禁，执行敏感性、CALIBRATION、候选冻结和独立FORMAL | `artifacts/04-alignment/`四份JSON及阶段4报告 |
@@ -102,6 +102,7 @@ target_rtp
 业务决策窗口固定为`preflight`和`final_report`。开工后加载`continuous_execution_policy.v1.json`连续推进，不为普通中间结果逐项询问：
 
 - 同一密封输入的临时错误自动重试2次；
+- 观测/输出派生脚本等价失败时自动读取差异、修正适配实现并重跑；不得转为用户重新认证请求；
 - 报告或可恢复缓存失效时自动重建；
 - 候选失败继续下一个候选；
 - FORMAL失败回CALIBRATION，最多尝试3个不同冻结候选；
@@ -162,7 +163,7 @@ target_rtp
 - 报告与当前机器JSON确定性等价，模板章节、字段和表头完整；
 - FORMAL Runtime与交付manifest逐文件一致，RTP Group和`meta.version`正确；
 - 完整`artifacts/`通过最终交付校验，历史版本和失败证据保留；
-- 阶段1用户直接认证绑定当前Python脚本hash，后续仅执行该脚本；
+- 阶段1用户直接认证绑定只读原始Python脚本hash；后续只执行该脚本或已绑定原始hash并通过自动等价门禁的派生脚本；
 - 用户样本确认和全量重算证据满足开工前门禁。
 
 FORMAL或交付前完整执行[95-验收检查清单.md](references/95-验收检查清单.md)。交付完成即结束，不追加服务端验证。

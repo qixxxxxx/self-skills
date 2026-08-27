@@ -37,6 +37,8 @@
     "stage1_server_flow_certification_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
     "server_flow_call_count": {"const": 0},
     "user_script_certification_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+    "execution_script_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+    "script_equivalence_evidence_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
     "sample": {
       "type": "object",
       "properties": {

@@ -445,16 +445,19 @@ def validate_preflight_input_confirmation(input_manifest):
     else:
         if script_confirmation.get("status") != "通过":
             errors.append("Python脚本身份确认未通过")
-        simulation_script = input_manifest.get("paths", {}).get("simulation_script", "")
-        script_path = Path(simulation_script) if isinstance(simulation_script, str) else Path()
-        script_sha = input_manifest.get("hashes", {}).get("simulation_script", "")
-        if not isinstance(simulation_script, str) or not script_path.is_absolute() or script_path.suffix != ".py":
+        paths = input_manifest.get("paths", {})
+        hashes = input_manifest.get("hashes", {})
+        certification = input_manifest.get("script_qualification", {}).get("user_certification", {})
+        certified_script = paths.get("certified_simulation_script") or paths.get("simulation_script", "")
+        certified_sha = hashes.get("certified_simulation_script") or certification.get("certified_script_sha256") or hashes.get("simulation_script", "")
+        script_path = Path(certified_script) if isinstance(certified_script, str) else Path()
+        if not isinstance(certified_script, str) or not script_path.is_absolute() or script_path.suffix != ".py":
             errors.append("确认的Python脚本路径必须是绝对.py路径")
         if script_confirmation.get("confirmed_name") != script_path.name:
             errors.append("确认的Python脚本文件名与执行路径不一致")
-        if script_confirmation.get("confirmed_path") != simulation_script:
+        if script_confirmation.get("confirmed_path") != certified_script:
             errors.append("确认的Python脚本绝对路径与执行路径不一致")
-        if not isinstance(script_sha, str) or len(script_sha) != 64 or script_confirmation.get("confirmed_sha256") != script_sha:
+        if not isinstance(certified_sha, str) or len(certified_sha) != 64 or script_confirmation.get("confirmed_sha256") != certified_sha:
             errors.append("确认的Python脚本hash与当前脚本不一致")
     return errors
 
@@ -520,8 +523,11 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
     errors = []
     qualification = input_manifest.get("script_qualification", {})
     certification = qualification.get("user_certification", {})
+    equivalence = qualification.get("script_equivalence", {})
     evidence_sha = certification.get("evidence_sha256", "")
-    script_sha = input_manifest.get("hashes", {}).get("simulation_script", "")
+    certified_script_sha = certification.get("certified_script_sha256", "")
+    hashes = input_manifest.get("hashes", {})
+    script_sha = hashes.get("simulation_script", "")
     if qualification.get("status") != "通过":
         errors.append("阶段1模拟脚本资格未通过")
     if qualification.get("certified_execution_path") != "python":
@@ -532,11 +538,47 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
         errors.append("缺少有效的用户直接认证")
     if not certification.get("evidence_path") or len(evidence_sha) != 64:
         errors.append("用户直接认证证据hash无效")
-    if len(script_sha) != 64 or certification.get("certified_script_sha256") != script_sha:
-        errors.append("用户直接认证未绑定当前Python脚本hash")
+    if not isinstance(certified_script_sha, str) or len(certified_script_sha) != 64:
+        errors.append("用户直接认证未绑定有效原始Python脚本hash")
+    manifest_certified_sha = hashes.get("certified_simulation_script")
+    if manifest_certified_sha not in {None, "", certified_script_sha}:
+        errors.append("input_manifest原始脚本hash与用户认证不一致")
+    if not isinstance(script_sha, str) or len(script_sha) != 64:
+        errors.append("当前执行Python脚本hash无效")
     simulation_script = input_manifest.get("paths", {}).get("simulation_script", "")
     if not isinstance(simulation_script, str) or not simulation_script.endswith(".py"):
         errors.append("模拟脚本必须是.py文件")
+    derived = certified_script_sha != script_sha
+    method = qualification.get("execution_qualification_method")
+    if derived:
+        if method != "derived_equivalence":
+            errors.append("派生脚本必须使用derived_equivalence执行资格")
+        if not isinstance(equivalence, dict) or equivalence.get("status") != "通过":
+            errors.append("派生脚本自动等价校验未通过")
+        else:
+            if equivalence.get("validation_method") != "deterministic_same_seed_and_statistical":
+                errors.append("派生脚本等价校验方法无效")
+            if equivalence.get("change_scope") != "observation_output_only":
+                errors.append("派生脚本修改范围必须仅为观测与输出")
+            if equivalence.get("source_certified_script_sha256") != certified_script_sha:
+                errors.append("派生脚本等价证据未绑定原始认证脚本hash")
+            if equivalence.get("execution_script_sha256") != script_sha:
+                errors.append("派生脚本等价证据未绑定当前执行脚本hash")
+            equivalence_sha = equivalence.get("evidence_sha256", "")
+            if not equivalence.get("evidence_path") or not isinstance(equivalence_sha, str) or len(equivalence_sha) != 64:
+                errors.append("派生脚本等价证据hash无效")
+            checks = equivalence.get("checks", {})
+            required_checks = (
+                "same_seed_bet_payout_state_match",
+                "rng_call_order_match",
+                "total_rtp_match",
+                "component_rtp_match",
+                "key_metric_match",
+            )
+            if not isinstance(checks, dict) or any(checks.get(key) is not True for key in required_checks):
+                errors.append("派生脚本RTP或核心语义等价检查不完整或未通过")
+    elif method not in {None, "user_direct"}:
+        errors.append("原始脚本直接执行时资格方法必须为user_direct")
     if input_manifest.get("report_contract_version") == REPORT_CONTRACT_V33:
         errors += validate_preflight_input_confirmation(input_manifest)
         preflight = input_manifest.get("preflight_decision_gate", {})
@@ -554,6 +596,8 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
             errors.append("CALIBRATION和FORMAL执行路径必须锁定为Python")
         if policy.get("certification_method") != "user_direct":
             errors.append("阶段4未绑定用户直接认证方式")
+        if derived and policy.get("execution_qualification_method") != "user_direct_or_derived_equivalence":
+            errors.append("阶段4未允许通过自动等价门禁的派生脚本")
         if input_manifest.get("report_contract_version") == REPORT_CONTRACT_V33:
             errors += validate_continuous_execution_policy(policy, Path(__file__).resolve().parent.parent)
     if formal_result is not None:
@@ -561,6 +605,13 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
             errors.append("FORMAL执行路径不是Python")
         if formal_result.get("user_script_certification_sha256") != evidence_sha:
             errors.append("FORMAL绑定的用户脚本认证证据hash无效")
+        if derived:
+            if formal_result.get("execution_script_sha256") != script_sha:
+                errors.append("FORMAL绑定的实际执行脚本hash无效")
+            if formal_result.get("script_equivalence_evidence_sha256") != equivalence.get("evidence_sha256"):
+                errors.append("FORMAL绑定的派生脚本等价证据hash无效")
+        elif formal_result.get("execution_script_sha256") not in {None, "", script_sha}:
+            errors.append("FORMAL绑定的实际执行脚本hash无效")
     return errors
 
 
@@ -587,6 +638,7 @@ def validate_continuous_execution_policy(sealed, skill_root):
     fields = (
         "policy_id", "version", "source_path", "retry_limit", "formal_candidate_limit",
         "auto_regenerate_reports", "auto_rebuild_invalid_samples",
+        "auto_repair_script_equivalence_failures", "request_user_recertification_for_derived_script",
         "auto_expand_formal_samples_within_sealed_budget",
         "auto_return_to_calibration_after_formal_failure", "auto_continue_after_candidate_failure",
         "auto_fix_task_runtime_metadata", "auto_waive_insufficient_data",

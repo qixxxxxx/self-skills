@@ -11,7 +11,8 @@
     "更新指标包与唯一Owner",
     "更新测量合同与Python统计能力",
     "通过目录、Schema、Owner和正反例校验",
-    "由用户重新认证最终Python脚本hash"
+    "自动生成或修正观测/输出派生脚本",
+    "与用户认证原始脚本执行等价校验，失败时按差异自动修复并重跑"
   ],
   "approval": {"status": "待确认", "user_decision": "", "decided_at": ""}
 }

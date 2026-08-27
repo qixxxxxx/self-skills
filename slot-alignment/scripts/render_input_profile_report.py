@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from report_common import detail_rows, fmt, labeled_detail_rows, table, validate_preflight_input_confirmation
+from report_common import detail_rows, fmt, labeled_detail_rows, table, validate_preflight_input_confirmation, validate_python_user_certification
 
 
 def load(path):
@@ -44,6 +44,7 @@ def render(manifest, profile, authority, source_hashes):
     sample_confirmation = input_confirmation.get("sample_count", {})
     script_confirmation = input_confirmation.get("python_script", {})
     certification = qualification.get("user_certification", {})
+    equivalence = qualification.get("script_equivalence")
     strict_contract = manifest.get("report_contract_version") == "slot-alignment.reports.v3.3"
     input_confirmation_errors = validate_preflight_input_confirmation(manifest)
     confirmation_blockers = [{
@@ -54,15 +55,7 @@ def render(manifest, profile, authority, source_hashes):
         "return_stage": "preflight",
     } for index, error in enumerate(input_confirmation_errors, 1)]
     blockers = manifest.get("blockers", []) + profile.get("gaps", []) + authority.get("conflicts", []) + confirmation_blockers
-    certification_ready = (
-        certification.get("status") == "通过"
-        and certification.get("certified_by") == "user"
-        and bool(certification.get("evidence_sha256"))
-        and qualification.get("certified_execution_path") == "python"
-        and qualification.get("certification_method") == "user_direct"
-        and certification.get("certified_script_sha256") == manifest.get("hashes", {}).get("simulation_script")
-        and str(manifest.get("paths", {}).get("simulation_script", "")).endswith(".py")
-    )
+    certification_ready = not validate_python_user_certification(manifest)
     preflight_ready = (
         not strict_contract
         or preflight.get("status") == "通过"
@@ -78,6 +71,7 @@ def render(manifest, profile, authority, source_hashes):
         "slot_docs_root": "原版资料根目录",
         "server_root": "服务端只读取证",
         "runtime": "候选基线",
+        "certified_simulation_script": "用户一次认证的只读原始脚本",
         "simulation_script": "阶段2至FORMAL执行",
     }
     for index, (key, path) in enumerate(manifest.get("paths", {}).items(), 1):
@@ -159,13 +153,31 @@ def render(manifest, profile, authority, source_hashes):
         "certified_script_sha256": certification.get("certified_script_sha256"),
         "approved_at": certification.get("approved_at"),
     })]
+    if isinstance(equivalence, dict):
+        certification_summary_rows.append([
+            qualification.get("execution_qualification_method"),
+            "skill",
+            "python",
+            equivalence.get("status"),
+            "V02",
+        ])
+        certification_evidence_rows.extend([["V02", field, value] for field, value in detail_rows({
+            "validation_method": equivalence.get("validation_method"),
+            "change_scope": equivalence.get("change_scope"),
+            "source_certified_script_sha256": equivalence.get("source_certified_script_sha256"),
+            "execution_script_sha256": equivalence.get("execution_script_sha256"),
+            "checks": equivalence.get("checks"),
+            "repair_attempts": equivalence.get("repair_attempts"),
+            "evidence_path": equivalence.get("evidence_path"),
+            "evidence_sha256": equivalence.get("evidence_sha256"),
+        })])
     certification_scope_rows = []
     for index, item in enumerate(certification.get("certified_scope", []), 1):
         certification_scope_rows.append([item, "用户直接确认", "通过", f"V{index:02d}"])
     script_confirmation_rows = [
-        ["Python脚本文件名", script_confirmation.get("confirmed_name"), "必须等于执行路径basename"],
-        ["Python脚本绝对路径", script_confirmation.get("confirmed_path"), "必须等于paths.simulation_script且为绝对.py路径"],
-        ["Python脚本SHA-256", script_confirmation.get("confirmed_sha256"), "必须等于hashes.simulation_script"],
+        ["原始Python脚本文件名", script_confirmation.get("confirmed_name"), "必须等于原始认证脚本路径basename"],
+        ["原始Python脚本绝对路径", script_confirmation.get("confirmed_path"), "必须等于paths.certified_simulation_script且为绝对.py路径"],
+        ["原始Python脚本SHA-256", script_confirmation.get("confirmed_sha256"), "必须等于用户认证的原始脚本hash"],
         ["脚本身份确认状态", script_confirmation.get("status"), "必须通过"],
     ]
     parameter_summary_rows, parameter_path_rows, parameter_metric_rows, parameter_detail_rows = [], [], [], []
@@ -194,7 +206,7 @@ def render(manifest, profile, authority, source_hashes):
             ["阶段状态", "通过" if ready else "阻塞", "资料、画像、权限、缺口联合判定"],
             ["资料状态", manifest.get("status"), "input_manifest.json"],
             ["样本与脚本确认", input_confirmation.get("status", "不适用"), "preflight_input_confirmation"],
-            ["脚本资格", qualification.get("status"), "用户直接认证"],
+            ["脚本资格", qualification.get("status"), "原始脚本用户认证；派生脚本自动等价"],
             ["必需玩法节点", f"{len(required)} / {profile.get('required_node_count', len(required))}", "game_profile.json"],
             ["语义缺口", profile.get("semantic_gap_count", 0), "缺口必须为0"],
             ["授权参数", len(allowed), "parameter_authority.json"],

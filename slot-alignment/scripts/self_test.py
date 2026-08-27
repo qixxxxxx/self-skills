@@ -271,10 +271,14 @@ def instance_compiler_case(root):
         "preflight_sample_count_confirmation_required",
         "full_recount_when_user_requested",
         "preflight_python_script_identity_confirmation_required",
+        "auto_repair_script_equivalence_failures",
     ):
         invalid_continuous = copy.deepcopy(sealed_continuous)
         invalid_continuous[field] = False
         assert any(field in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
+    invalid_continuous = copy.deepcopy(sealed_continuous)
+    invalid_continuous["request_user_recertification_for_derived_script"] = True
+    assert any("request_user_recertification_for_derived_script" in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
     compact_path = valid_root / "metric_contract-1.4.json"
     write_compact_contract(contract, compact_path, SKILL_ROOT, threshold=1)
     compact_errors = validate_semantic_contract(
@@ -361,6 +365,7 @@ def preflight_input_confirmation_case(root):
             "status": "通过",
             "certified_execution_path": "python",
             "certification_method": "user_direct",
+            "execution_qualification_method": "user_direct",
             "user_certification": {
                 "status": "通过",
                 "certified_by": "user",
@@ -377,6 +382,73 @@ def preflight_input_confirmation_case(root):
     assert list(Draft202012Validator(schema).iter_errors(manifest["preflight_input_confirmation"])) == []
     assert validate_preflight_input_confirmation(manifest) == []
     assert validate_execution_qualification(manifest) == []
+
+    derived = copy.deepcopy(manifest)
+    derived_sha = "d" * 64
+    derived["paths"].update({
+        "certified_simulation_script": script_path,
+        "simulation_script": "/tmp/demo_simulator_observed.py",
+    })
+    derived["hashes"].update({"certified_simulation_script": script_sha, "simulation_script": derived_sha})
+    derived["script_qualification"].update({
+        "execution_qualification_method": "derived_equivalence",
+        "script_equivalence": {
+            "status": "通过",
+            "validation_method": "deterministic_same_seed_and_statistical",
+            "change_scope": "observation_output_only",
+            "source_certified_script_sha256": script_sha,
+            "execution_script_sha256": derived_sha,
+            "evidence_path": "work/script-equivalence/script_equivalence.json",
+            "evidence_sha256": "e" * 64,
+            "checks": {
+                "same_seed_bet_payout_state_match": True,
+                "rng_call_order_match": True,
+                "total_rtp_match": True,
+                "component_rtp_match": True,
+                "key_metric_match": True,
+            },
+            "repair_attempts": [{"attempt": 1, "status": "通过", "difference_fields": []}],
+        },
+    })
+    assert validate_preflight_input_confirmation(derived) == []
+    assert validate_execution_qualification(derived) == []
+    bad_certified_hash = copy.deepcopy(derived)
+    bad_certified_hash["hashes"]["certified_simulation_script"] = "9" * 64
+    assert "input_manifest原始脚本hash与用户认证不一致" in validate_execution_qualification(bad_certified_hash)
+    failed_equivalence = copy.deepcopy(derived)
+    failed_equivalence["script_qualification"]["script_equivalence"]["checks"]["total_rtp_match"] = False
+    assert "派生脚本RTP或核心语义等价检查不完整或未通过" in validate_execution_qualification(failed_equivalence)
+    formal_binding = {
+        "execution_path": "python",
+        "user_script_certification_sha256": "c" * 64,
+        "execution_script_sha256": derived_sha,
+        "script_equivalence_evidence_sha256": "e" * 64,
+    }
+    assert validate_execution_qualification(derived, formal_result=formal_binding) == []
+    formal_binding["script_equivalence_evidence_sha256"] = "f" * 64
+    assert "FORMAL绑定的派生脚本等价证据hash无效" in validate_execution_qualification(derived, formal_result=formal_binding)
+
+    certified_snapshot = root / "certified_snapshot.json"
+    execution_snapshot = root / "execution_snapshot.json"
+    equivalence_output = root / "script_equivalence.json"
+    snapshot = {
+        "script_sha256": script_sha,
+        "seed_set_sha256": "1" * 64,
+        "rng_call_sequence_sha256": "2" * 64,
+        "semantic_entries": [{"entry_id": 1, "bet": 1, "payout": 2, "state": "base"}],
+        "total_rtp": 0.96,
+        "component_rtp": {"base": 0.24, "feature": 0.72},
+        "key_metrics": {"hit_rate": 0.3},
+    }
+    dump(certified_snapshot, snapshot)
+    dump(execution_snapshot, dict(snapshot, script_sha256=derived_sha))
+    assert run_result(ROOT / "validate_script_equivalence.py", "--certified", certified_snapshot, "--execution", execution_snapshot, "--output", equivalence_output).returncode == 0
+    assert load_json(equivalence_output)["status"] == "通过"
+    broken_snapshot = dict(snapshot, script_sha256=derived_sha, total_rtp=0.95)
+    dump(execution_snapshot, broken_snapshot)
+    assert run_result(ROOT / "validate_script_equivalence.py", "--certified", certified_snapshot, "--execution", execution_snapshot, "--output", equivalence_output).returncode == 1
+    failed_result = load_json(equivalence_output)
+    assert failed_result["repair_required"] is True and failed_result["differences"][0]["field"] == "total_rtp"
 
     def errors_after(mutate):
         invalid = copy.deepcopy(manifest)
@@ -4541,7 +4613,7 @@ def main():
     for name in ("01-资料确认与玩法画像.md", "02-指标匹配.md", "90-跨阶段一致性.md", "98-通用合同架构升级.md"):
         assert "v2.5～v2.9及v3.2" in (SKILL_ROOT / "references" / name).read_text(encoding="utf-8")
     assert "v2.5至v2.9及v3.2" in skill_text
-    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "开工前样本数确认", "全量重算必须覆盖全部已发现源", "Python脚本名称绝对路径与Hash确认", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "v3.2历史复算兼容", "Skill导航与版本文档一致性"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
+    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "开工前样本数确认", "全量重算必须覆盖全部已发现源", "Python脚本名称绝对路径与Hash确认", "原始脚本一次认证与派生脚本自动等价", "等价失败差异输出与自动修复入口", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "v3.2历史复算兼容", "Skill导航与版本文档一致性"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 
