@@ -3370,6 +3370,50 @@ def semantic_contract_gate_case(base):
     assert validate_case(legacy_root, "historical_replay") == []
     assert any("新任务" in error or "v3.1" in error for error in validate_case(legacy_root))
 
+    legacy_v32_root = base / "historical-replay-v3.2"
+    legacy_v32_root.mkdir(parents=True, exist_ok=True)
+    v32_profile = copy.deepcopy(legacy_profile)
+    v32_contract = copy.deepcopy(legacy_contract)
+    v32_manifest = copy.deepcopy(legacy_manifest)
+    v32_authority = {
+        "schema_version": "1.1", "report_contract_version": "slot-alignment.reports.v3.2",
+        "task_id": "legacy-v32", "status": "已完成", "parameters": [],
+    }
+    for document in (v32_profile, v32_contract, v32_manifest):
+        document["report_contract_version"] = "slot-alignment.reports.v3.2"
+        document["task_id"] = "legacy-v32"
+    v32_profile["schema_version"] = "1.2"
+    v32_contract["schema_version"] = "1.3"
+    v32_manifest["schema_version"] = "1.1"
+    dump(legacy_v32_root / "game_profile.json", v32_profile)
+    dump(legacy_v32_root / "input_manifest.json", v32_manifest)
+    dump(legacy_v32_root / "parameter_authority.json", v32_authority)
+    v32_contract["input_hashes"] = {
+        "game_profile": semantic_sha(legacy_v32_root / "game_profile.json"),
+        "input_manifest": semantic_sha(legacy_v32_root / "input_manifest.json"),
+        "parameter_authority": semantic_sha(legacy_v32_root / "parameter_authority.json"),
+    }
+    dump(legacy_v32_root / "metric_contract.json", v32_contract)
+    assert validate_case(legacy_v32_root, "historical_replay") == []
+
+    v32_contract["schema_version"] = "1.2"
+    dump(legacy_v32_root / "metric_contract.json", v32_contract)
+    assert any("metric_contract 1.3" in error for error in validate_case(legacy_v32_root, "historical_replay"))
+
+    v32_contract["schema_version"] = "1.3"
+    for document in (v32_profile, v32_contract, v32_manifest, v32_authority):
+        document["report_contract_version"] = "slot-alignment.reports.v3.3"
+    dump(legacy_v32_root / "game_profile.json", v32_profile)
+    dump(legacy_v32_root / "input_manifest.json", v32_manifest)
+    dump(legacy_v32_root / "parameter_authority.json", v32_authority)
+    v32_contract["input_hashes"] = {
+        "game_profile": semantic_sha(legacy_v32_root / "game_profile.json"),
+        "input_manifest": semantic_sha(legacy_v32_root / "input_manifest.json"),
+        "parameter_authority": semantic_sha(legacy_v32_root / "parameter_authority.json"),
+    }
+    dump(legacy_v32_root / "metric_contract.json", v32_contract)
+    assert any("v2.5至v2.9或v3.2" in error for error in validate_case(legacy_v32_root, "historical_replay"))
+
     empty_history_root = base / "empty-historical-replay"
     empty_history_root.mkdir(parents=True, exist_ok=True)
     dump(empty_history_root / "game_profile.json", {"schema_version": "1.0", "report_contract_version": "slot-alignment.reports.v2.6"})
@@ -4482,7 +4526,22 @@ def main():
     assert tampered_delivery.returncode == 1
     delivery_report.write_text(delivery_original, encoding="utf-8")
     run(ROOT / "validate_artifacts.py", "--historical-replay", "--artifacts", artifacts, "--reports", reports)
-    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "开工前样本数确认", "全量重算必须覆盖全部已发现源", "Python脚本名称绝对路径与Hash确认", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
+
+    skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+    example_text = (SKILL_ROOT / "references/97-最小完整示例.md").read_text(encoding="utf-8")
+    storage_text = (SKILL_ROOT / "references/98-通用合同架构升级.md").read_text(encoding="utf-8")
+    assert "基础TV容差" not in example_text
+    assert "一维Wasserstein基础有序距离容差" in example_text
+    assert "slot-alignment.reports.v3.2" not in storage_text
+    assert all(link in skill_text for link in (
+        "(references/02A-可达性与豁免.md)",
+        "(references/96-确定性工具与验证.md)",
+        "(references/98-通用合同架构升级.md)",
+    ))
+    for name in ("01-资料确认与玩法画像.md", "02-指标匹配.md", "90-跨阶段一致性.md", "98-通用合同架构升级.md"):
+        assert "v2.5～v2.9及v3.2" in (SKILL_ROOT / "references" / name).read_text(encoding="utf-8")
+    assert "v2.5至v2.9及v3.2" in skill_text
+    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "开工前样本数确认", "全量重算必须覆盖全部已发现源", "Python脚本名称绝对路径与Hash确认", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "v3.2历史复算兼容", "Skill导航与版本文档一致性"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 

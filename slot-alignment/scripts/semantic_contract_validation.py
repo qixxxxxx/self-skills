@@ -210,7 +210,17 @@ FEATURE_RESOURCE_SOURCE_METRICS = {
     "trigger.symbol_count_distribution",
 }
 VALIDATION_MODES = {"stage_transition", "historical_replay"}
-LEGACY_REPORT_VERSIONS = {f"slot-alignment.reports.v2.{minor}" for minor in range(5, 10)}
+HISTORICAL_REPORT_SCHEMAS = {
+    **{
+        f"slot-alignment.reports.v2.{minor}": {
+            "input_manifest": "1.1", "game_profile": "1.1", "metric_contract": "1.2", "parameter_authority": "1.1",
+        }
+        for minor in range(5, 10)
+    },
+    "slot-alignment.reports.v3.2": {
+        "input_manifest": "1.1", "game_profile": "1.2", "metric_contract": "1.3", "parameter_authority": "1.1",
+    },
+}
 CURRENT_REPORT_VERSION = "slot-alignment.reports.v3.3"
 AUDIT_TARGET_STATUSES = {"符合", "不符合", "无法证明", "有证据不适用", "置信不足"}
 CATALOG_IMMUTABLE_FIELDS = (
@@ -341,10 +351,19 @@ def historical_contract_errors(
         profile.get("report_contract_version"),
         input_manifest.get("report_contract_version"),
     ]
-    if input_manifest.get("schema_version") != "1.1" or profile.get("schema_version") != "1.1" or contract.get("schema_version") != "1.2":
-        errors.append("historical_replay只允许已发布的input_manifest/game_profile 1.1与metric_contract 1.2")
-    if not all(isinstance(value, str) and value for value in versions) or len(set(versions)) != 1 or versions[0] not in LEGACY_REPORT_VERSIONS:
-        errors.append("historical_replay三份报告版本必须一致且属于v2.5至v2.9")
+    report_version = versions[0] if all(isinstance(value, str) and value for value in versions) and len(set(versions)) == 1 else None
+    expected_schemas = HISTORICAL_REPORT_SCHEMAS.get(report_version)
+    if expected_schemas is None:
+        errors.append("historical_replay三份报告版本必须一致且属于v2.5至v2.9或v3.2")
+    elif any((
+        input_manifest.get("schema_version") != expected_schemas["input_manifest"],
+        profile.get("schema_version") != expected_schemas["game_profile"],
+        contract.get("schema_version") != expected_schemas["metric_contract"],
+    )):
+        errors.append(
+            f"historical_replay {report_version}只允许input_manifest {expected_schemas['input_manifest']}、"
+            f"game_profile {expected_schemas['game_profile']}与metric_contract {expected_schemas['metric_contract']}"
+        )
     documents = {
         "game_profile": profile,
         "metric_contract": contract,
@@ -357,8 +376,8 @@ def historical_contract_errors(
             errors.append("historical_replay parameter_authority顶层必须为对象")
             authority = {}
         documents["parameter_authority"] = authority
-        if authority.get("schema_version") != "1.1":
-            errors.append("historical_replay只允许parameter_authority 1.1")
+        if expected_schemas is not None and authority.get("schema_version") != expected_schemas["parameter_authority"]:
+            errors.append(f"historical_replay {report_version}只允许parameter_authority {expected_schemas['parameter_authority']}")
         authority_version = authority.get("report_contract_version")
         if authority_version != versions[0]:
             errors.append("historical_replay parameter_authority报告版本不一致")
