@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from report_common import detail_rows, fmt, labeled_detail_rows, table
+from report_common import detail_rows, fmt, labeled_detail_rows, table, validate_preflight_input_confirmation
 
 
 def load(path):
@@ -40,9 +40,20 @@ def render(manifest, profile, authority, source_hashes):
     gates = manifest.get("data_gates", [])
     qualification = manifest.get("script_qualification", {})
     preflight = manifest.get("preflight_decision_gate", {})
+    input_confirmation = manifest.get("preflight_input_confirmation", {})
+    sample_confirmation = input_confirmation.get("sample_count", {})
+    script_confirmation = input_confirmation.get("python_script", {})
     certification = qualification.get("user_certification", {})
-    blockers = manifest.get("blockers", []) + profile.get("gaps", []) + authority.get("conflicts", [])
     strict_contract = manifest.get("report_contract_version") == "slot-alignment.reports.v3.3"
+    input_confirmation_errors = validate_preflight_input_confirmation(manifest)
+    confirmation_blockers = [{
+        "id": f"preflight-input-{index:02d}",
+        "reason": error,
+        "owner": "用户/阶段1",
+        "recovery_action": "在preflight完成样本数或Python脚本身份确认并重新生成阶段1报告",
+        "return_stage": "preflight",
+    } for index, error in enumerate(input_confirmation_errors, 1)]
+    blockers = manifest.get("blockers", []) + profile.get("gaps", []) + authority.get("conflicts", []) + confirmation_blockers
     certification_ready = (
         certification.get("status") == "通过"
         and certification.get("certified_by") == "user"
@@ -58,7 +69,8 @@ def render(manifest, profile, authority, source_hashes):
         and preflight.get("metric_library_gap_count") == 0
         and preflight.get("extension_decision_status") in {"无需扩展", "已完成"}
     )
-    ready = all(x.get("status") == "已完成" for x in (manifest, profile, authority)) and profile.get("semantic_gap_count", 0) == 0 and not blockers and preflight_ready and (certification_ready or not strict_contract)
+    input_confirmation_ready = not strict_contract or not input_confirmation_errors
+    ready = all(x.get("status") == "已完成" for x in (manifest, profile, authority)) and profile.get("semantic_gap_count", 0) == 0 and not blockers and input_confirmation_ready and preflight_ready and (certification_ready or not strict_contract)
     tree = profile.get("mechanic_tree") or "\n".join(f"- {x.get('mechanic_id', '未命名')}：{x.get('name_zh', '—')}" for x in mechanics) or "- 无已识别玩法节点"
     input_summary_rows, input_path_rows = [], []
     path_purposes = {
@@ -100,6 +112,28 @@ def render(manifest, profile, authority, source_hashes):
         else:
             sample_summary_rows.append([item, "—", "无法判定", "—", "不合格", ref])
             sample_evidence_rows.append([ref, "证据", "未提供结构化证据"])
+    sample_confirmation_rows = [
+        ["发现数据源", sample_confirmation.get("discovered_source_count"), "必须等于source_samples条数"],
+        ["发现付费入口", sample_confirmation.get("discovered_entry_count"), "必须等于source_samples入口数合计"],
+        ["source_samples SHA-256", sample_confirmation.get("source_samples_sha256"), "绑定规范化source_samples JSON"],
+        ["用户要求重新统计", sample_confirmation.get("recount_requested"), "用户要求时必须完整处理全部已发现源"],
+        ["重新统计范围", sample_confirmation.get("recount_scope"), "固定为all_discovered_sources"],
+        ["重新统计状态", sample_confirmation.get("recount_status"), "要求重算时必须为已完成"],
+        ["全部已发现源已处理", sample_confirmation.get("all_discovered_sources_processed"), "要求重算时必须为是"],
+        ["已处理源数量", sample_confirmation.get("processed_source_count"), "要求重算时必须等于发现源数量"],
+        ["重算有效入口", sample_confirmation.get("recounted_entry_count"), "要求重算时必须有最终结果"],
+        ["最终有效入口", sample_confirmation.get("effective_entry_count"), "未重算取发现总数，重算取重算结果"],
+        ["用户确认入口", sample_confirmation.get("user_confirmed_entry_count"), "必须等于最终有效入口"],
+        ["输入确认状态", input_confirmation.get("status"), "必须通过"],
+    ]
+    sample_confirmation_evidence_rows = [
+        ["Q01", "确认人", input_confirmation.get("confirmed_by")],
+        ["Q01", "确认时间", input_confirmation.get("confirmed_at")],
+        ["Q01", "确认证据路径", input_confirmation.get("confirmation_evidence_path")],
+        ["Q01", "确认证据SHA-256", input_confirmation.get("confirmation_evidence_sha256")],
+        ["Q02", "重算结果路径", sample_confirmation.get("recount_result_path")],
+        ["Q02", "重算结果SHA-256", sample_confirmation.get("recount_result_sha256")],
+    ]
     share_summary_rows, share_evidence_rows = [], []
     for index, item in enumerate(shares, 1):
         ref = f"C{index:02d}"
@@ -128,6 +162,12 @@ def render(manifest, profile, authority, source_hashes):
     certification_scope_rows = []
     for index, item in enumerate(certification.get("certified_scope", []), 1):
         certification_scope_rows.append([item, "用户直接确认", "通过", f"V{index:02d}"])
+    script_confirmation_rows = [
+        ["Python脚本文件名", script_confirmation.get("confirmed_name"), "必须等于执行路径basename"],
+        ["Python脚本绝对路径", script_confirmation.get("confirmed_path"), "必须等于paths.simulation_script且为绝对.py路径"],
+        ["Python脚本SHA-256", script_confirmation.get("confirmed_sha256"), "必须等于hashes.simulation_script"],
+        ["脚本身份确认状态", script_confirmation.get("status"), "必须通过"],
+    ]
     parameter_summary_rows, parameter_path_rows, parameter_metric_rows, parameter_detail_rows = [], [], [], []
     for index, item in enumerate(params, 1):
         ref = f"A{index:02d}"
@@ -153,6 +193,7 @@ def render(manifest, profile, authority, source_hashes):
             ["游戏 / 模式 / RTP组", f"{scope.get('game_code', '')} / {scope.get('mode', '')} / {scope.get('rtp_group', '')}", "任务作用域"],
             ["阶段状态", "通过" if ready else "阻塞", "资料、画像、权限、缺口联合判定"],
             ["资料状态", manifest.get("status"), "input_manifest.json"],
+            ["样本与脚本确认", input_confirmation.get("status", "不适用"), "preflight_input_confirmation"],
             ["脚本资格", qualification.get("status"), "用户直接认证"],
             ["必需玩法节点", f"{len(required)} / {profile.get('required_node_count', len(required))}", "game_profile.json"],
             ["语义缺口", profile.get("semantic_gap_count", 0), "缺口必须为0"],
@@ -180,7 +221,7 @@ def render(manifest, profile, authority, source_hashes):
         "### 3.1 合格输入", "", table(["资料ID", "类型/键", "版本", "资格", "用途"], input_summary_rows), "", table(["资料ID", "路径", "SHA-256"], input_path_rows), "",
         "### 3.2 排除输入与原因", "", table(["对象ID", "对象", "状态", "排除原因", "影响"], excluded_summary_rows), "", table(["对象ID", "路径/标识"], excluded_path_rows), "",
         "## 四、原版样本与目标画像", "",
-        "### 4.1 样本资格与批次", "", table(["批次", "入口数", "完成状态", "入口口径", "资格", "证据ID"], sample_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], sample_evidence_rows), "",
+        "### 4.1 样本资格与批次", "", table(["批次", "入口数", "完成状态", "入口口径", "资格", "证据ID"], sample_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], sample_evidence_rows), "", table(["样本确认项", "当前值", "约束"], sample_confirmation_rows), "", table(["证据ID", "证据项", "路径/标识"], sample_confirmation_evidence_rows), "", "> 用户要求重新统计时，必须完整处理全部已发现源；历史局部锁或抽样结果不能作为全量重算结果。", "",
         "### 4.2 RTP组件贡献占比与诊断值", "", table(["组件作用域", "原版贡献占比", "原版绝对RTP诊断", "样本", "证据ID", "阶段2用途"], share_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], share_evidence_rows), "",
         "> 贡献占比必须合计为1；绝对组件RTP只用于诊断，阶段2用占比映射权威总RTP。", "",
         "## 五、玩法画像", "",
@@ -189,12 +230,13 @@ def render(manifest, profile, authority, source_hashes):
         "## 六、模拟脚本与执行链资格", "",
         "### 6.1 Python脚本用户直接认证", "",
         f"认证方式：{fmt(qualification.get('certification_method'))}；认证人：{fmt(certification.get('certified_by'))}；执行路径：{fmt(qualification.get('certified_execution_path'))}。", "",
-        table(["认证方式", "认证人", "执行路径", "状态", "证据ID"], certification_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], certification_evidence_rows), "",
+        table(["脚本确认项", "确认值", "绑定要求"], script_confirmation_rows), "", table(["认证方式", "认证人", "执行路径", "状态", "证据ID"], certification_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], certification_evidence_rows), "",
         "### 6.2 状态链、结算与封顶证据", "", table(["认证范围", "确认方式", "状态", "证据ID"], certification_scope_rows), "", table(["证据ID", "证据项", "路径/标识"], certification_evidence_rows), "",
         "## 七、参数权限与控制拓扑", "",
         "### 7.1 授权参数", "", table(["参数ID", "类型", "当前值/范围", "授权状态", "控制簇"], parameter_summary_rows), "", table(["参数ID", "参数路径"], parameter_path_rows), "", table(["参数ID", "指标项", "影响指标"], parameter_metric_rows), "", table(["参数ID", "详情项", "内容"], parameter_detail_rows), "",
         "### 7.2 禁止修改项", "", table(["禁止类别", "原因", "执行要求"], [[x, "改变玩法或公共语义", "发现需求即停止并请求扩权"] for x in authority.get("forbidden_categories", [])]), "",
         "## 八、数据门禁、缺口与风险", "", table(["门禁/风险", "要求", "当前状态", "证据ID", "失败影响"], gate_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], gate_evidence_rows), "", table(["开工前决策项", "当前值", "要求"], [
+            ["样本与脚本确认", input_confirmation.get("status", "不适用"), "v3.3正式执行前必须通过"],
             ["决策窗口", preflight.get("business_decision_window"), "必须为preflight"],
             ["指标库缺口", preflight.get("metric_library_gap_count"), "正式执行前必须为0"],
             ["扩展决策", preflight.get("extension_decision_status"), "无需扩展或已完成"],
@@ -203,7 +245,7 @@ def render(manifest, profile, authority, source_hashes):
         "## 九、阻塞与恢复动作", "", table(["阻塞ID", "原因", "责任方", "恢复动作", "恢复后返回阶段"], rows(blockers, ["id", "reason", "owner", "recovery_action", "return_stage"])), "",
         "## 十、阶段2准入结论", "", table(["条件", "状态", "结论"], [
             ["资料、版本和hash已密封", manifest.get("status"), "必须已完成"], ["玩法语义无缺口", profile.get("semantic_gap_count", 0), "必须为0"],
-            ["参数权限无冲突", authority.get("status"), "必须已完成"], ["指标库扩展决策", preflight.get("status"), "必须在开工前完成"], ["最终准入", "允许" if ready else "禁止", "禁止时不得开始指标匹配"],
+            ["参数权限无冲突", authority.get("status"), "必须已完成"], ["样本与脚本确认", input_confirmation.get("status", "不适用"), "v3.3必须在开工前完成"], ["指标库扩展决策", preflight.get("status"), "必须在开工前完成"], ["最终准入", "允许" if ready else "禁止", "禁止时不得开始指标匹配"],
         ]), "",
         "## 十一、版本、Hash与复算", "", table(["对象", "Schema/版本", "SHA-256"], [
             ["input_manifest.json", manifest.get("schema_version"), source_hashes.get("input_manifest")], ["game_profile.json", profile.get("schema_version"), source_hashes.get("game_profile")],

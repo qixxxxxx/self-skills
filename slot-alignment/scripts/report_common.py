@@ -349,6 +349,116 @@ LEGACY_METRIC_DISPLAY_DEFAULTS["core.return_distribution.lt200"] = dict(
 )
 
 
+def canonical_json_sha256(value):
+    payload = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def validate_preflight_input_confirmation(input_manifest):
+    if input_manifest.get("report_contract_version") != REPORT_CONTRACT_V33:
+        return []
+    errors = []
+    confirmation = input_manifest.get("preflight_input_confirmation")
+    if not isinstance(confirmation, dict):
+        return ["缺少开工前样本与Python脚本确认"]
+    if confirmation.get("status") != "通过":
+        errors.append("开工前样本与Python脚本确认未通过")
+    if confirmation.get("decision_window") != "preflight":
+        errors.append("样本与Python脚本确认必须位于开工前窗口")
+    if confirmation.get("confirmed_by") != "user":
+        errors.append("开工前输入必须由用户确认")
+    if not isinstance(confirmation.get("confirmed_at"), str) or not confirmation.get("confirmed_at"):
+        errors.append("开工前输入确认时间缺失")
+    evidence_sha = confirmation.get("confirmation_evidence_sha256", "")
+    if not isinstance(confirmation.get("confirmation_evidence_path"), str) or not confirmation.get("confirmation_evidence_path") or not isinstance(evidence_sha, str) or len(evidence_sha) != 64:
+        errors.append("开工前输入确认证据hash无效")
+
+    samples = input_manifest.get("source_samples")
+    sample_confirmation = confirmation.get("sample_count")
+    if not isinstance(samples, list):
+        errors.append("source_samples必须是数组")
+        samples = []
+    if not isinstance(sample_confirmation, dict):
+        errors.append("缺少原版样本数确认")
+    else:
+        counts = [item.get("paid_entry_count") if isinstance(item, dict) else None for item in samples]
+        valid_counts = all(type(value) is int and value >= 0 for value in counts)
+        if not valid_counts:
+            errors.append("source_samples存在无效paid_entry_count")
+        discovered_entry_count = sum(counts) if valid_counts else None
+        if type(sample_confirmation.get("discovered_source_count")) is not int or sample_confirmation.get("discovered_source_count", -1) < 0:
+            errors.append("发现源数量无效")
+        if type(sample_confirmation.get("discovered_entry_count")) is not int or sample_confirmation.get("discovered_entry_count", -1) < 0:
+            errors.append("发现入口总数无效")
+        if sample_confirmation.get("discovered_source_count") != len(samples):
+            errors.append("发现源数量与source_samples不一致")
+        if discovered_entry_count is not None and sample_confirmation.get("discovered_entry_count") != discovered_entry_count:
+            errors.append("发现入口总数与source_samples合计不一致")
+        try:
+            source_samples_sha = canonical_json_sha256(samples)
+        except (TypeError, ValueError):
+            source_samples_sha = None
+            errors.append("source_samples不能规范化为有效JSON")
+        if source_samples_sha is not None and sample_confirmation.get("source_samples_sha256") != source_samples_sha:
+            errors.append("source_samples规范化SHA-256失效")
+        if sample_confirmation.get("recount_scope") != "all_discovered_sources":
+            errors.append("重新统计范围必须覆盖全部已发现源")
+
+        recount_value = sample_confirmation.get("recount_requested")
+        if type(recount_value) is not bool:
+            errors.append("recount_requested必须是布尔值")
+        recount_requested = recount_value is True
+        if recount_requested:
+            recounted_entry_count = sample_confirmation.get("recounted_entry_count")
+            if sample_confirmation.get("recount_status") != "已完成":
+                errors.append("用户要求重新统计但全量重算未完成")
+            if sample_confirmation.get("all_discovered_sources_processed") is not True:
+                errors.append("全量重算未证明已处理全部已发现源")
+            if sample_confirmation.get("processed_source_count") != len(samples):
+                errors.append("全量重算处理源数量与发现源数量不一致")
+            if type(recounted_entry_count) is not int or recounted_entry_count < 0:
+                errors.append("全量重算最终有效入口数无效")
+            if not sample_confirmation.get("recount_result_path"):
+                errors.append("全量重算结果路径缺失")
+            recount_sha = sample_confirmation.get("recount_result_sha256", "")
+            if not isinstance(recount_sha, str) or len(recount_sha) != 64:
+                errors.append("全量重算结果hash无效")
+            if type(recounted_entry_count) is int and sample_confirmation.get("effective_entry_count") != recounted_entry_count:
+                errors.append("最终有效入口数与全量重算结果不一致")
+        else:
+            if sample_confirmation.get("recount_status") != "不要求":
+                errors.append("未要求重新统计时recount_status必须为不要求")
+            if discovered_entry_count is not None and sample_confirmation.get("effective_entry_count") != discovered_entry_count:
+                errors.append("最终有效入口数与发现入口总数不一致")
+        if type(sample_confirmation.get("effective_entry_count")) is not int or sample_confirmation.get("effective_entry_count", -1) < 0:
+            errors.append("最终有效入口数无效")
+        if type(sample_confirmation.get("user_confirmed_entry_count")) is not int or sample_confirmation.get("user_confirmed_entry_count", -1) < 0:
+            errors.append("用户确认样本数无效")
+        if sample_confirmation.get("user_confirmed_entry_count") != sample_confirmation.get("effective_entry_count"):
+            errors.append("用户确认样本数与最终有效入口数不一致")
+
+    script_confirmation = confirmation.get("python_script")
+    if not isinstance(script_confirmation, dict):
+        errors.append("缺少Python脚本身份确认")
+    else:
+        if script_confirmation.get("status") != "通过":
+            errors.append("Python脚本身份确认未通过")
+        simulation_script = input_manifest.get("paths", {}).get("simulation_script", "")
+        script_path = Path(simulation_script) if isinstance(simulation_script, str) else Path()
+        script_sha = input_manifest.get("hashes", {}).get("simulation_script", "")
+        if not isinstance(simulation_script, str) or not script_path.is_absolute() or script_path.suffix != ".py":
+            errors.append("确认的Python脚本路径必须是绝对.py路径")
+        if script_confirmation.get("confirmed_name") != script_path.name:
+            errors.append("确认的Python脚本文件名与执行路径不一致")
+        if script_confirmation.get("confirmed_path") != simulation_script:
+            errors.append("确认的Python脚本绝对路径与执行路径不一致")
+        if not isinstance(script_sha, str) or len(script_sha) != 64 or script_confirmation.get("confirmed_sha256") != script_sha:
+            errors.append("确认的Python脚本hash与当前脚本不一致")
+    return errors
+
+
 def validate_server_flow_policy(input_manifest, alignment_manifest=None, candidate_archive=None, formal_result=None):
     if input_manifest.get("report_contract_version") not in STRICT_REPORT_CONTRACTS - {REPORT_CONTRACT_V33}:
         return []
@@ -428,6 +538,7 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
     if not isinstance(simulation_script, str) or not simulation_script.endswith(".py"):
         errors.append("模拟脚本必须是.py文件")
     if input_manifest.get("report_contract_version") == REPORT_CONTRACT_V33:
+        errors += validate_preflight_input_confirmation(input_manifest)
         preflight = input_manifest.get("preflight_decision_gate", {})
         if preflight.get("status") != "通过":
             errors.append("开工前业务决策门禁未通过")
@@ -482,6 +593,8 @@ def validate_continuous_execution_policy(sealed, skill_root):
         "auto_waive_structurally_unattainable", "finish_with_blocked_or_waived_report",
         "interrupt_user_during_execution", "business_decision_windows",
         "preflight_metric_extension_decision_required",
+        "preflight_sample_count_confirmation_required", "full_recount_when_user_requested",
+        "preflight_python_script_identity_confirmation_required",
     )
     mismatches = [field for field in fields if sealed.get(field) != policy.get(field)]
     if mismatches:

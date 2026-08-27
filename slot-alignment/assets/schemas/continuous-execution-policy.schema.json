@@ -3,7 +3,7 @@
   "title": "Continuous Alignment Execution Policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "version", "source_path", "retry_limit", "formal_candidate_limit", "auto_regenerate_reports", "auto_rebuild_invalid_samples", "auto_expand_formal_samples_within_sealed_budget", "auto_return_to_calibration_after_formal_failure", "auto_continue_after_candidate_failure", "auto_fix_task_runtime_metadata", "auto_waive_insufficient_data", "auto_waive_structurally_unattainable", "finish_with_blocked_or_waived_report", "interrupt_user_during_execution", "business_decision_windows", "preflight_metric_extension_decision_required"],
+  "required": ["schema_version", "policy_id", "version", "source_path", "retry_limit", "formal_candidate_limit", "auto_regenerate_reports", "auto_rebuild_invalid_samples", "auto_expand_formal_samples_within_sealed_budget", "auto_return_to_calibration_after_formal_failure", "auto_continue_after_candidate_failure", "auto_fix_task_runtime_metadata", "auto_waive_insufficient_data", "auto_waive_structurally_unattainable", "finish_with_blocked_or_waived_report", "interrupt_user_during_execution", "business_decision_windows", "preflight_metric_extension_decision_required", "preflight_sample_count_confirmation_required", "full_recount_when_user_requested", "preflight_python_script_identity_confirmation_required"],
   "properties": {
     "schema_version": {"const": "slot-alignment.continuous-execution-policy.v1"},
     "policy_id": {"const": "continuous-alignment-execution-v1"},
@@ -22,6 +22,9 @@
     "finish_with_blocked_or_waived_report": {"const": true},
     "interrupt_user_during_execution": {"const": false},
     "business_decision_windows": {"const": ["preflight", "final_report"]},
-    "preflight_metric_extension_decision_required": {"const": true}
+    "preflight_metric_extension_decision_required": {"const": true},
+    "preflight_sample_count_confirmation_required": {"const": true},
+    "full_recount_when_user_requested": {"const": true},
+    "preflight_python_script_identity_confirmation_required": {"const": true}
   }
 }

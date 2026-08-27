@@ -24,7 +24,7 @@ from apply_automatic_waiver_policy import (
 )
 from apply_ordered_distance_policy import apply_policy as apply_ordered_distance_policy
 from validate_artifacts import validate_attainability_ceiling, validate_component_rtp_targets
-from report_common import TEMPLATE_PATHS, apply_metric_display_metadata, detail_rows, metric_blocks, metric_item_labels, metric_stage2_table, validate_continuous_execution_policy, validate_execution_qualification, validate_report_against_template, validate_template_text, validate_templates
+from report_common import TEMPLATE_PATHS, apply_metric_display_metadata, canonical_json_sha256, detail_rows, metric_blocks, metric_item_labels, metric_stage2_table, validate_continuous_execution_policy, validate_execution_qualification, validate_preflight_input_confirmation, validate_report_against_template, validate_template_text, validate_templates
 from apply_sample_capability_policy import apply_policy as apply_sample_capability_policy
 from apply_score_group_weight_policy import apply_policy as apply_score_group_weight_policy
 from score_alignment import anchors, distance, sample_capability_summary, validate_formal_sample_capability, validate_reachable_support, validate_sample_capability_binding
@@ -267,6 +267,14 @@ def instance_compiler_case(root):
     invalid_continuous = copy.deepcopy(sealed_continuous)
     invalid_continuous["business_decision_windows"] = ["runtime"]
     assert any("字段与来源不一致" in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
+    for field in (
+        "preflight_sample_count_confirmation_required",
+        "full_recount_when_user_requested",
+        "preflight_python_script_identity_confirmation_required",
+    ):
+        invalid_continuous = copy.deepcopy(sealed_continuous)
+        invalid_continuous[field] = False
+        assert any(field in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
     compact_path = valid_root / "metric_contract-1.4.json"
     write_compact_contract(contract, compact_path, SKILL_ROOT, threshold=1)
     compact_errors = validate_semantic_contract(
@@ -295,6 +303,164 @@ def instance_compiler_case(root):
     scoring_report = valid_root / "compact-stage3.md"
     run(ROOT / "render_scoring_report.py", "--contract", compact_path, "--scorecard", scorecard_path, "--output", scoring_report)
     assert "阶段3-评分报告" in scoring_report.read_text(encoding="utf-8")
+
+
+def preflight_input_confirmation_case(root):
+    root.mkdir(parents=True, exist_ok=True)
+    samples = [
+        {"batch_id": "source-a", "paid_entry_count": 12, "status": "completed", "unit": "完整付费入口", "qualification": "合格"},
+        {"batch_id": "source-b", "paid_entry_count": 8, "status": "completed", "unit": "完整付费入口", "qualification": "合格"},
+    ]
+    script_path = "/tmp/demo_simulator.py"
+    script_sha = "b" * 64
+    manifest = {
+        "schema_version": "1.2",
+        "report_contract_version": "slot-alignment.reports.v3.3",
+        "task_id": "preflight-input-test",
+        "status": "已完成",
+        "scope": {"game_code": "demo", "mode": "normal", "rtp_group": 1, "target_rtp": {"min": 0.95, "max": 0.96}},
+        "paths": {"simulation_script": script_path},
+        "hashes": {"simulation_script": script_sha},
+        "source_samples": samples,
+        "preflight_input_confirmation": {
+            "status": "通过",
+            "decision_window": "preflight",
+            "confirmed_by": "user",
+            "confirmed_at": "2026-08-27T00:00:00Z",
+            "confirmation_evidence_path": "evidence/preflight-input-approval.json",
+            "confirmation_evidence_sha256": "a" * 64,
+            "sample_count": {
+                "discovered_source_count": 2,
+                "discovered_entry_count": 20,
+                "source_samples_sha256": canonical_json_sha256(samples),
+                "recount_requested": False,
+                "recount_scope": "all_discovered_sources",
+                "recount_status": "不要求",
+                "all_discovered_sources_processed": False,
+                "processed_source_count": 0,
+                "recounted_entry_count": None,
+                "recount_result_path": "",
+                "recount_result_sha256": "",
+                "effective_entry_count": 20,
+                "user_confirmed_entry_count": 20,
+            },
+            "python_script": {
+                "status": "通过",
+                "confirmed_name": "demo_simulator.py",
+                "confirmed_path": script_path,
+                "confirmed_sha256": script_sha,
+            },
+        },
+        "preflight_decision_gate": {
+            "status": "通过",
+            "business_decision_window": "preflight",
+            "metric_library_gap_count": 0,
+            "extension_decision_status": "无需扩展",
+        },
+        "script_qualification": {
+            "status": "通过",
+            "certified_execution_path": "python",
+            "certification_method": "user_direct",
+            "user_certification": {
+                "status": "通过",
+                "certified_by": "user",
+                "approved_at": "2026-08-27T00:00:00Z",
+                "evidence_path": "evidence/script-approval.json",
+                "evidence_sha256": "c" * 64,
+                "certified_script_sha256": script_sha,
+                "certified_scope": ["RTP与派奖账本", "玩法状态与统计输出"],
+            },
+        },
+        "blockers": [],
+    }
+    schema = load_json(SKILL_ROOT / "assets/schemas/preflight-input-confirmation.schema.json")
+    assert list(Draft202012Validator(schema).iter_errors(manifest["preflight_input_confirmation"])) == []
+    assert validate_preflight_input_confirmation(manifest) == []
+    assert validate_execution_qualification(manifest) == []
+
+    def errors_after(mutate):
+        invalid = copy.deepcopy(manifest)
+        mutate(invalid)
+        return validate_preflight_input_confirmation(invalid)
+
+    assert "用户要求重新统计但全量重算未完成" in errors_after(
+        lambda item: item["preflight_input_confirmation"]["sample_count"].update({"recount_requested": True, "recount_status": "进行中"})
+    )
+
+    def partial_recount(item):
+        sample = item["preflight_input_confirmation"]["sample_count"]
+        sample.update({
+            "recount_requested": True,
+            "recount_status": "已完成",
+            "all_discovered_sources_processed": True,
+            "processed_source_count": 1,
+            "recounted_entry_count": 18,
+            "recount_result_path": "evidence/recount.json",
+            "recount_result_sha256": "d" * 64,
+            "effective_entry_count": 18,
+            "user_confirmed_entry_count": 18,
+        })
+
+    assert "全量重算处理源数量与发现源数量不一致" in errors_after(partial_recount)
+
+    def mismatched_user_count(item):
+        partial_recount(item)
+        sample = item["preflight_input_confirmation"]["sample_count"]
+        sample["processed_source_count"] = 2
+        sample["user_confirmed_entry_count"] = 17
+
+    assert "用户确认样本数与最终有效入口数不一致" in errors_after(mismatched_user_count)
+    assert "确认的Python脚本文件名与执行路径不一致" in errors_after(
+        lambda item: item["preflight_input_confirmation"]["python_script"].update({"confirmed_name": "other.py"})
+    )
+
+    def relative_script_path(item):
+        item["paths"]["simulation_script"] = "demo_simulator.py"
+        item["preflight_input_confirmation"]["python_script"]["confirmed_path"] = "demo_simulator.py"
+
+    assert "确认的Python脚本路径必须是绝对.py路径" in errors_after(relative_script_path)
+    assert "确认的Python脚本hash与当前脚本不一致" in errors_after(
+        lambda item: item["preflight_input_confirmation"]["python_script"].update({"confirmed_sha256": "e" * 64})
+    )
+
+    artifacts = root / "artifacts"
+    stage1 = artifacts / "01-input-profile"
+    reports = root / "reports"
+    dump(stage1 / "input_manifest.json", manifest)
+    dump(stage1 / "game_profile.json", {
+        "schema_version": "1.2",
+        "report_contract_version": "slot-alignment.reports.v3.3",
+        "task_id": manifest["task_id"],
+        "status": "已完成",
+        "scope": manifest["scope"],
+        "mechanics_catalog": {"version": "test", "sha256": "f" * 64},
+        "mechanics": [],
+        "required_node_count": 0,
+        "semantic_gap_count": 0,
+        "gaps": [],
+    })
+    dump(stage1 / "parameter_authority.json", {
+        "schema_version": "1.1",
+        "report_contract_version": "slot-alignment.reports.v3.3",
+        "task_id": manifest["task_id"],
+        "status": "已完成",
+        "scope": manifest["scope"],
+        "parameters": [],
+        "forbidden_categories": [],
+        "conflicts": [],
+    })
+    report_path = reports / "阶段1-资料确认与玩法画像.md"
+    run(ROOT / "render_input_profile_report.py", "--artifacts", artifacts, "--output", report_path)
+    report = report_path.read_text(encoding="utf-8")
+    assert "发现付费入口" in report and "Python脚本绝对路径" in report
+    assert "| 最终准入 | 允许 |" in report
+    blocked_manifest = copy.deepcopy(manifest)
+    blocked_manifest["preflight_input_confirmation"]["sample_count"].update({"recount_requested": True, "recount_status": "进行中"})
+    dump(stage1 / "input_manifest.json", blocked_manifest)
+    run(ROOT / "render_input_profile_report.py", "--artifacts", artifacts, "--output", report_path)
+    blocked_report = report_path.read_text(encoding="utf-8")
+    assert "用户要求重新统计但全量重算未完成" in blocked_report
+    assert "| 最终准入 | 禁止 |" in blocked_report
 
 
 def full_catalog_matrix_case(root):
@@ -4042,6 +4208,7 @@ def main():
     catalog_semantic_contract_case()
     root = Path(tempfile.mkdtemp(prefix="slot-alignment-self-test-"))
     contract_io_case(root / "contract-io")
+    preflight_input_confirmation_case(root / "preflight-input-confirmation")
     step_return_owner_partition_case(root / "step-return-owner-partition")
     sample_capability_case(root / "sample-capability")
     semantic_contract_gate_case(root / "semantic-contract-gate")
@@ -4315,7 +4482,7 @@ def main():
     assert tampered_delivery.returncode == 1
     delivery_report.write_text(delivery_original, encoding="utf-8")
     run(ROOT / "validate_artifacts.py", "--historical-replay", "--artifacts", artifacts, "--reports", reports)
-    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
+    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "开工前样本数确认", "全量重算必须覆盖全部已发现源", "Python脚本名称绝对路径与Hash确认", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 

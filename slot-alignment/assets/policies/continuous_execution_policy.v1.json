@@ -16,5 +16,8 @@
   "finish_with_blocked_or_waived_report": true,
   "interrupt_user_during_execution": false,
   "business_decision_windows": ["preflight", "final_report"],
-  "preflight_metric_extension_decision_required": true
+  "preflight_metric_extension_decision_required": true,
+  "preflight_sample_count_confirmation_required": true,
+  "full_recount_when_user_requested": true,
+  "preflight_python_script_identity_confirmation_required": true
 }

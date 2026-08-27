@@ -10,6 +10,35 @@
   "source_samples": [],
   "component_rtp_shares": [],
   "hashes": {},
+  "preflight_input_confirmation": {
+    "status": "未开始",
+    "decision_window": "preflight",
+    "confirmed_by": "",
+    "confirmed_at": "",
+    "confirmation_evidence_path": "",
+    "confirmation_evidence_sha256": "",
+    "sample_count": {
+      "discovered_source_count": 0,
+      "discovered_entry_count": 0,
+      "source_samples_sha256": "",
+      "recount_requested": false,
+      "recount_scope": "all_discovered_sources",
+      "recount_status": "不要求",
+      "all_discovered_sources_processed": false,
+      "processed_source_count": 0,
+      "recounted_entry_count": null,
+      "recount_result_path": "",
+      "recount_result_sha256": "",
+      "effective_entry_count": 0,
+      "user_confirmed_entry_count": 0
+    },
+    "python_script": {
+      "status": "未开始",
+      "confirmed_name": "",
+      "confirmed_path": "",
+      "confirmed_sha256": ""
+    }
+  },
   "preflight_decision_gate": {
     "status": "未开始",
     "business_decision_window": "preflight",
