@@ -89,7 +89,7 @@ REPORT_HEADINGS = {
         "## 6. CALIBRATION过程",
         "### 6.1 搜索与预算",
         "### 6.2 候选演进",
-        "### 6.3 停止原因",
+        "### 6.3 循环结束原因",
         "## 7. FORMAL验收",
         "### 7.1 独立性证明",
         "## 8. 豁免、不可达与阻塞",
@@ -434,10 +434,29 @@ def validate_preflight_input_confirmation(input_manifest):
                 errors.append("最终有效入口数与发现入口总数不一致")
         if type(sample_confirmation.get("effective_entry_count")) is not int or sample_confirmation.get("effective_entry_count", -1) < 0:
             errors.append("最终有效入口数无效")
-        if type(sample_confirmation.get("user_confirmed_entry_count")) is not int or sample_confirmation.get("user_confirmed_entry_count", -1) < 0:
+        user_confirmed_entry_count = sample_confirmation.get("user_confirmed_entry_count")
+        adoption_method = sample_confirmation.get("final_count_adoption_method")
+        auto_adopted_entry_count = sample_confirmation.get("auto_adopted_entry_count")
+        if type(user_confirmed_entry_count) is not int or user_confirmed_entry_count < 0:
             errors.append("用户确认样本数无效")
-        if sample_confirmation.get("user_confirmed_entry_count") != sample_confirmation.get("effective_entry_count"):
-            errors.append("用户确认样本数与最终有效入口数不一致")
+        if recount_requested:
+            if adoption_method is None:
+                if auto_adopted_entry_count not in {None, sample_confirmation.get("effective_entry_count")}:
+                    errors.append("自动采用入口数与最终有效入口数不一致")
+            else:
+                if adoption_method != "automatic_full_recount":
+                    errors.append("全量重算完成后必须自动采用最终有效入口数")
+                if auto_adopted_entry_count != sample_confirmation.get("effective_entry_count"):
+                    errors.append("自动采用入口数与最终有效入口数不一致")
+                if discovered_entry_count is not None and user_confirmed_entry_count != discovered_entry_count:
+                    errors.append("用户首次确认样本数与发现入口总数不一致")
+        else:
+            if adoption_method not in {None, "initial_user_confirmation"}:
+                errors.append("未重算时最终数量采用方式必须为initial_user_confirmation")
+            if auto_adopted_entry_count is not None:
+                errors.append("未重算时不得填写自动采用入口数")
+            if user_confirmed_entry_count != sample_confirmation.get("effective_entry_count"):
+                errors.append("用户确认样本数与最终有效入口数不一致")
 
     script_confirmation = confirmation.get("python_script")
     if not isinstance(script_confirmation, dict):
@@ -635,19 +654,35 @@ def validate_continuous_execution_policy(sealed, skill_root):
         policy = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return errors + [f"连续执行政策无法读取: {exc}"]
-    fields = (
-        "policy_id", "version", "source_path", "retry_limit", "formal_candidate_limit",
+    common = (
+        "policy_id", "version", "source_path", "retry_limit",
         "auto_regenerate_reports", "auto_rebuild_invalid_samples",
         "auto_repair_script_equivalence_failures", "request_user_recertification_for_derived_script",
-        "auto_expand_formal_samples_within_sealed_budget",
         "auto_return_to_calibration_after_formal_failure", "auto_continue_after_candidate_failure",
         "auto_fix_task_runtime_metadata", "auto_waive_insufficient_data",
         "auto_waive_structurally_unattainable", "finish_with_blocked_or_waived_report",
         "interrupt_user_during_execution", "business_decision_windows",
         "preflight_metric_extension_decision_required",
         "preflight_sample_count_confirmation_required", "full_recount_when_user_requested",
+        "auto_adopt_valid_full_recount_result", "post_recount_user_confirmation_required",
         "preflight_python_script_identity_confirmation_required",
     )
+    policy_id = policy.get("policy_id")
+    if policy_id == "continuous-alignment-execution-v1":
+        fields = common + ("formal_candidate_limit", "auto_expand_formal_samples_within_sealed_budget")
+    elif policy_id == "continuous-alignment-execution-v2":
+        fields = common + (
+            "formal_candidate_limit_enabled", "derived_script_boundary_failure_action",
+            "auto_expand_formal_samples_until_qualified_or_structural_unattainability",
+            "auto_expand_calibration_budget_until_pass_or_structural_unattainability",
+            "auto_expand_formal_budget_until_pass_or_structural_unattainability",
+            "budget_exhaustion_stops_execution", "candidate_exhaustion_stops_execution",
+            "budget_extension_requires_user_approval",
+            "auto_waive_forbidden_boundary_unattainability",
+            "request_user_for_forbidden_boundary_change",
+        )
+    else:
+        return errors + [f"不支持的连续执行政策: {policy_id}"]
     mismatches = [field for field in fields if sealed.get(field) != policy.get(field)]
     if mismatches:
         errors.append(f"连续执行政策合同字段与来源不一致: {','.join(mismatches)}")

@@ -197,6 +197,31 @@ def validate_attainability_ceiling(root):
     if not manifest_path.is_file() or not archive_path.is_file():
         return errors
     manifest, archive = load(manifest_path), load(archive_path)
+    execution = manifest.get("execution_policy", {})
+    budget = manifest.get("budget_policy", {})
+    if execution.get("policy_id") == "continuous-alignment-execution-v2":
+        expected = {
+            "formal_candidate_limit_enabled": False,
+            "budget_exhaustion_stops_execution": False,
+            "candidate_exhaustion_stops_execution": False,
+            "budget_extension_requires_user_approval": False,
+            "auto_expand_calibration_budget_until_pass_or_structural_unattainability": True,
+            "auto_expand_formal_budget_until_pass_or_structural_unattainability": True,
+            "auto_waive_forbidden_boundary_unattainability": True,
+            "request_user_for_forbidden_boundary_change": False,
+        }
+        mismatches = [field for field, value in expected.items() if execution.get(field) is not value]
+        if mismatches:
+            errors.append(f"连续执行v2预算或边界自动化字段无效: {','.join(mismatches)}")
+        if budget.get("auto_expand") is not True or budget.get("task_budget_limit") is not None:
+            errors.append("连续执行v2必须自动扩预算且不设置任务预算上限")
+        if budget.get("budget_exhaustion_stops_execution") is not False or budget.get("extension_requires_user_approval") is not False:
+            errors.append("连续执行v2不得因预算耗尽停止或请求用户批准预算")
+        if budget.get("continue_until") != "formal_pass_or_structural_unattainability":
+            errors.append("连续执行v2预算循环结束条件无效")
+        stop_reason = str(archive.get("stop_reason", ""))
+        if any(token in stop_reason for token in ("预算耗尽", "预算用完", "候选上限", "尝试上限")):
+            errors.append("连续执行v2不得以预算或候选次数作为停止原因")
     policy = manifest.get("budget_policy", {}).get("attainability_ceiling")
     if not policy:
         return errors

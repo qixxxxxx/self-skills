@@ -117,7 +117,9 @@ def render(manifest, profile, authority, source_hashes):
         ["已处理源数量", sample_confirmation.get("processed_source_count"), "要求重算时必须等于发现源数量"],
         ["重算有效入口", sample_confirmation.get("recounted_entry_count"), "要求重算时必须有最终结果"],
         ["最终有效入口", sample_confirmation.get("effective_entry_count"), "未重算取发现总数，重算取重算结果"],
-        ["用户确认入口", sample_confirmation.get("user_confirmed_entry_count"), "必须等于最终有效入口"],
+        ["初始用户确认入口", sample_confirmation.get("user_confirmed_entry_count"), "未重算时等于最终数；重算时等于发现总数"],
+        ["最终数量采用方式", sample_confirmation.get("final_count_adoption_method"), "全量重算时固定为automatic_full_recount"],
+        ["自动采用入口", sample_confirmation.get("auto_adopted_entry_count"), "全量重算时必须等于最终有效入口"],
         ["输入确认状态", input_confirmation.get("status"), "必须通过"],
     ]
     sample_confirmation_evidence_rows = [
@@ -246,7 +248,7 @@ def render(manifest, profile, authority, source_hashes):
         "### 6.2 状态链、结算与封顶证据", "", table(["认证范围", "确认方式", "状态", "证据ID"], certification_scope_rows), "", table(["证据ID", "证据项", "路径/标识"], certification_evidence_rows), "",
         "## 七、参数权限与控制拓扑", "",
         "### 7.1 授权参数", "", table(["参数ID", "类型", "当前值/范围", "授权状态", "控制簇"], parameter_summary_rows), "", table(["参数ID", "参数路径"], parameter_path_rows), "", table(["参数ID", "指标项", "影响指标"], parameter_metric_rows), "", table(["参数ID", "详情项", "内容"], parameter_detail_rows), "",
-        "### 7.2 禁止修改项", "", table(["禁止类别", "原因", "执行要求"], [[x, "改变玩法或公共语义", "发现需求即停止并请求扩权"] for x in authority.get("forbidden_categories", [])]), "",
+        "### 7.2 禁止修改项", "", table(["禁止类别", "原因", "执行要求"], [[x, "改变玩法或公共语义", "禁止修改；受影响指标密封结构不可达证据后自动豁免"] for x in authority.get("forbidden_categories", [])]), "",
         "## 八、数据门禁、缺口与风险", "", table(["门禁/风险", "要求", "当前状态", "证据ID", "失败影响"], gate_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], gate_evidence_rows), "", table(["开工前决策项", "当前值", "要求"], [
             ["样本与脚本确认", input_confirmation.get("status", "不适用"), "v3.3正式执行前必须通过"],
             ["决策窗口", preflight.get("business_decision_window"), "必须为preflight"],

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""按用户预授权政策自动豁免样本不足或已证明结构不可达的精确指标实例。"""
+"""按用户预授权政策自动豁免样本不足或已证明结构不可达的精确指标实例，含禁止变更边界不可达。"""
 
 from __future__ import annotations
 
@@ -128,11 +128,14 @@ def policy_summary(policy, policy_path, records):
     }
 
 
-def waiver_reason(reason_code):
-    return {
-        INSUFFICIENT: "原版目标样本或FORMAL样本未达到密封的99%样本能力要求，按用户预授权政策自动豁免",
-        UNATTAINABLE: "授权参数空间已由密封证据证明结构不可达，按用户预授权政策自动豁免",
-    }[reason_code]
+def waiver_reason(reason_code, evidence):
+    if reason_code == INSUFFICIENT:
+        return "原版目标样本或FORMAL样本未达到密封的99%样本能力要求，按用户预授权政策自动豁免"
+    affected = evidence.get("affected_metric_instance", {}) if isinstance(evidence, dict) else {}
+    boundary = str(affected.get("minimal_authority_expansion", ""))
+    if "禁止扩权" in boundary:
+        return f"完成该指标必须越过禁止变更边界（{boundary}），已证明结构不可达并按用户预授权政策自动豁免"
+    return "授权参数空间已由密封证据证明结构不可达，按用户预授权政策自动豁免"
 
 
 def build_record(metric, reason_code, policy, policy_path, evidence, decision_stage):
@@ -149,7 +152,7 @@ def build_record(metric, reason_code, policy, policy_path, evidence, decision_st
         "kind": metric.get("kind"),
         "status": "已批准",
         "reason_code": reason_code,
-        "reason": waiver_reason(reason_code),
+        "reason": waiver_reason(reason_code, evidence),
         "decision_stage": decision_stage,
         "authorization_source": policy["authorization_source"],
         "policy_id": policy["policy_id"],

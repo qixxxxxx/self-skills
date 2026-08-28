@@ -44,6 +44,7 @@ from semantic_contract_validation import (
     validate_cascade_multiplier_derivation,
     validate_cascade_multiplier_ownership,
     validate_cascade_multiplier_profile_bindings,
+    validate_cascade_capacity_contract,
     validate_conditional_group_weight_binding,
     validate_contract as validate_semantic_contract,
     validate_declared_derivation_projection,
@@ -260,8 +261,14 @@ def instance_compiler_case(root):
     assert proposal["decision_window"] == "preflight"
     assert proposal["blocks_stage_execution"] is True and proposal["blocks_formal_execution"] is True
     assert "metric_library" in proposal["gaps"][0]["extension_targets"]
-    continuous_path = SKILL_ROOT / "assets/policies/continuous_execution_policy.v1.json"
+    legacy_continuous_path = SKILL_ROOT / "assets/policies/continuous_execution_policy.v1.json"
+    legacy_continuous = load_json(legacy_continuous_path)
+    assert list(Draft202012Validator(load_json(SKILL_ROOT / "assets/schemas/continuous-execution-policy.schema.json")).iter_errors(legacy_continuous)) == []
+    assert validate_continuous_execution_policy({**legacy_continuous, "source_sha256": sha(legacy_continuous_path)}, SKILL_ROOT) == []
+    continuous_path = SKILL_ROOT / "assets/policies/continuous_execution_policy.v2.json"
     continuous = load_json(continuous_path)
+    continuous_schema = load_json(SKILL_ROOT / "assets/schemas/continuous-execution-policy-v2.schema.json")
+    assert list(Draft202012Validator(continuous_schema).iter_errors(continuous)) == []
     sealed_continuous = {**continuous, "source_sha256": sha(continuous_path)}
     assert validate_continuous_execution_policy(sealed_continuous, SKILL_ROOT) == []
     invalid_continuous = copy.deepcopy(sealed_continuous)
@@ -272,6 +279,10 @@ def instance_compiler_case(root):
         "full_recount_when_user_requested",
         "preflight_python_script_identity_confirmation_required",
         "auto_repair_script_equivalence_failures",
+        "auto_adopt_valid_full_recount_result",
+        "auto_expand_calibration_budget_until_pass_or_structural_unattainability",
+        "auto_expand_formal_budget_until_pass_or_structural_unattainability",
+        "auto_waive_forbidden_boundary_unattainability",
     ):
         invalid_continuous = copy.deepcopy(sealed_continuous)
         invalid_continuous[field] = False
@@ -279,6 +290,15 @@ def instance_compiler_case(root):
     invalid_continuous = copy.deepcopy(sealed_continuous)
     invalid_continuous["request_user_recertification_for_derived_script"] = True
     assert any("request_user_recertification_for_derived_script" in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
+    invalid_continuous = copy.deepcopy(sealed_continuous)
+    invalid_continuous["post_recount_user_confirmation_required"] = True
+    assert any("post_recount_user_confirmation_required" in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
+    invalid_continuous = copy.deepcopy(sealed_continuous)
+    invalid_continuous["budget_exhaustion_stops_execution"] = True
+    assert any("budget_exhaustion_stops_execution" in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
+    invalid_continuous = copy.deepcopy(sealed_continuous)
+    invalid_continuous["request_user_for_forbidden_boundary_change"] = True
+    assert any("request_user_for_forbidden_boundary_change" in error for error in validate_continuous_execution_policy(invalid_continuous, SKILL_ROOT))
     compact_path = valid_root / "metric_contract-1.4.json"
     write_compact_contract(contract, compact_path, SKILL_ROOT, threshold=1)
     compact_errors = validate_semantic_contract(
@@ -347,6 +367,8 @@ def preflight_input_confirmation_case(root):
                 "recount_result_sha256": "",
                 "effective_entry_count": 20,
                 "user_confirmed_entry_count": 20,
+                "final_count_adoption_method": "initial_user_confirmation",
+                "auto_adopted_entry_count": None,
             },
             "python_script": {
                 "status": "通过",
@@ -470,18 +492,32 @@ def preflight_input_confirmation_case(root):
             "recount_result_path": "evidence/recount.json",
             "recount_result_sha256": "d" * 64,
             "effective_entry_count": 18,
-            "user_confirmed_entry_count": 18,
+            "user_confirmed_entry_count": 20,
+            "final_count_adoption_method": "automatic_full_recount",
+            "auto_adopted_entry_count": 18,
         })
 
     assert "全量重算处理源数量与发现源数量不一致" in errors_after(partial_recount)
 
-    def mismatched_user_count(item):
+    def valid_recount(item):
         partial_recount(item)
         sample = item["preflight_input_confirmation"]["sample_count"]
         sample["processed_source_count"] = 2
-        sample["user_confirmed_entry_count"] = 17
 
-    assert "用户确认样本数与最终有效入口数不一致" in errors_after(mismatched_user_count)
+    recounted = copy.deepcopy(manifest)
+    valid_recount(recounted)
+    assert validate_preflight_input_confirmation(recounted) == []
+    ongoing_recount = copy.deepcopy(recounted)
+    ongoing_sample = ongoing_recount["preflight_input_confirmation"]["sample_count"]
+    ongoing_sample.pop("final_count_adoption_method")
+    ongoing_sample.pop("auto_adopted_entry_count")
+    assert validate_preflight_input_confirmation(ongoing_recount) == []
+
+    def mismatched_auto_count(item):
+        valid_recount(item)
+        item["preflight_input_confirmation"]["sample_count"]["auto_adopted_entry_count"] = 17
+
+    assert "自动采用入口数与最终有效入口数不一致" in errors_after(mismatched_auto_count)
     assert "确认的Python脚本文件名与执行路径不一致" in errors_after(
         lambda item: item["preflight_input_confirmation"]["python_script"].update({"confirmed_name": "other.py"})
     )
@@ -883,6 +919,36 @@ def sample_capability_case(root):
     )
     assert len(structural) == 1 and structural[0]["reason_code"] == UNATTAINABLE
     assert validate_automatic_waiver_binding(structural_contract, SKILL_ROOT) == []
+    boundary_contract = copy.deepcopy(contract)
+    apply_ordered_distance_policy(boundary_contract, load_json(ordered_policy_path), ordered_policy_path)
+    apply_score_group_weight_policy(boundary_contract, load_json(score_policy_path), score_policy_path)
+    boundary_metric = boundary_contract["metrics"][0]
+    boundary_evidence = copy.deepcopy(evidence)
+    boundary_evidence["affected_metric_instances"][0].update({
+        "instance_id": metric_instance_id(
+            boundary_metric["metric_id"],
+            boundary_metric.get("source_node_ids", []),
+            boundary_metric.get("instance_dimensions", {}),
+        ),
+        "metric_id": boundary_metric["metric_id"],
+        "scope": boundary_metric["scope"],
+        "conflict_evidence": "全部合法候选均失败，完成指标必须改变状态机或配置结构",
+        "minimal_authority_expansion": "禁止扩权：需要改变状态机或配置结构",
+    })
+    boundary_path = root / "boundary-attainability-evidence.json"
+    dump(boundary_path, boundary_evidence)
+    boundary = apply_structural_unattainability_waivers(
+        boundary_contract,
+        boundary_evidence,
+        boundary_path,
+        automatic_policy,
+        automatic_policy_path,
+        SKILL_ROOT,
+    )
+    assert len(boundary) == 1 and boundary[0]["reason_code"] == UNATTAINABLE
+    assert "禁止变更边界" in boundary[0]["reason"]
+    assert "禁止扩权" in boundary[0]["evidence"]["affected_metric_instance"]["minimal_authority_expansion"]
+    assert validate_automatic_waiver_binding(boundary_contract, SKILL_ROOT) == []
     invalid_evidence = copy.deepcopy(evidence)
     invalid_evidence["proof"]["stable_unattainability_evidence"] = False
     try:
@@ -1828,6 +1894,55 @@ def conditional_group_weight_binding_case():
     assert validate_conditional_group_weight_binding(direct, items, {"node-1": node}, root, manifest) == []
     direct["conditional_group_weight_binding"]["group_exposure_counts"] = {"G1": 2, "G2": 2}
     assert any("逐事件复算一致" in error for error in validate_conditional_group_weight_binding(direct, items, {"node-1": node}, root, manifest))
+
+
+def cascade_capacity_array_target_case():
+    common = {"source_node_ids": ["cascade-main"], "instance_dimensions": {"entry_source": "natural"}, "status": "适用", "kind": "score"}
+    depth = {
+        **common,
+        "metric_id": "cascade.depth_distribution",
+        "target": [0.5, 0.3, 0.2],
+        "score_profile": {"bin_positions": [0, 1, 2]},
+        "display": {"item_labels": ["0次", "1次", "2次以上"]},
+        "sample_capability_input": {"original_sample_count": 10},
+    }
+    capacity = {
+        **common,
+        "metric_id": "cascade.effective_capacity_distribution_by_depth",
+        "target": {"第1层::10格": 0.6, "第1层::20格": 0.4},
+        "score_profile": {
+            "group_separator": "::",
+            "bin_positions_by_group": {"第1层": {"10格": 10, "20格": 20}},
+            "group_weights": {"第1层": 1.0},
+        },
+        "conditional_group_weight_binding": {"token_multipliers": {"第1层": 5}},
+    }
+    step_return = {
+        **common,
+        "metric_id": "cascade.step_return_distribution_by_depth",
+        "target": {
+            "第1层|10格::0x": 0.5,
+            "第1层|10格::1x以上": 0.5,
+            "第1层|20格::0x": 0.5,
+            "第1层|20格::1x以上": 0.5,
+            "第2层|30格::0x": 0.5,
+            "第2层|30格::1x以上": 0.5,
+        },
+        "score_profile": {
+            "group_separator": "::",
+            "group_weights": {
+                "第1层|10格": 0.5,
+                "第1层|20格": 1 / 3,
+                "第2层|30格": 1 / 6,
+            },
+        },
+    }
+    items = {
+        (metric["metric_id"], tuple(metric["source_node_ids"]), (("entry_source", "natural"),)): metric
+        for metric in (depth, capacity, step_return)
+    }
+    errors = validate_cascade_capacity_contract(step_return, items)
+    assert errors == [], errors
 
 
 def hold_spin_capacity_contract_case():
@@ -4318,6 +4433,7 @@ def main():
     position_semantic_contract_case()
     transform_target_coherence_case()
     conditional_group_weight_binding_case()
+    cascade_capacity_array_target_case()
     hold_spin_capacity_contract_case()
     derivation_projection_case()
     mode_and_owner_semantic_contract_case()
@@ -4575,7 +4691,39 @@ def main():
     dump(baseline_measurements, original_measurements)
     run(ROOT / "validate_artifacts.py", "--historical-replay", "--artifacts", artifacts, "--reports", reports, "--pre-delivery")
     archive_path = artifacts / "04-alignment/candidate_archive.json"
+    manifest_path = artifacts / "04-alignment/alignment_manifest.json"
+    original_manifest = load_json(manifest_path)
     archive = json.loads(archive_path.read_text(encoding="utf-8"))
+    original_archive = copy.deepcopy(archive)
+    v2_manifest = copy.deepcopy(original_manifest)
+    v2_manifest["execution_policy"] = {
+        "policy_id": "continuous-alignment-execution-v2",
+        "formal_candidate_limit_enabled": False,
+        "budget_exhaustion_stops_execution": False,
+        "candidate_exhaustion_stops_execution": False,
+        "budget_extension_requires_user_approval": False,
+        "auto_expand_calibration_budget_until_pass_or_structural_unattainability": True,
+        "auto_expand_formal_budget_until_pass_or_structural_unattainability": True,
+        "auto_waive_forbidden_boundary_unattainability": True,
+        "request_user_for_forbidden_boundary_change": False,
+    }
+    v2_manifest["budget_policy"] = {
+        "auto_expand": True,
+        "task_budget_limit": None,
+        "budget_exhaustion_stops_execution": False,
+        "extension_requires_user_approval": False,
+        "continue_until": "formal_pass_or_structural_unattainability",
+        "attainability_ceiling": {"enabled": True, "stop_status": "结构不可达", "prohibit_budget_only_expansion": True},
+    }
+    dump(manifest_path, v2_manifest)
+    archive["stop_reason"] = "FORMAL通过"
+    dump(archive_path, archive)
+    assert validate_attainability_ceiling(artifacts) == []
+    archive["stop_reason"] = "达到候选上限"
+    dump(archive_path, archive)
+    assert "连续执行v2不得以预算或候选次数作为停止原因" in validate_attainability_ceiling(artifacts)
+    dump(manifest_path, original_manifest)
+    archive = copy.deepcopy(original_archive)
     archive["attainability"] = {"status": "结构不可达", "evidence_path": "blocked.json", "evidence_sha256": "a" * 64, "budget_expansion_allowed": True}
     dump(archive_path, archive)
     assert "结构不可达后仍允许预算扩张" in validate_attainability_ceiling(artifacts)

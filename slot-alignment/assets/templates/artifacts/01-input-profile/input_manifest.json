@@ -30,7 +30,9 @@
       "recount_result_path": "",
       "recount_result_sha256": "",
       "effective_entry_count": 0,
-      "user_confirmed_entry_count": 0
+      "user_confirmed_entry_count": 0,
+      "final_count_adoption_method": "initial_user_confirmation",
+      "auto_adopted_entry_count": null
     },
     "python_script": {
       "status": "未开始",

@@ -3659,7 +3659,10 @@ def expected_metrics(active_nodes, scope_instances, package_ids, catalog, errors
                     source_sets = condition_matches(metric.get("profile_match", {}), active_nodes)
             for source_ids in source_sets:
                 for dimensions, binding in metric_dimensions(metric, source_ids, scope_instances, active_node_map, errors):
-                    matched.append(add_instance(package_id, metric, source_ids, dimensions, binding))
+                    bound_source_ids = source_ids
+                    if metric.get("metric_id") == "settlement.step_return_distribution" and isinstance(binding, dict):
+                        bound_source_ids = set(binding.get("source_node_ids", source_ids))
+                    matched.append(add_instance(package_id, metric, bound_source_ids, dimensions, binding))
         effective = [
             catalog["metrics"][metric_id]
             for metric_id, _, _ in matched
@@ -6282,10 +6285,16 @@ def validate_cascade_capacity_contract(item, items_by_key):
         elif any(not close_probability(capacity_weights[group], expected) for group, expected in expected_capacity_weights.items()):
             errors.append("Cascade容量group_weights未由密封原版逐层步骤暴露确定性生成")
         depth_sample_count = depth.get("sample_capability_input", {}).get("original_sample_count")
+        depth_target = depth.get("target")
+        depth_labels = (
+            depth_target.keys()
+            if isinstance(depth_target, dict)
+            else depth.get("display", {}).get("item_labels", [])
+        )
         tail_layers = {
             int(single_numeric_token(label))
-            for label in depth.get("target", {})
-            if "以上" in label and single_numeric_token(label) is not None
+            for label in depth_labels
+            if isinstance(label, str) and "以上" in label and single_numeric_token(label) is not None
         }
         if finite_number(depth_sample_count) and depth_sample_count > 0 and isinstance(raw_exposure, dict):
             raw_by_layer = {

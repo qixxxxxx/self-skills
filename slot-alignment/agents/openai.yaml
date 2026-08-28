@@ -1,6 +1,6 @@
 interface:
-  display_name: "Slot 原版数值对齐 v4.1"
-  short_description: "原始脚本一次认证，派生观测自动等价后完成五阶段对齐"
-  default_prompt: "使用 $slot-alignment 完成当前Slot游戏的原始脚本认证、派生观测等价校验、数值体验对齐、独立FORMAL验收和中文交付。"
+  display_name: "Slot 原版数值对齐 v4.3"
+  short_description: "禁止变更边界自动豁免，持续扩预算完成FORMAL对齐"
+  default_prompt: "使用 $slot-alignment 在不改变模式、玩法、游戏逻辑和配置结构的前提下，自动豁免结构不可达指标并持续扩预算完成FORMAL对齐与交付。"
 policy:
   allow_implicit_invocation: false
