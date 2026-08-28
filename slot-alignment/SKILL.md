@@ -1,9 +1,9 @@
 ---
 name: slot-alignment
-description: 基于Slot原版采集协议、规则/规格、Runtime和用户一次直接认证的原始Python模拟脚本，自动派生并等价校验观测/输出增强脚本，建立玩法画像与版本化指标合同，执行开工前样本/脚本/指标覆盖确认、RTP与体验评分、持续扩预算CALIBRATION、独立FORMAL验收和五阶段中文交付。用于老虎机原版数值或体验对齐、盘面或中奖构成诊断、指标规划、参数搜索、候选验收、禁止变更边界下的结构不可达自动豁免，以及生成阶段1至阶段5固定产物。
+description: 基于Slot原版采集协议、规则/规格、Runtime和用户一次直接认证的原始Python模拟脚本，自动派生并等价校验观测/输出增强脚本，建立玩法画像与版本化指标合同，执行开工前样本/脚本/指标覆盖确认、默认确定性多Worker样本分片、RTP与体验评分、持续扩预算CALIBRATION、独立FORMAL验收和五阶段中文交付。用于老虎机原版数值或体验对齐、盘面或中奖构成诊断、指标规划、参数搜索、候选验收、禁止变更边界下的结构不可达自动豁免，以及生成阶段1至阶段5固定产物。
 ---
 
-# Slot 原版数值对齐 v4.3
+# Slot 原版数值对齐 v4.4
 
 ## 目标与硬边界
 
@@ -38,6 +38,7 @@ target_rtp
 - 工作区固定为`<slot_docs_root>/ai-math-workbench/<game_code>/alignments/<mode>/<task_id>/`。
 - 路径不存在、结果不唯一、资料目录缺失或关键作用域不明确时停止询问，不自行猜测。
 - Python一律使用解析出的`python_bin`。完整路径、目录和状态规则见[92-命名与状态规范.md](references/92-命名与状态规范.md)。
+- 模拟默认使用`workers=auto`，按`max(1, floor(进程可用逻辑核心数 × 70%))`解析；只把同一候选的既定总样本拆成不重叠分片并行执行，不增加候选数、预算或总样本量。分片、RNG和合并规则见[04A-搜索效率与预算.md](references/04A-搜索效率与预算.md)。
 
 ## 开工前合并确认
 
@@ -69,6 +70,7 @@ target_rtp
 - 政策链展开中间合同`metric_contract.schema_version=1.3`；
 - 阶段2固定机器产物`metric_contract.schema_version=1.4`；
 - `report_contract_version=slot-alignment.reports.v3.3`。
+- 阶段4执行政策固定使用`continuous_execution_policy.v2.json`和`parallel_execution_policy.v1.json`。
 
 已密封的v2.5至v2.9及v3.2任务只允许显式`--historical-replay`只读复算，不得用于新任务或重新进入阶段2。1.3/1.4存储、继承、hash和兼容边界见[98-通用合同架构升级.md](references/98-通用合同架构升级.md)。
 
@@ -111,6 +113,7 @@ target_rtp
 - FORMAL样本不足持续自动扩样，若形成结构不可达证据则按精确实例自动豁免并重生成阶段3/4；
 - 结构不可达证据有效时停止仅靠追加预算，自动处理证据列出的精确实例。
 - 指标只有改变模式、玩法、游戏逻辑、状态机、RNG、结算语义、付费配置或配置结构才能完成时，自动密封禁止变更边界证据并按结构不可达豁免，不请求用户改变边界。
+- 阶段4敏感性、CALIBRATION四级样本和FORMAL的每个单候选模拟默认采用`parallel_execution_policy.v1.json`；Worker数只影响耗时，不得改变总样本预算、RNG语义、候选结果、候选排名或FORMAL独立性。任务专用搜索脚本不得绕过共享分片规则直接退回单进程统计入口。
 
 资料、目标来源、定义、实现或配置读取错误、预检遗漏的新指标扩展及持续外部错误不能自动处理时，保存命令、输入hash、错误和最小恢复动作，以`不通过`或`无法判定`完成最终报告。不得把可由禁止变更边界证明的不可达指标归入上述阻塞；这类指标必须自动豁免并继续。边界与责任见[91-边界停止与责任.md](references/91-边界停止与责任.md)。
 
@@ -163,6 +166,7 @@ target_rtp
 - 玩法覆盖率与指标可测率为100%，无未关闭必需缺口或Owner冲突；
 - 未豁免硬指标全部通过，综合分至少80；
 - FORMAL使用独立样本并复验实际逐指标、逐组样本能力；
+- 阶段4绑定多Worker政策、实际Worker数、密封分片计划及其hash；同一分片计划以`workers=1`顺序执行和`workers=auto`并行执行时，原始累加器与最终指标必须等价；
 - 报告与当前机器JSON确定性等价，模板章节、字段和表头完整；
 - FORMAL Runtime与交付manifest逐文件一致，RTP Group和`meta.version`正确；
 - 完整`artifacts/`通过最终交付校验，历史版本和失败证据保留；

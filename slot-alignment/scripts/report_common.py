@@ -609,6 +609,7 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
             errors.append("正式执行前仍有未关闭的指标库缺口")
         if preflight.get("extension_decision_status") not in {"无需扩展", "已完成"}:
             errors.append("开工前指标库扩展决策尚未完成")
+    parallel_required = isinstance(alignment_manifest, dict) and alignment_manifest.get("skill_version") == "4.4"
     if alignment_manifest is not None:
         policy = alignment_manifest.get("execution_policy", {})
         if policy.get("calibration_execution_path") != "python" or policy.get("formal_execution_path") != "python":
@@ -619,6 +620,11 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
             errors.append("阶段4未允许通过自动等价门禁的派生脚本")
         if input_manifest.get("report_contract_version") == REPORT_CONTRACT_V33:
             errors += validate_continuous_execution_policy(policy, Path(__file__).resolve().parent.parent)
+            parallel = policy.get("parallel_execution")
+            if parallel_required and not isinstance(parallel, dict):
+                errors.append("v4.4阶段4缺少默认多Worker执行政策")
+            elif parallel is not None:
+                errors += validate_parallel_execution_policy(parallel, Path(__file__).resolve().parent.parent)
     if formal_result is not None:
         if formal_result.get("execution_path") != "python":
             errors.append("FORMAL执行路径不是Python")
@@ -631,6 +637,12 @@ def validate_python_user_certification(input_manifest, alignment_manifest=None, 
                 errors.append("FORMAL绑定的派生脚本等价证据hash无效")
         elif formal_result.get("execution_script_sha256") not in {None, "", script_sha}:
             errors.append("FORMAL绑定的实际执行脚本hash无效")
+        formal_sample = formal_result.get("sample", {})
+        parallel_result = formal_sample.get("parallel_execution") if isinstance(formal_sample, dict) else None
+        if parallel_required and not isinstance(parallel_result, dict):
+            errors.append("v4.4 FORMAL缺少多Worker分片执行证据")
+        elif parallel_result is not None:
+            errors += validate_parallel_execution_result(formal_result)
     return errors
 
 
@@ -686,6 +698,71 @@ def validate_continuous_execution_policy(sealed, skill_root):
     mismatches = [field for field in fields if sealed.get(field) != policy.get(field)]
     if mismatches:
         errors.append(f"连续执行政策合同字段与来源不一致: {','.join(mismatches)}")
+    return errors
+
+
+def validate_parallel_execution_policy(sealed, skill_root):
+    if not isinstance(sealed, dict):
+        return ["并行执行政策必须是对象"]
+    source = sealed.get("source_path")
+    if not isinstance(source, str) or not source or Path(source).is_absolute() or ".." in Path(source).parts:
+        return ["并行执行政策来源路径无效"]
+    root = Path(skill_root).resolve()
+    path = (root / source).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return ["并行执行政策来源越出Skill目录"]
+    if not path.is_file():
+        return ["并行执行政策源文件不存在"]
+    errors = []
+    if sealed.get("source_sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+        errors.append("并行执行政策来源SHA-256失效")
+    try:
+        policy = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return errors + [f"并行执行政策无法读取: {exc}"]
+    mismatches = [field for field, value in policy.items() if sealed.get(field) != value]
+    if mismatches:
+        errors.append(f"并行执行政策合同字段与来源不一致: {','.join(mismatches)}")
+    return errors
+
+
+def validate_parallel_execution_result(formal_result):
+    sample = formal_result.get("sample", {}) if isinstance(formal_result, dict) else {}
+    parallel = sample.get("parallel_execution", {})
+    if not isinstance(parallel, dict):
+        return ["FORMAL多Worker分片执行证据必须是对象"]
+    errors = []
+    if parallel.get("policy_id") != "deterministic-single-candidate-sample-sharding-v1":
+        errors.append("FORMAL多Worker政策ID无效")
+    integers = {}
+    for field in ("available_cpu_count", "workers_used", "shard_count"):
+        value = parallel.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            errors.append(f"FORMAL多Worker字段无效: {field}")
+        else:
+            integers[field] = value
+    paid_entries = sample.get("paid_entry_count")
+    if isinstance(paid_entries, int) and paid_entries > 0 and integers.get("shard_count", 0) > paid_entries:
+        errors.append("FORMAL分片数不得超过完整付费入口数")
+    requested = parallel.get("workers_requested")
+    if requested == "auto" and len(integers) == 3:
+        expected = min(max(1, integers["available_cpu_count"] * 7 // 10), integers["shard_count"])
+        if isinstance(paid_entries, int) and paid_entries > 0:
+            expected = min(expected, paid_entries)
+        if integers["workers_used"] != expected:
+            errors.append("FORMAL auto Worker数未按可用逻辑核心数70%解析")
+    if integers.get("workers_used", 0) > integers.get("shard_count", 0):
+        errors.append("FORMAL Worker数不得超过分片数")
+    if parallel.get("merge_order") != "shard_index_ascending":
+        errors.append("FORMAL多Worker合并顺序无效")
+    if parallel.get("single_worker_equivalence_status") != "通过":
+        errors.append("FORMAL单/多Worker等价门禁未通过")
+    for field in ("shard_plan_sha256", "equivalence_evidence_sha256"):
+        value = parallel.get(field)
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+            errors.append(f"FORMAL多Worker证据hash无效: {field}")
     return errors
 
 

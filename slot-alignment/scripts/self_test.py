@@ -23,8 +23,9 @@ from apply_automatic_waiver_policy import (
     validate_automatic_waiver_binding,
 )
 from apply_ordered_distance_policy import apply_policy as apply_ordered_distance_policy
+from parallel_execution import build_execution_plan, build_sample_shards, resolve_worker_count
 from validate_artifacts import validate_attainability_ceiling, validate_component_rtp_targets
-from report_common import TEMPLATE_PATHS, apply_metric_display_metadata, canonical_json_sha256, detail_rows, metric_blocks, metric_item_labels, metric_stage2_table, validate_continuous_execution_policy, validate_execution_qualification, validate_preflight_input_confirmation, validate_report_against_template, validate_template_text, validate_templates
+from report_common import TEMPLATE_PATHS, apply_metric_display_metadata, canonical_json_sha256, detail_rows, metric_blocks, metric_item_labels, metric_stage2_table, validate_continuous_execution_policy, validate_execution_qualification, validate_parallel_execution_policy, validate_parallel_execution_result, validate_preflight_input_confirmation, validate_report_against_template, validate_template_text, validate_templates
 from apply_sample_capability_policy import apply_policy as apply_sample_capability_policy
 from apply_score_group_weight_policy import apply_policy as apply_score_group_weight_policy
 from score_alignment import anchors, distance, sample_capability_summary, validate_formal_sample_capability, validate_reachable_support, validate_sample_capability_binding
@@ -327,6 +328,56 @@ def instance_compiler_case(root):
     scoring_report = valid_root / "compact-stage3.md"
     run(ROOT / "render_scoring_report.py", "--contract", compact_path, "--scorecard", scorecard_path, "--output", scoring_report)
     assert "阶段3-评分报告" in scoring_report.read_text(encoding="utf-8")
+
+
+def parallel_execution_case():
+    policy_path = SKILL_ROOT / "assets/policies/parallel_execution_policy.v1.json"
+    policy = load_json(policy_path)
+    schema = load_json(SKILL_ROOT / "assets/schemas/parallel-execution-policy.schema.json")
+    assert list(Draft202012Validator(schema).iter_errors(policy)) == []
+    sealed = {**policy, "source_sha256": sha(policy_path)}
+    assert validate_parallel_execution_policy(sealed, SKILL_ROOT) == []
+    invalid = copy.deepcopy(sealed)
+    invalid["candidate_parallelism_enabled"] = True
+    assert any("字段与来源不一致" in error for error in validate_parallel_execution_policy(invalid, SKILL_ROOT))
+    assert resolve_worker_count("auto", cpu_count=15) == 10
+    assert resolve_worker_count("auto", cpu_count=1) == 1
+    assert resolve_worker_count(1, cpu_count=15) == 1
+    shards = build_sample_shards(100000, 10)
+    assert len(shards) == 10 and all(item["count"] == 10000 for item in shards)
+    uneven = build_sample_shards(23, 10)
+    assert [item["count"] for item in uneven] == [3, 3, 3, 2, 2, 2, 2, 2, 2, 2]
+    assert uneven[0]["start_index"] == 0 and uneven[-1]["end_index_exclusive"] == 23
+    assert all(left["end_index_exclusive"] == right["start_index"] for left, right in zip(uneven, uneven[1:]))
+    plan = build_execution_plan(100000, "auto", cpu_count=15)
+    assert plan["workers_used"] == 10 and plan["shard_count"] == 10 and plan["total_entry_count"] == 100000
+    replay = build_execution_plan(100000, 1, cpu_count=15, shard_count=plan["shard_count"])
+    assert replay["workers_used"] == 1 and replay["shards"] == plan["shards"]
+    formal = {
+        "sample": {
+            "paid_entry_count": 100000,
+            "parallel_execution": {
+                "policy_id": policy["policy_id"],
+                "available_cpu_count": 15,
+                "workers_requested": "auto",
+                "workers_used": 10,
+                "shard_count": 10,
+                "shard_plan_sha256": "a" * 64,
+                "merge_order": "shard_index_ascending",
+                "single_worker_equivalence_status": "通过",
+                "equivalence_evidence_sha256": "b" * 64,
+            },
+        },
+    }
+    assert validate_parallel_execution_result(formal) == []
+    formal["sample"]["parallel_execution"]["workers_used"] = 9
+    assert "FORMAL auto Worker数未按可用逻辑核心数70%解析" in validate_parallel_execution_result(formal)
+    for value in (0, -1, "1.5", True):
+        try:
+            resolve_worker_count(value, cpu_count=15)
+            raise AssertionError("非法Worker数未阻塞")
+        except ValueError:
+            pass
 
 
 def preflight_input_confirmation_case(root):
@@ -4438,6 +4489,7 @@ def main():
     derivation_projection_case()
     mode_and_owner_semantic_contract_case()
     catalog_semantic_contract_case()
+    parallel_execution_case()
     root = Path(tempfile.mkdtemp(prefix="slot-alignment-self-test-"))
     contract_io_case(root / "contract-io")
     preflight_input_confirmation_case(root / "preflight-input-confirmation")
@@ -4761,7 +4813,7 @@ def main():
     for name in ("01-资料确认与玩法画像.md", "02-指标匹配.md", "90-跨阶段一致性.md", "98-通用合同架构升级.md"):
         assert "v2.5～v2.9及v3.2" in (SKILL_ROOT / "references" / name).read_text(encoding="utf-8")
     assert "v2.5至v2.9及v3.2" in skill_text
-    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "开工前样本数确认", "全量重算必须覆盖全部已发现源", "Python脚本名称绝对路径与Hash确认", "原始脚本一次认证与派生脚本自动等价", "等价失败差异输出与自动修复入口", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "v3.2历史复算兼容", "Skill导航与版本文档一致性"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
+    print(json.dumps({"status": "通过", "scenarios": ["104指标与24玩法包全量矩阵", "metric_contract 1.4紧凑往返与缓存", "五阶段模板展示契约", "逐章Markdown展示实例", "模板缺展示实例阻塞", "必需字段存在性", "表头名称与顺序", "指标通俗解释", "业务单位转换", "真实分布标签", "开工前样本数确认", "全量重算必须覆盖全部已发现源", "Python脚本名称绝对路径与Hash确认", "原始脚本一次认证与派生脚本自动等价", "等价失败差异输出与自动修复入口", "默认70%核心多Worker分片", "单/多Worker同分片计划等价", "阶段1确定性完整报告", "阶段2确定性完整报告", "阶段1缺章节阻塞", "阶段2章节错误阻塞", "v3.3动态语义合同", "多节点、多入口与多盘面阶段实例", "事件集与目标证据完整性", "Feature路径与0x一致性", "Feature Buy逐事件重算", "固定Jackpot确定性不适用", "Wild倍率依赖、倍率递进、固定线、Wasserstein与阻塞审计反例", "正向", "硬指标失败", "豁免后通过", "未来任务容差系数", "组件RTP占比映射", "Python脚本用户直接认证", "非Python认证路径阻塞", "缺少用户认证阻塞", "阶段3报告缺失阻塞", "阶段3报告篡改阻塞", "阶段3合同hash失效阻塞", "阶段3测量hash失效阻塞", "基线不通过仍允许进入阶段4", "阶段3到阶段4门禁", "阶段4报告篡改阻塞", "预算可达性上限", "阶段5报告篡改阻塞", "交付封存", "旧任务报告契约版本保持", "v3.2历史复算兼容", "Skill导航与版本文档一致性"], "component_target_method": component_targets["method"], "fixture": str(root)}, ensure_ascii=False))
     return 0
 
 

@@ -1,6 +1,6 @@
 interface:
-  display_name: "Slot 原版数值对齐 v4.3"
-  short_description: "禁止变更边界自动豁免，持续扩预算完成FORMAL对齐"
-  default_prompt: "使用 $slot-alignment 在不改变模式、玩法、游戏逻辑和配置结构的前提下，自动豁免结构不可达指标并持续扩预算完成FORMAL对齐与交付。"
+  display_name: "Slot 原版数值对齐 v4.4"
+  short_description: "默认确定性多Worker分片，持续扩预算完成FORMAL对齐"
+  default_prompt: "使用 $slot-alignment 以默认确定性多Worker分片运行单候选模拟，在不改变玩法边界和总样本预算的前提下完成FORMAL对齐与交付。"
 policy:
   allow_implicit_invocation: false

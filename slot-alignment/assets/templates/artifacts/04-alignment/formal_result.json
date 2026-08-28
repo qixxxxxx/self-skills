@@ -11,7 +11,22 @@
   "user_script_certification_sha256": "",
   "execution_script_sha256": "",
   "script_equivalence_evidence_sha256": "",
-  "sample": {"paid_entry_count": 0, "seed_set_hash": "", "metric_sample_counts": []},
+  "sample": {
+    "paid_entry_count": 0,
+    "seed_set_hash": "",
+    "parallel_execution": {
+      "policy_id": "deterministic-single-candidate-sample-sharding-v1",
+      "available_cpu_count": 0,
+      "workers_requested": "auto",
+      "workers_used": 0,
+      "shard_count": 0,
+      "shard_plan_sha256": "",
+      "merge_order": "shard_index_ascending",
+      "single_worker_equivalence_status": "待验证",
+      "equivalence_evidence_sha256": ""
+    },
+    "metric_sample_counts": []
+  },
   "scorecard": {
     "status": "阻塞",
     "hard_gates": [],

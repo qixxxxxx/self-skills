@@ -44,6 +44,22 @@
       "properties": {
         "paid_entry_count": {"type": "integer", "minimum": 0},
         "seed_set_hash": {"type": "string"},
+        "parallel_execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy_id", "available_cpu_count", "workers_requested", "workers_used", "shard_count", "shard_plan_sha256", "merge_order", "single_worker_equivalence_status", "equivalence_evidence_sha256"],
+          "properties": {
+            "policy_id": {"const": "deterministic-single-candidate-sample-sharding-v1"},
+            "available_cpu_count": {"type": "integer", "minimum": 1},
+            "workers_requested": {"type": ["string", "integer"]},
+            "workers_used": {"type": "integer", "minimum": 1},
+            "shard_count": {"type": "integer", "minimum": 1},
+            "shard_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "merge_order": {"const": "shard_index_ascending"},
+            "single_worker_equivalence_status": {"enum": ["通过", "不通过", "待验证"]},
+            "equivalence_evidence_sha256": {"type": "string", "pattern": "^$|^[0-9a-f]{64}$"}
+          }
+        },
         "metric_sample_counts": {
           "type": "array",
           "items": {
