@@ -3,7 +3,7 @@ name: slot-alignment
 description: 基于Slot原版采集协议、规则/规格、Runtime和用户一次直接认证的原始Python模拟脚本，自动派生并等价校验观测/输出增强脚本，建立玩法画像与版本化指标合同，执行开工前样本/脚本/指标覆盖确认、默认确定性多Worker样本分片、RTP与体验评分、持续扩预算CALIBRATION、独立FORMAL验收和五阶段中文交付。用于老虎机原版数值或体验对齐、盘面或中奖构成诊断、指标规划、参数搜索、候选验收、禁止变更边界下的结构不可达自动豁免，以及生成阶段1至阶段5固定产物。
 ---
 
-# Slot 原版数值对齐 v4.4
+# Slot 原版数值对齐 v4.5
 
 ## 目标与硬边界
 
@@ -26,6 +26,8 @@ description: 基于Slot原版采集协议、规则/规格、Runtime和用户一�
 ```text
 workspace_root
 slot_docs_root
+config_runtime_root
+server_runtime_cache_root
 python_bin
 game_code
 mode
@@ -36,6 +38,7 @@ target_rtp
 - `rtp_group`固定为整数`1`，不得创建其他Group任务或Runtime路由。
 - `task_id`缺失时生成`aln-<mode>-<YYYYMMDD>-<NNN>`，创建前确认目录不存在。
 - 工作区固定为`<slot_docs_root>/ai-math-workbench/<game_code>/alignments/<mode>/<task_id>/`。
+- 原版采集样本默认从`<slot_docs_root>/ai-math-workbench/<game_code>/capture-summary/`扫描；目录缺失或用户提供其他样本根目录时，在开工前列明并确认实际范围。
 - 路径不存在、结果不唯一、资料目录缺失或关键作用域不明确时停止询问，不自行猜测。
 - Python一律使用解析出的`python_bin`。完整路径、目录和状态规则见[92-命名与状态规范.md](references/92-命名与状态规范.md)。
 - 模拟默认使用`workers=auto`，按`max(1, floor(进程可用逻辑核心数 × 70%))`解析；只把同一候选的既定总样本拆成不重叠分片并行执行，不增加候选数、预算或总样本量。分片、RNG和合并规则见[04A-搜索效率与预算.md](references/04A-搜索效率与预算.md)。
@@ -44,11 +47,12 @@ target_rtp
 
 正式执行五阶段前只做只读、低成本预检，不运行CALIBRATION或FORMAL：
 
-1. 扫描全部已发现原版源，汇总发现源数量和完整付费入口数。
-2. 解析唯一Python脚本文件名、绝对`.py`路径和SHA-256。
-3. 建立玩法画像，运行`compile_metric_instances.py`检查指标目录覆盖和统计能力。
-4. 生成`metric_extension_proposal.json`，汇总未知玩法、缺少指标包、Owner缺口和观测能力缺口。
-5. 第一次合并确认同时向用户展示样本数、是否全量重算、脚本身份、目标、作用域、指标扩展和参数权限。
+1. 按`config_main → server_main → slot_docs`顺序只读查询Runtime候选：配置仓库main分支、服务端main缓存、游戏资料目录中发现的完整Runtime四件套；逐项列出来源类型、路径、资格和四件套bundle hash。配置仓库main分支只是首选推荐，不得自动选定；即使只发现一份，也必须由用户确认本次使用哪一份。
+2. 从默认`capture-summary/`扫描全部已发现原版源，汇总实际样本根目录、发现源数量和完整付费入口数。
+3. 解析唯一Python脚本文件名、绝对`.py`路径和SHA-256。
+4. 建立玩法画像，运行`compile_metric_instances.py`检查指标目录覆盖和统计能力。
+5. 生成`metric_extension_proposal.json`，汇总未知玩法、缺少指标包、Owner缺口和观测能力缺口。
+6. 第一次合并确认同时向用户展示Runtime候选与推荐项、实际样本根目录、样本数、是否全量重算、脚本身份、目标、作用域、指标扩展和参数权限。
 
 用户确认现有统计时直接封存；用户要求重新统计时，必须处理`all_discovered_sources`中的全部已发现源。处理范围完整、最终入口数有效且结果路径与hash有效时，自动采用重算后的最终有效入口数并继续，不追加用户确认；只有重算不完整、数量异常或证据无效时才阻塞。观测或输出适配不得修改原始认证脚本，应生成派生脚本并自动运行等价门禁；失败时读取差异、仅修正观测/输出实现并重复校验，不得要求用户重新认证。若某些指标只有改变模式、玩法、游戏逻辑、状态机、RNG、结算语义或配置结构才能取得观测资格或达标，恢复原始认证脚本，密封受影响精确实例的结构不可达证据并自动豁免后继续，不停止询问用户。
 
@@ -56,6 +60,7 @@ target_rtp
 
 - `preflight_input_confirmation.status=通过`；
 - `preflight_decision_gate.status=通过`；
+- 用户已从列举的Runtime候选中确认本次基线，且`paths.runtime`与确认项一致；
 - 用户已在第一次合并确认中确认发现样本数及是否全量重算；未重算时直接采用用户确认数，重算时自动采用证据有效的最终重算数；
 - 指标库缺口数为0，扩展决策为“无需扩展”或“已完成”；
 - 原始脚本已有有效用户直接认证；当前执行脚本为该原始脚本，或其派生脚本等价门禁已通过。

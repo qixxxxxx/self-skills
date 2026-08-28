@@ -41,6 +41,7 @@ def render(manifest, profile, authority, source_hashes):
     qualification = manifest.get("script_qualification", {})
     preflight = manifest.get("preflight_decision_gate", {})
     input_confirmation = manifest.get("preflight_input_confirmation", {})
+    runtime_selection = input_confirmation.get("runtime_selection", {})
     sample_confirmation = input_confirmation.get("sample_count", {})
     script_confirmation = input_confirmation.get("python_script", {})
     certification = qualification.get("user_certification", {})
@@ -51,7 +52,7 @@ def render(manifest, profile, authority, source_hashes):
         "id": f"preflight-input-{index:02d}",
         "reason": error,
         "owner": "用户/阶段1",
-        "recovery_action": "在preflight完成样本数或Python脚本身份确认并重新生成阶段1报告",
+        "recovery_action": "在preflight完成Runtime、样本数或Python脚本身份确认并重新生成阶段1报告",
         "return_stage": "preflight",
     } for index, error in enumerate(input_confirmation_errors, 1)]
     blockers = manifest.get("blockers", []) + profile.get("gaps", []) + authority.get("conflicts", []) + confirmation_blockers
@@ -69,6 +70,7 @@ def render(manifest, profile, authority, source_hashes):
     path_purposes = {
         "workspace_root": "任务工作区",
         "slot_docs_root": "原版资料根目录",
+        "source_capture_root": "原版采集样本根目录",
         "server_root": "服务端只读取证",
         "runtime": "候选基线",
         "certified_simulation_script": "用户一次认证的只读原始脚本",
@@ -96,6 +98,20 @@ def render(manifest, profile, authority, source_hashes):
         else:
             excluded_summary_rows.append([ref, item, "已排除", "未提供结构化原因", "待确认"])
             excluded_path_rows.append([ref, item])
+    runtime_candidate_rows = []
+    for item in runtime_selection.get("candidates", []):
+        if isinstance(item, dict):
+            runtime_candidate_rows.append([
+                item.get("source_id"), item.get("source_type"), item.get("priority"),
+                item.get("qualification"), item.get("path"), item.get("bundle_sha256"),
+            ])
+    runtime_selection_rows = [
+        ["查询顺序", runtime_selection.get("search_order"), "固定为config_main → server_main → slot_docs"],
+        ["推荐候选", runtime_selection.get("recommended_source_id"), "仅推荐，不得自动选定"],
+        ["用户选择", runtime_selection.get("selected_source_id"), "必须来自合格候选"],
+        ["选择路径", runtime_selection.get("selected_path"), "必须等于paths.runtime"],
+        ["Runtime选择状态", runtime_selection.get("status"), "必须通过"],
+    ]
     target_source_rows = [["T01", field, value] for field, value in detail_rows(manifest.get("target_rtp_source", "input_manifest.scope"), "来源")]
     sample_summary_rows, sample_evidence_rows = [], []
     for index, item in enumerate(samples, 1):
@@ -207,7 +223,7 @@ def render(manifest, profile, authority, source_hashes):
             ["游戏 / 模式 / RTP组", f"{scope.get('game_code', '')} / {scope.get('mode', '')} / {scope.get('rtp_group', '')}", "任务作用域"],
             ["阶段状态", "通过" if ready else "阻塞", "资料、画像、权限、缺口联合判定"],
             ["资料状态", manifest.get("status"), "input_manifest.json"],
-            ["样本与脚本确认", input_confirmation.get("status", "不适用"), "preflight_input_confirmation"],
+            ["Runtime、样本与脚本确认", input_confirmation.get("status", "不适用"), "preflight_input_confirmation"],
             ["脚本资格", qualification.get("status"), "原始脚本用户认证；派生脚本自动等价"],
             ["必需玩法节点", f"{len(required)} / {profile.get('required_node_count', len(required))}", "game_profile.json"],
             ["语义缺口", profile.get("semantic_gap_count", 0), "缺口必须为0"],
@@ -233,7 +249,8 @@ def render(manifest, profile, authority, source_hashes):
         ]), "",
         "## 三、输入资料与密封清单", "",
         "### 3.1 合格输入", "", table(["资料ID", "类型/键", "版本", "资格", "用途"], input_summary_rows), "", table(["资料ID", "路径", "SHA-256"], input_path_rows), "",
-        "### 3.2 排除输入与原因", "", table(["对象ID", "对象", "状态", "排除原因", "影响"], excluded_summary_rows), "", table(["对象ID", "路径/标识"], excluded_path_rows), "",
+        "### 3.2 Runtime候选与用户选择", "", table(["候选ID", "来源类型", "优先级", "资格", "路径", "Bundle SHA-256"], runtime_candidate_rows), "", table(["Runtime确认项", "当前值", "约束"], runtime_selection_rows), "",
+        "### 3.3 排除输入与原因", "", table(["对象ID", "对象", "状态", "排除原因", "影响"], excluded_summary_rows), "", table(["对象ID", "路径/标识"], excluded_path_rows), "",
         "## 四、原版样本与目标画像", "",
         "### 4.1 样本资格与批次", "", table(["批次", "入口数", "完成状态", "入口口径", "资格", "证据ID"], sample_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], sample_evidence_rows), "", table(["样本确认项", "当前值", "约束"], sample_confirmation_rows), "", table(["证据ID", "证据项", "路径/标识"], sample_confirmation_evidence_rows), "", "> 用户要求重新统计时，必须完整处理全部已发现源；历史局部锁或抽样结果不能作为全量重算结果。", "",
         "### 4.2 RTP组件贡献占比与诊断值", "", table(["组件作用域", "原版贡献占比", "原版绝对RTP诊断", "样本", "证据ID", "阶段2用途"], share_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], share_evidence_rows), "",
@@ -250,7 +267,7 @@ def render(manifest, profile, authority, source_hashes):
         "### 7.1 授权参数", "", table(["参数ID", "类型", "当前值/范围", "授权状态", "控制簇"], parameter_summary_rows), "", table(["参数ID", "参数路径"], parameter_path_rows), "", table(["参数ID", "指标项", "影响指标"], parameter_metric_rows), "", table(["参数ID", "详情项", "内容"], parameter_detail_rows), "",
         "### 7.2 禁止修改项", "", table(["禁止类别", "原因", "执行要求"], [[x, "改变玩法或公共语义", "禁止修改；受影响指标密封结构不可达证据后自动豁免"] for x in authority.get("forbidden_categories", [])]), "",
         "## 八、数据门禁、缺口与风险", "", table(["门禁/风险", "要求", "当前状态", "证据ID", "失败影响"], gate_summary_rows), "", table(["证据ID", "证据项", "路径/标识"], gate_evidence_rows), "", table(["开工前决策项", "当前值", "要求"], [
-            ["样本与脚本确认", input_confirmation.get("status", "不适用"), "v3.3正式执行前必须通过"],
+            ["Runtime、样本与脚本确认", input_confirmation.get("status", "不适用"), "v3.3正式执行前必须通过"],
             ["决策窗口", preflight.get("business_decision_window"), "必须为preflight"],
             ["指标库缺口", preflight.get("metric_library_gap_count"), "正式执行前必须为0"],
             ["扩展决策", preflight.get("extension_decision_status"), "无需扩展或已完成"],
@@ -259,7 +276,7 @@ def render(manifest, profile, authority, source_hashes):
         "## 九、阻塞与恢复动作", "", table(["阻塞ID", "原因", "责任方", "恢复动作", "恢复后返回阶段"], rows(blockers, ["id", "reason", "owner", "recovery_action", "return_stage"])), "",
         "## 十、阶段2准入结论", "", table(["条件", "状态", "结论"], [
             ["资料、版本和hash已密封", manifest.get("status"), "必须已完成"], ["玩法语义无缺口", profile.get("semantic_gap_count", 0), "必须为0"],
-            ["参数权限无冲突", authority.get("status"), "必须已完成"], ["样本与脚本确认", input_confirmation.get("status", "不适用"), "v3.3必须在开工前完成"], ["指标库扩展决策", preflight.get("status"), "必须在开工前完成"], ["最终准入", "允许" if ready else "禁止", "禁止时不得开始指标匹配"],
+            ["参数权限无冲突", authority.get("status"), "必须已完成"], ["Runtime、样本与脚本确认", input_confirmation.get("status", "不适用"), "v3.3必须在开工前完成"], ["指标库扩展决策", preflight.get("status"), "必须在开工前完成"], ["最终准入", "允许" if ready else "禁止", "禁止时不得开始指标匹配"],
         ]), "",
         "## 十一、版本、Hash与复算", "", table(["对象", "Schema/版本", "SHA-256"], [
             ["input_manifest.json", manifest.get("schema_version"), source_hashes.get("input_manifest")], ["game_profile.json", profile.get("schema_version"), source_hashes.get("game_profile")],

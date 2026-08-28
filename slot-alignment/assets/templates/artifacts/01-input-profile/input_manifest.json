@@ -4,7 +4,7 @@
   "task_id": "",
   "status": "未开始",
   "scope": {"game_code": "", "mode": "", "rtp_group": 1, "target_rtp": null},
-  "paths": {"workspace_root": "", "slot_docs_root": "", "runtime": "", "certified_simulation_script": "", "simulation_script": ""},
+  "paths": {"workspace_root": "", "slot_docs_root": "", "source_capture_root": "<slot_docs_root>/ai-math-workbench/<game_code>/capture-summary/", "runtime": "", "certified_simulation_script": "", "simulation_script": ""},
   "evidence": [],
   "excluded_evidence": [],
   "source_samples": [],
@@ -17,6 +17,14 @@
     "confirmed_at": "",
     "confirmation_evidence_path": "",
     "confirmation_evidence_sha256": "",
+    "runtime_selection": {
+      "status": "未开始",
+      "search_order": ["config_main", "server_main", "slot_docs"],
+      "candidates": [],
+      "recommended_source_id": "",
+      "selected_source_id": "",
+      "selected_path": ""
+    },
     "sample_count": {
       "discovered_source_count": 0,
       "discovered_entry_count": 0,

@@ -394,7 +394,11 @@ def preflight_input_confirmation_case(root):
         "task_id": "preflight-input-test",
         "status": "已完成",
         "scope": {"game_code": "demo", "mode": "normal", "rtp_group": 1, "target_rtp": {"min": 0.95, "max": 0.96}},
-        "paths": {"simulation_script": script_path},
+        "paths": {
+            "source_capture_root": "/tmp/ai-math-workbench/demo/capture-summary",
+            "runtime": "/tmp/runtime/config-main/demo",
+            "simulation_script": script_path,
+        },
         "hashes": {"simulation_script": script_sha},
         "source_samples": samples,
         "preflight_input_confirmation": {
@@ -404,6 +408,31 @@ def preflight_input_confirmation_case(root):
             "confirmed_at": "2026-08-27T00:00:00Z",
             "confirmation_evidence_path": "evidence/preflight-input-approval.json",
             "confirmation_evidence_sha256": "a" * 64,
+            "runtime_selection": {
+                "status": "通过",
+                "search_order": ["config_main", "server_main", "slot_docs"],
+                "candidates": [
+                    {
+                        "source_id": "runtime-config-main",
+                        "source_type": "config_main",
+                        "priority": 1,
+                        "path": "/tmp/runtime/config-main/demo",
+                        "qualification": "合格",
+                        "bundle_sha256": "1" * 64,
+                    },
+                    {
+                        "source_id": "runtime-server-main",
+                        "source_type": "server_main",
+                        "priority": 2,
+                        "path": "/tmp/runtime/server-main/demo/hash",
+                        "qualification": "合格",
+                        "bundle_sha256": "2" * 64,
+                    },
+                ],
+                "recommended_source_id": "runtime-config-main",
+                "selected_source_id": "runtime-config-main",
+                "selected_path": "/tmp/runtime/config-main/demo",
+            },
             "sample_count": {
                 "discovered_source_count": 2,
                 "discovered_entry_count": 20,
@@ -531,6 +560,12 @@ def preflight_input_confirmation_case(root):
     assert "用户要求重新统计但全量重算未完成" in errors_after(
         lambda item: item["preflight_input_confirmation"]["sample_count"].update({"recount_requested": True, "recount_status": "进行中"})
     )
+    assert "Runtime候选选择确认未通过" in errors_after(
+        lambda item: item["preflight_input_confirmation"]["runtime_selection"].update({"status": "待用户确认"})
+    )
+    assert "用户选择的Runtime路径与paths.runtime不一致" in errors_after(
+        lambda item: item["preflight_input_confirmation"]["runtime_selection"].update({"selected_path": "/tmp/runtime/other"})
+    )
 
     def partial_recount(item):
         sample = item["preflight_input_confirmation"]["sample_count"]
@@ -611,7 +646,7 @@ def preflight_input_confirmation_case(root):
     report_path = reports / "阶段1-资料确认与玩法画像.md"
     run(ROOT / "render_input_profile_report.py", "--artifacts", artifacts, "--output", report_path)
     report = report_path.read_text(encoding="utf-8")
-    assert "发现付费入口" in report and "Python脚本绝对路径" in report
+    assert "Runtime候选与用户选择" in report and "发现付费入口" in report and "Python脚本绝对路径" in report
     assert "| 最终准入 | 允许 |" in report
     blocked_manifest = copy.deepcopy(manifest)
     blocked_manifest["preflight_input_confirmation"]["sample_count"].update({"recount_requested": True, "recount_status": "进行中"})

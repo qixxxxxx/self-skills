@@ -10,6 +10,7 @@
     "confirmed_at",
     "confirmation_evidence_path",
     "confirmation_evidence_sha256",
+    "runtime_selection",
     "sample_count",
     "python_script"
   ],
@@ -20,6 +21,45 @@
     "confirmed_at": {"type": "string"},
     "confirmation_evidence_path": {"type": "string"},
     "confirmation_evidence_sha256": {"type": "string"},
+    "runtime_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "search_order", "candidates", "recommended_source_id", "selected_source_id", "selected_path"],
+      "properties": {
+        "status": {"enum": ["未开始", "待用户确认", "通过", "阻塞"]},
+        "search_order": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "config_main"},
+            {"const": "server_main"},
+            {"const": "slot_docs"}
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_id", "source_type", "priority", "path", "qualification", "bundle_sha256"],
+            "properties": {
+              "source_id": {"type": "string", "minLength": 1},
+              "source_type": {"enum": ["config_main", "server_main", "slot_docs"]},
+              "priority": {"type": "integer", "minimum": 1},
+              "path": {"type": "string", "minLength": 1},
+              "qualification": {"enum": ["合格", "不合格"]},
+              "bundle_sha256": {"type": "string"}
+            }
+          }
+        },
+        "recommended_source_id": {"type": "string", "minLength": 1},
+        "selected_source_id": {"type": "string", "minLength": 1},
+        "selected_path": {"type": "string", "minLength": 1}
+      }
+    },
     "sample_count": {
       "type": "object",
       "additionalProperties": false,

@@ -16,7 +16,8 @@ REPORT_HEADINGS = {
         "### 2.3 完整付费入口与金额口径",
         "## 三、输入资料与密封清单",
         "### 3.1 合格输入",
-        "### 3.2 排除输入与原因",
+        "### 3.2 Runtime候选与用户选择",
+        "### 3.3 排除输入与原因",
         "## 四、原版样本与目标画像",
         "### 4.1 样本资格与批次",
         "### 4.2 RTP组件贡献占比与诊断值",
@@ -362,11 +363,11 @@ def validate_preflight_input_confirmation(input_manifest):
     errors = []
     confirmation = input_manifest.get("preflight_input_confirmation")
     if not isinstance(confirmation, dict):
-        return ["缺少开工前样本与Python脚本确认"]
+        return ["缺少开工前Runtime、样本与Python脚本确认"]
     if confirmation.get("status") != "通过":
-        errors.append("开工前样本与Python脚本确认未通过")
+        errors.append("开工前Runtime、样本与Python脚本确认未通过")
     if confirmation.get("decision_window") != "preflight":
-        errors.append("样本与Python脚本确认必须位于开工前窗口")
+        errors.append("Runtime、样本与Python脚本确认必须位于开工前窗口")
     if confirmation.get("confirmed_by") != "user":
         errors.append("开工前输入必须由用户确认")
     if not isinstance(confirmation.get("confirmed_at"), str) or not confirmation.get("confirmed_at"):
@@ -374,6 +375,55 @@ def validate_preflight_input_confirmation(input_manifest):
     evidence_sha = confirmation.get("confirmation_evidence_sha256", "")
     if not isinstance(confirmation.get("confirmation_evidence_path"), str) or not confirmation.get("confirmation_evidence_path") or not isinstance(evidence_sha, str) or len(evidence_sha) != 64:
         errors.append("开工前输入确认证据hash无效")
+
+    runtime_selection = confirmation.get("runtime_selection")
+    if not isinstance(runtime_selection, dict):
+        errors.append("缺少Runtime候选选择确认")
+    else:
+        if runtime_selection.get("status") != "通过":
+            errors.append("Runtime候选选择确认未通过")
+        if runtime_selection.get("search_order") != ["config_main", "server_main", "slot_docs"]:
+            errors.append("Runtime候选查询顺序必须为config_main、server_main、slot_docs")
+        candidates = runtime_selection.get("candidates")
+        if not isinstance(candidates, list) or not candidates:
+            errors.append("Runtime候选列表为空")
+            candidates = []
+        source_rank = {"config_main": 0, "server_main": 1, "slot_docs": 2}
+        candidate_by_id = {}
+        ranks = []
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                errors.append("Runtime候选格式无效")
+                continue
+            source_id = candidate.get("source_id")
+            source_type = candidate.get("source_type")
+            if not isinstance(source_id, str) or not source_id or source_id in candidate_by_id:
+                errors.append("Runtime候选source_id缺失或重复")
+                continue
+            candidate_by_id[source_id] = candidate
+            if source_type not in source_rank:
+                errors.append(f"Runtime候选来源类型无效: {source_id}")
+            else:
+                ranks.append(source_rank[source_type])
+            if type(candidate.get("priority")) is not int or candidate.get("priority", 0) < 1:
+                errors.append(f"Runtime候选优先级无效: {source_id}")
+            if not isinstance(candidate.get("path"), str) or not candidate.get("path"):
+                errors.append(f"Runtime候选路径缺失: {source_id}")
+            bundle_sha = candidate.get("bundle_sha256", "")
+            if candidate.get("qualification") == "合格" and (not isinstance(bundle_sha, str) or len(bundle_sha) != 64):
+                errors.append(f"合格Runtime候选bundle hash无效: {source_id}")
+        if ranks != sorted(ranks):
+            errors.append("Runtime候选未按config_main、server_main、slot_docs顺序列举")
+        recommended = candidate_by_id.get(runtime_selection.get("recommended_source_id"))
+        selected = candidate_by_id.get(runtime_selection.get("selected_source_id"))
+        if recommended is None or recommended.get("qualification") != "合格":
+            errors.append("Runtime推荐候选无效")
+        if selected is None or selected.get("qualification") != "合格":
+            errors.append("用户选择的Runtime候选无效")
+        else:
+            selected_path = runtime_selection.get("selected_path")
+            if selected_path != selected.get("path") or selected_path != input_manifest.get("paths", {}).get("runtime"):
+                errors.append("用户选择的Runtime路径与paths.runtime不一致")
 
     samples = input_manifest.get("source_samples")
     sample_confirmation = confirmation.get("sample_count")
