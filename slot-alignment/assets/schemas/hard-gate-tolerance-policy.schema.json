@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment v5 Hard Gate Tolerance Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "applies_to", "default_factor", "metric_factors", "locked_metrics", "audit_only_metrics", "calculation"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.hard-gate-tolerance-policy.v5"},
+    "policy_id": {"const": "player-experience-hard-gates-v5"},
+    "version": {"const": "5.0.0"},
+    "status": {"const": "已授权"},
+    "authority": {"const": "用户"},
+    "authorized_at": {"type": "string", "format": "date"},
+    "source_path": {"const": "assets/policies/hard_gate_tolerance_policy.json"},
+    "applies_to": {"type": "string", "minLength": 1},
+    "default_factor": {"const": 1.0},
+    "metric_factors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["N1", "N2", "N3", "N4", "N5", "N6"],
+      "properties": {
+        "N1": {"const": 1.0},
+        "N2": {"const": 2.0},
+        "N3": {"const": 1.5},
+        "N4": {"const": 1.5},
+        "N5": {"const": 1.5},
+        "N6": {"const": 1.5}
+      }
+    },
+    "locked_metrics": {"const": ["N1"]},
+    "audit_only_metrics": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formula", "N1_target", "N1_distance", "N1_interval_forbidden", "target_mutation_forbidden", "N4_boundary", "N4_feature_buy_cost"],
+      "properties": {
+        "formula": {"const": "effective_tolerance = base_tolerance * tolerance_factor"},
+        "N1_target": {"const": "single user-confirmed RTP scalar in (0,1]"},
+        "N1_distance": {"const": "abs(candidate-target)"},
+        "N1_interval_forbidden": {"const": true},
+        "target_mutation_forbidden": {"const": true},
+        "N4_boundary": {"const": "return >= actual_entry_cost"},
+        "N4_feature_buy_cost": {"const": "actual_purchase_cost"}
+      }
+    }
+  }
+}

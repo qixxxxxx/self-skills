@@ -1,14 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Stage 3 to Stage 4 Gate",
+  "title": "Slot Alignment v5 Stage3 Gate",
   "type": "object",
-  "required": ["schema_version", "task_id", "status", "transition", "stage4_allowed", "errors", "source_hashes"],
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "alignment_result_sha256", "status", "stage4_allowed", "baseline_final_status", "reason_zh"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.stage3-gate.v1"},
-    "status": {"enum": ["通过", "阻塞"]},
-    "transition": {"const": "03-scoring->04-alignment"},
-    "stage4_allowed": {"type": "boolean"},
-    "errors": {"type": "array"},
-    "source_hashes": {"type": "object"}
+    "schema_version": {"const": "slot-alignment.stage3-gate.v5"},
+    "task_id": {"type": "string", "minLength": 1},
+    "alignment_result_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "status": {"const": "通过"},
+    "stage4_allowed": {"const": true},
+    "baseline_final_status": {"enum": ["通过", "不通过", "无法完整判定"]},
+    "reason_zh": {"type": "string", "minLength": 1}
   }
 }

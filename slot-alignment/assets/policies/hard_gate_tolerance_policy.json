@@ -1,0 +1,30 @@
+{
+  "schema_version": "slot-alignment.hard-gate-tolerance-policy.v5",
+  "policy_id": "player-experience-hard-gates-v5",
+  "version": "5.0.0",
+  "status": "已授权",
+  "authority": "用户",
+  "authorized_at": "2026-08-29",
+  "source_path": "assets/policies/hard_gate_tolerance_policy.json",
+  "applies_to": "slot-alignment 5.0任务，候选出现前密封",
+  "default_factor": 1.0,
+  "metric_factors": {
+    "N1": 1.0,
+    "N2": 2.0,
+    "N3": 1.5,
+    "N4": 1.5,
+    "N5": 1.5,
+    "N6": 1.5
+  },
+  "locked_metrics": ["N1"],
+  "audit_only_metrics": ["full_return_distribution", "long_tail", "maximum_win_and_cap"],
+  "calculation": {
+    "formula": "effective_tolerance = base_tolerance * tolerance_factor",
+    "N1_target": "single user-confirmed RTP scalar in (0,1]",
+    "N1_distance": "abs(candidate-target)",
+    "N1_interval_forbidden": true,
+    "target_mutation_forbidden": true,
+    "N4_boundary": "return >= actual_entry_cost",
+    "N4_feature_buy_cost": "actual_purchase_cost"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "schema_version": "slot-alignment.alignment-evaluation-policy.v5",
+  "policy_id": "player-visible-alignment-evaluation-v5",
+  "version": "5.0.0",
+  "status": "已授权",
+  "authority": "用户",
+  "authorized_at": "2026-08-29",
+  "applies_to_metric_library": "5.0.0",
+  "decision_model": {
+    "score_scale_enabled": false,
+    "weights_enabled": false,
+    "composite_score_enabled": false,
+    "metric_compensation_enabled": false,
+    "formal_metric_waiver_enabled": false,
+    "all_hard_gates_must_pass": true,
+    "all_active_alignment_subitems_must_pass": true,
+    "card_aggregation": "maximum_deviation_ratio",
+    "conditional_group_aggregation": "worst_group"
+  },
+  "distance_methods": {
+    "absolute_probability_error": {
+      "formula": "abs(candidate-target)",
+      "range": [0.0, 1.0]
+    },
+    "total_variation": {
+      "formula": "0.5*sum(abs(candidate_i-target_i))",
+      "requires_normalized_distribution": true,
+      "range": [0.0, 1.0]
+    },
+    "wasserstein_1d": {
+      "requires_sealed_business_positions": true,
+      "natural_linear_transform": "identity",
+      "natural_linear_normalization": "sealed_support_span",
+      "long_tail_transform": "log10_1p",
+      "long_tail_normalization": "fixed_transform_unit"
+    },
+    "structural_wasserstein": {
+      "states": ["canonical_active_cell_mask", "canonical_symbol_cell"],
+      "symbol_position_condition": "symbol_present",
+      "symbol_position_board_mass": 1.0,
+      "symbol_position_occurrence_mass": "1/count_on_board",
+      "symbol_position_ground_cost": "normalized_grid_manhattan",
+      "board_shape_ground_cost": "normalized_active_cell_change",
+      "distribution_distance": "wasserstein_over_structural_states"
+    }
+  },
+  "tolerance": {
+    "alignment_source": "sealed_original_joint_self_comparison",
+    "joint_confidence_quantile": 0.99,
+    "joint_statistic": "worst_standardized_active_subitem",
+    "factor": 1.0,
+    "maximum_perceptual_cap": null,
+    "deterministic_rule_tolerance": 0.0,
+    "freeze_before_candidate": true,
+    "candidate_result_may_change_tolerance": false
+  },
+  "statuses": ["通过", "不通过", "样本不足", "不适用", "计算异常"],
+  "sample_insufficiency": {
+    "stops_execution": false,
+    "removes_metric_instance": false,
+    "allows_waiver": false,
+    "report_only_for_process_control": true,
+    "final_status": "无法完整判定"
+  },
+  "final_status_precedence": [
+    "无法完整判定",
+    "不通过",
+    "通过"
+  ],
+  "final_status_rules": {
+    "无法完整判定": "任一正式实例为样本不足、计算异常或存在合同缺口",
+    "不通过": "不存在未判定实例且任一正式实例不通过",
+    "通过": "全部必需正式实例通过"
+  },
+  "audit_policy": {
+    "affects_formal_status": false,
+    "must_be_reported": true,
+    "rule_consistency_error_is_contract_error": true
+  }
+}

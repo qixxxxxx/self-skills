@@ -1,496 +1,90 @@
 #!/usr/bin/env python3
 import argparse
-import hashlib
 import json
-import math
-import subprocess
 import sys
-import tempfile
+from copy import deepcopy
 from pathlib import Path
 
-from contract_io import load_contract
-from apply_automatic_waiver_policy import validate_automatic_waiver_binding
-from apply_ordered_distance_policy import validate_policy_source_binding as validate_ordered_distance_policy_binding
-from apply_score_group_weight_policy import validate_policy_source_binding as validate_score_group_weight_policy_binding
-from render_alignment_report import render as render_stage4
-from render_delivery_report import render as render_stage5
-from render_input_profile_report import render as render_stage1
-from render_metric_matching_report import render as render_stage2
-from render_scoring_report import render as render_stage3
-from report_common import TEMPLATE_PATHS, validate_execution_qualification, validate_report_against_template, validate_templates
-from score_alignment import sample_capability_summary, schema_is, validate_formal_sample_capability, validate_sample_capability_binding
-from semantic_contract_validation import validate_contract as validate_semantic_contract
-from workspace_paths import REPORT_FILES, REPORT_VERSION_PATTERN, RUNTIME_FILES, latest_report_dir, report_path as workspace_report_path, resolve_manifest_path, task_root
+from jsonschema import Draft202012Validator
+
+from alignment import sha256_file
+from compile_metric_contract import contract_digest
 
 
-REQUIRED_STAGE14 = [
-    "01-input-profile/input_manifest.json", "01-input-profile/game_profile.json", "01-input-profile/parameter_authority.json",
-    "02-metric-matching/metric_contract.json",
-    "03-scoring/scorecard.json",
-    "04-alignment/alignment_manifest.json", "04-alignment/candidate_archive.json", "04-alignment/aligned_parameters.json", "04-alignment/formal_result.json"
-]
-STAGE3_GATE_REL = "03-scoring/stage3_gate.json"
-REQUIRED_STAGE5 = ["05-delivery/delivery_manifest.json", "05-delivery/delivery_checklist.json"]
-VALIDATION_MODES = {"stage_transition", "historical_replay"}
-INPUT_VALIDATION_EXCEPTIONS = (
-    OSError,
-    ValueError,
-    TypeError,
-    AttributeError,
-    KeyError,
-    IndexError,
-    json.JSONDecodeError,
-)
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def load(path):
-    with path.open(encoding="utf-8") as f:
-        return json.load(f)
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def validate(schema_path, data_path, errors):
+    schema, data = load(schema_path), load(data_path)
+    for error in Draft202012Validator(schema).iter_errors(data):
+        location = ".".join(map(str, error.absolute_path)) or "$"
+        errors.append(f"{data_path}:{location}: {error.message}")
+    return data
 
 
-def validate_scorecard_recomputation(contract_path, measurement_path, scorecard_path):
-    with tempfile.TemporaryDirectory(prefix="slot-alignment-rescore-") as directory:
-        output = Path(directory) / "scorecard.json"
-        process = subprocess.run(
-            [sys.executable, str(Path(__file__).with_name("score_alignment.py")), "--contract", str(contract_path), "--measurements", str(measurement_path), "--output", str(output)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if process.returncode != 0 or not output.is_file():
-            detail = (process.stdout or process.stderr).strip()
-            return [f"阶段3评分无法由当前合同与基线测量确定性复算: {detail[:500]}"]
-        if load(output) != load(scorecard_path):
-            return ["阶段3 scorecard与当前合同、基线测量的确定性复算结果不一致"]
-    return []
-
-
-def validate_semantic_compatible(profile_path, contract_path, skill_root, authority_path, manifest_path, validation_mode, root_path):
-    return validate_semantic_contract(
-        profile_path, contract_path, skill_root, authority_path, manifest_path,
-        validation_mode=validation_mode, task_root_path=root_path,
-    )
-
-
-def validate_tolerance_policy(contract):
-    errors = []
-    policy = contract.get("hard_gate_tolerance_policy")
-    if not policy:
-        return errors
-    factors = policy.get("metric_factors", {})
-    default_factor = policy.get("default_factor", 1.0)
-    locked = set(policy.get("locked_metrics", []))
-    for metric in contract.get("metrics", []):
-        if metric.get("kind") != "hard" or metric.get("status") == "不适用":
-            continue
-        metric_id = metric.get("metric_id", "")
-        profile = metric.get("hard_gate_profile", {})
-        try:
-            base = float(profile["base_tolerance"])
-            factor = float(profile["tolerance_factor"])
-            effective = float(profile["tolerance"])
-            expected_factor = float(factors.get(metric_id, default_factor))
-        except (KeyError, TypeError, ValueError):
-            errors.append(f"硬指标容差字段无效: {metric_id}")
-            continue
-        if profile.get("tolerance_policy_id") != policy.get("policy_id"):
-            errors.append(f"硬指标政策ID不一致: {metric_id}")
-        if metric_id in locked and factor != 1.0:
-            errors.append(f"锁定硬指标系数不是1.0: {metric_id}")
-        if not math.isclose(factor, expected_factor, rel_tol=0.0, abs_tol=1e-12):
-            errors.append(f"硬指标系数与政策不一致: {metric_id}")
-        if not math.isclose(effective, base * factor, rel_tol=1e-12, abs_tol=1e-15):
-            errors.append(f"硬指标生效容差计算错误: {metric_id}")
-    return errors
-
-
-def validate_score_group_weight_policy(contract, skill_root):
-    if not schema_at_least(contract, 1, 2):
-        return []
-    return validate_score_group_weight_policy_binding(contract, skill_root)
-
-
-def validate_ordered_distance_policy(contract, skill_root):
-    if not schema_at_least(contract, 1, 2):
-        return []
-    return validate_ordered_distance_policy_binding(contract, skill_root)
-
-
-def normalize_target(value):
-    if isinstance(value, (int, float)):
-        return float(value), float(value)
-    if isinstance(value, list) and len(value) == 2:
-        return float(value[0]), float(value[1])
-    if isinstance(value, dict) and "min" in value and "max" in value:
-        return float(value["min"]), float(value["max"])
-    raise ValueError("目标必须是数值、[min,max]或{min,max}")
-
-
-def schema_at_least(contract, major, minor):
-    try:
-        current_major, current_minor = map(int, str(contract.get("schema_version", "1.0")).split(".")[:2])
-        return (current_major, current_minor) >= (major, minor)
-    except ValueError:
-        return False
-
-
-def validate_component_rtp_targets(contract):
-    errors = []
-    policy = contract.get("component_rtp_target_policy")
-    components = [
-        metric for metric in contract.get("metrics", [])
-        if metric.get("metric_id") == "core.rtp.component_contribution" and metric.get("status") != "不适用"
-    ]
-    if not policy and not components:
-        return errors
-    if not policy:
-        return ["组件RTP指标缺少component_rtp_target_policy"] if schema_at_least(contract, 1, 1) else errors
-    method = "original_component_share_mapped_to_authoritative_total_rtp"
-    if policy.get("method") != method:
-        errors.append("组件RTP目标映射方法无效")
-    if policy.get("original_absolute_rtp_as_target") is not False:
-        errors.append("组件RTP不得使用原版绝对RTP作为目标")
-    if policy.get("authoritative_total_rtp_required") is not True:
-        errors.append("组件RTP映射必须绑定权威总RTP")
-    if not components:
-        return errors
-    try:
-        total_low, total_high = normalize_target(contract.get("scope", {}).get("target_rtp"))
-    except (TypeError, ValueError) as exc:
-        errors.append(f"权威总RTP目标无效: {exc}")
-        return errors
-    shares, target_lows, target_highs = [], [], []
-    for metric in components:
-        scope = metric.get("scope", "")
-        derivation = metric.get("target_derivation", {})
-        if derivation.get("method") != method:
-            errors.append(f"组件RTP目标推导方法无效: {scope}")
-            continue
-        if not derivation.get("source_evidence"):
-            errors.append(f"组件RTP缺少原版占比证据: {scope}")
-        try:
-            share = float(derivation["original_component_share"])
-            target_low, target_high = normalize_target(metric["target"])
-        except (KeyError, TypeError, ValueError) as exc:
-            errors.append(f"组件RTP目标字段无效 {scope}: {exc}")
-            continue
-        shares.append(share)
-        target_lows.append(target_low)
-        target_highs.append(target_high)
-        if not math.isclose(target_low, share * total_low, rel_tol=1e-12, abs_tol=1e-12) or not math.isclose(target_high, share * total_high, rel_tol=1e-12, abs_tol=1e-12):
-            errors.append(f"组件RTP目标未按贡献占比映射: {scope}")
-    if shares and not math.isclose(sum(shares), 1.0, rel_tol=0.0, abs_tol=1e-9):
-        errors.append(f"组件RTP贡献占比合计不为1: {sum(shares)}")
-    if target_lows and (not math.isclose(sum(target_lows), total_low, rel_tol=1e-12, abs_tol=1e-12) or not math.isclose(sum(target_highs), total_high, rel_tol=1e-12, abs_tol=1e-12)):
-        errors.append("组件RTP目标合计未还原权威总RTP")
-    return errors
-
-
-def validate_attainability_ceiling(root):
-    errors = []
-    manifest_path = root / "04-alignment/alignment_manifest.json"
-    archive_path = root / "04-alignment/candidate_archive.json"
-    if not manifest_path.is_file() or not archive_path.is_file():
-        return errors
-    manifest, archive = load(manifest_path), load(archive_path)
-    execution = manifest.get("execution_policy", {})
-    budget = manifest.get("budget_policy", {})
-    if execution.get("policy_id") == "continuous-alignment-execution-v2":
-        expected = {
-            "formal_candidate_limit_enabled": False,
-            "budget_exhaustion_stops_execution": False,
-            "candidate_exhaustion_stops_execution": False,
-            "budget_extension_requires_user_approval": False,
-            "auto_expand_calibration_budget_until_pass_or_structural_unattainability": True,
-            "auto_expand_formal_budget_until_pass_or_structural_unattainability": True,
-            "auto_waive_forbidden_boundary_unattainability": True,
-            "request_user_for_forbidden_boundary_change": False,
-        }
-        mismatches = [field for field, value in expected.items() if execution.get(field) is not value]
-        if mismatches:
-            errors.append(f"连续执行v2预算或边界自动化字段无效: {','.join(mismatches)}")
-        if budget.get("auto_expand") is not True or budget.get("task_budget_limit") is not None:
-            errors.append("连续执行v2必须自动扩预算且不设置任务预算上限")
-        if budget.get("budget_exhaustion_stops_execution") is not False or budget.get("extension_requires_user_approval") is not False:
-            errors.append("连续执行v2不得因预算耗尽停止或请求用户批准预算")
-        if budget.get("continue_until") != "formal_pass_or_structural_unattainability":
-            errors.append("连续执行v2预算循环结束条件无效")
-        stop_reason = str(archive.get("stop_reason", ""))
-        if any(token in stop_reason for token in ("预算耗尽", "预算用完", "候选上限", "尝试上限")):
-            errors.append("连续执行v2不得以预算或候选次数作为停止原因")
-    policy = manifest.get("budget_policy", {}).get("attainability_ceiling")
-    if not policy:
-        return errors
-    if policy.get("enabled") is not True or policy.get("prohibit_budget_only_expansion") is not True:
-        errors.append("预算可达性上限未启用或未禁止单纯追加预算")
-    attainability = archive.get("attainability", {})
-    if attainability.get("status") in {"结构不可达", "授权参数空间不可达"}:
-        if attainability.get("budget_expansion_allowed") is not False:
-            errors.append("结构不可达后仍允许预算扩张")
-        if not attainability.get("evidence_path") or not attainability.get("evidence_sha256"):
-            errors.append("结构不可达缺少密封证据路径或hash")
-    return errors
-
-
-def required_stage14(root):
-    required = list(REQUIRED_STAGE14)
-    contract_path = root / "02-metric-matching/metric_contract.json"
-    if contract_path.is_file():
-        try:
-            raw_contract = load(contract_path)
-            if raw_contract.get("schema_version") == "1.4":
-                for declaration in raw_contract.get("external_data", []):
-                    relative = declaration.get("path") if isinstance(declaration, dict) else None
-                    if isinstance(relative, str) and relative:
-                        required.append(f"02-metric-matching/{relative}")
-        except (OSError, json.JSONDecodeError):
-            pass
-    manifest_path = root / "04-alignment/alignment_manifest.json"
-    if manifest_path.is_file():
-        try:
-            if schema_at_least(load(manifest_path), 1, 2):
-                required.append(STAGE3_GATE_REL)
-        except (OSError, json.JSONDecodeError):
-            pass
-    return list(dict.fromkeys(required))
-
-
-def validate_stage3_gate(root):
-    errors = []
-    manifest_path = root / "04-alignment/alignment_manifest.json"
-    archive_path = root / "04-alignment/candidate_archive.json"
-    if not manifest_path.is_file():
-        return errors
-    manifest = load(manifest_path)
-    if not schema_at_least(manifest, 1, 2):
-        return errors
-    binding = manifest.get("stage3_gate", {})
-    if binding.get("path") != STAGE3_GATE_REL:
-        errors.append("阶段4未绑定固定stage3_gate路径")
-        return errors
-    gate_path = root / STAGE3_GATE_REL
-    if not gate_path.is_file():
-        return ["缺少阶段3到阶段4门禁文件"]
-    gate_hash = sha(gate_path)
-    if binding.get("sha256") != gate_hash or binding.get("stage4_allowed") is not True:
-        errors.append("阶段4manifest中的stage3_gate绑定无效")
-    gate = load(gate_path)
-    if gate.get("status") != "通过" or gate.get("stage4_allowed") is not True or gate.get("errors"):
-        errors.append("阶段3到阶段4门禁未通过")
-    for rel, expected in gate.get("source_hashes", {}).items():
-        path = resolve_manifest_path(root, rel)
-        if not path.is_file() or sha(path) != expected:
-            errors.append(f"阶段3门禁上游hash失效: {rel}")
-    score_path = root / "03-scoring/scorecard.json"
-    contract_path = root / "02-metric-matching/metric_contract.json"
-    if score_path.is_file() and contract_path.is_file():
-        score = load(score_path)
-        source_hashes = score.get("source_hashes", {})
-        source_paths = score.get("source_paths", {})
-        if source_hashes.get("metric_contract") != sha(contract_path):
-            errors.append("阶段3评分绑定的指标合同hash失效")
-        measurement_path = Path(source_paths.get("measurements", ""))
-        if not measurement_path.is_file() or source_hashes.get("measurements") != sha(measurement_path):
-            errors.append("阶段3评分绑定的基线测量源失效")
-    if archive_path.is_file():
-        archive = load(archive_path)
-        if archive.get("stage3_gate_sha256") != gate_hash:
-            errors.append("候选档案未绑定当前stage3_gate hash")
-    return errors
-
-
-def validate(root, require_delivery=True, reports=None, validation_mode="stage_transition"):
-    if validation_mode not in VALIDATION_MODES:
-        raise ValueError(f"未知校验模式: {validation_mode}")
-    root = Path(root)
-    skill_root = Path(__file__).resolve().parent.parent
-    errors, task_ids, report_versions = validate_templates(skill_root), set(), set()
-    reports = Path(reports) if reports else latest_report_dir(root)
-    if reports.name != "artifacts" and not REPORT_VERSION_PATTERN.match(reports.name):
-        errors.append("报告目录必须使用rv####命名")
-    if reports.name != "artifacts":
-        for markdown in root.rglob("*.md"):
-            errors.append(f"artifacts只允许机器JSON，发现Markdown: {markdown.relative_to(root)}")
-    required = required_stage14(root) + (REQUIRED_STAGE5 if require_delivery else [])
-    for rel in required:
-        path = root / rel
-        if not path.is_file():
-            errors.append(f"缺少必需文件: {rel}")
-            continue
-        if path.suffix == ".json":
-            try:
-                data = load(path)
-                if data.get("task_id"):
-                    task_ids.add(data["task_id"])
-                if data.get("report_contract_version"):
-                    report_versions.add(data["report_contract_version"])
-            except (OSError, json.JSONDecodeError) as exc:
-                errors.append(f"JSON无效 {rel}: {exc}")
-    if len(task_ids) > 1:
-        errors.append(f"task_id不一致: {sorted(task_ids)}")
-    if validation_mode == "stage_transition" and report_versions != {"slot-alignment.reports.v3.3"}:
-        errors.append(f"新任务全部阶段机器产物必须统一使用slot-alignment.reports.v3.3: {sorted(report_versions)}")
-    required_reports = range(1, 6 if require_delivery else 5)
-    for stage in required_reports:
-        path = workspace_report_path(reports, stage)
-        if not path.is_file():
-            errors.append(f"缺少必需中文报告: {REPORT_FILES[stage]}")
-        elif "{{" in path.read_text(encoding="utf-8"):
-            errors.append(f"Markdown仍含模板占位符: {path}")
-    stage1_paths = [root / "01-input-profile/input_manifest.json", root / "01-input-profile/game_profile.json", root / "01-input-profile/parameter_authority.json", workspace_report_path(reports, 1)]
-    input_manifest = None
-    if all(path.is_file() for path in stage1_paths):
-        input_manifest, profile, authority = map(load, stage1_paths[:3])
-        actual = stage1_paths[3].read_text(encoding="utf-8")
-        expected = render_stage1(input_manifest, profile, authority, {"input_manifest": sha(stage1_paths[0]), "game_profile": sha(stage1_paths[1]), "parameter_authority": sha(stage1_paths[2])})
-        errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[1]).read_text(encoding="utf-8"), 1)
-        if actual != expected:
-            errors.append("阶段1报告不是当前机器JSON的确定性完整输出")
-    contract_path = root / "02-metric-matching/metric_contract.json"
-    if contract_path.is_file():
-        contract = load_contract(contract_path)
-        if validation_mode == "stage_transition" and contract.get("schema_version") != "1.4":
-            errors.append("新任务固定产物必须使用metric_contract 1.4")
-        game_profile_path = root / "01-input-profile/game_profile.json"
-        parameter_authority_path = root / "01-input-profile/parameter_authority.json"
-        if game_profile_path.is_file() and parameter_authority_path.is_file():
-            errors += validate_semantic_compatible(
-                game_profile_path,
-                contract_path,
-                skill_root,
-                parameter_authority_path,
-                root / "01-input-profile/input_manifest.json",
-                validation_mode,
-                task_root(root),
-            )
-        errors += validate_sample_capability_binding(contract, skill_root)
-        errors += validate_automatic_waiver_binding(contract, skill_root)
-        errors += validate_tolerance_policy(contract)
-        errors += validate_score_group_weight_policy(contract, skill_root)
-        errors += validate_ordered_distance_policy(contract, skill_root)
-        errors += validate_component_rtp_targets(contract)
-        stage2_path = workspace_report_path(reports, 2)
-        if stage2_path.is_file():
-            actual = stage2_path.read_text(encoding="utf-8")
-            errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[2]).read_text(encoding="utf-8"), 2)
-            if actual != render_stage2(contract, sha(contract_path)):
-                errors.append("阶段2报告不是当前指标合同的确定性完整输出")
-    errors += validate_attainability_ceiling(root)
-    errors += validate_stage3_gate(root)
-    score_path = root / "03-scoring/scorecard.json"
-    stage3_report_path = workspace_report_path(reports, 3)
-    if score_path.is_file() and contract_path.is_file() and stage3_report_path.is_file():
-        score = load(score_path)
-        contract = load_contract(contract_path)
-        if schema_is(contract, "1.3") or schema_is(contract, "1.4"):
-            if score.get("schema_version") != "1.3":
-                errors.append("1.3或1.4指标合同必须生成1.3阶段3 scorecard")
-            if score.get("sample_capability_policy") != sample_capability_summary(contract):
-                errors.append("阶段3 scorecard样本能力政策摘要与指标合同不一致")
-        measurement_path = Path(score.get("source_paths", {}).get("measurements", ""))
-        if validation_mode == "stage_transition" and measurement_path.is_file():
-            errors += validate_scorecard_recomputation(contract_path, measurement_path, score_path)
-        actual = stage3_report_path.read_text(encoding="utf-8")
-        errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[3]).read_text(encoding="utf-8"), 3)
-        if actual != render_stage3(load_contract(contract_path), score, sha(contract_path), sha(score_path)):
-            errors.append("阶段3报告不是当前合同与scorecard的确定性完整输出")
-    report_path = workspace_report_path(reports, 4)
-    formal_path = root / "04-alignment/formal_result.json"
-    if score_path.is_file() and report_path.is_file() and formal_path.is_file():
-        score, formal, report = load(score_path), load(formal_path), report_path.read_text(encoding="utf-8")
-        expected = formal.get("scorecard", {}).get("alignment_status") or score.get("alignment_status")
-        if expected not in report:
-            errors.append("阶段4报告未展示最终对齐状态")
-        try:
-            expected_report, _ = render_stage4(root)
-            errors += validate_report_against_template(report, (skill_root / TEMPLATE_PATHS[4]).read_text(encoding="utf-8"), 4)
-            if report != expected_report:
-                errors.append("阶段4报告不是当前阶段1至4机器结果的确定性完整输出")
-        except (OSError, KeyError, ValueError, json.JSONDecodeError) as exc:
-            errors.append(f"阶段4报告复算失败: {exc}")
-    if formal_path.is_file():
-        formal = load(formal_path)
-        formal_scorecard = formal.get("scorecard") if isinstance(formal.get("scorecard"), dict) else {}
-        if formal.get("execution_valid") is not True:
-            errors.append("FORMAL执行无效，禁止交付")
-        if formal.get("independent_from_calibration") is not True:
-            errors.append("FORMAL缺少与CALIBRATION独立性，禁止交付")
-        if formal_scorecard.get("alignment_status") not in {"通过", "豁免后通过"}:
-            errors.append("FORMAL最终对齐状态未通过，禁止交付")
-        if formal_scorecard.get("blocking_reasons"):
-            errors.append("FORMAL内嵌scorecard仍有阻塞，禁止交付")
-        if contract_path.is_file():
-            contract = load_contract(contract_path)
-            errors += validate_formal_sample_capability(contract, formal, skill_root)
-            if (schema_is(contract, "1.3") or schema_is(contract, "1.4")) and score_path.is_file():
-                score = load(score_path)
-                formal_policy = formal.get("scorecard", {}).get("sample_capability_policy")
-                if formal_policy != score.get("sample_capability_policy"):
-                    errors.append("FORMAL与阶段3 scorecard样本能力政策摘要不一致")
-        alignment_manifest_path = root / "04-alignment/alignment_manifest.json"
-        candidate_archive_path = root / "04-alignment/candidate_archive.json"
-        if input_manifest is not None and alignment_manifest_path.is_file() and candidate_archive_path.is_file():
-            errors += validate_execution_qualification(input_manifest, load(alignment_manifest_path), load(candidate_archive_path), formal)
-        elif input_manifest is not None:
-            errors += validate_execution_qualification(input_manifest)
-    manifest_path = root / "05-delivery/delivery_manifest.json"
-    if require_delivery and manifest_path.is_file():
-        delivery_manifest = load(manifest_path)
-        for item in delivery_manifest.get("files", []):
-            path = resolve_manifest_path(root, item.get("path", ""))
-            if not path.is_file() or sha(path) != item.get("sha256"):
-                errors.append(f"交付Hash无效: {item.get('path')}")
-        delivery_runtime = task_root(root) / "交付物/runtime"
-        for name in RUNTIME_FILES:
-            path = delivery_runtime / name
-            if not path.is_file():
-                errors.append(f"交付物缺少FORMAL Runtime文件: {name}")
-        game_core_path = delivery_runtime / "game_core.json"
-        if game_core_path.is_file():
-            try:
-                game_core = load(game_core_path)
-                task_id = delivery_manifest.get("task_id")
-                if game_core.get("meta", {}).get("version") != task_id:
-                    errors.append("交付Runtime meta.version必须等于task_id")
-                routing = game_core.get("runtime_flags", {}).get("rtp_routing", {})
-                if routing.get("default_group") != 1 or routing.get("groups") != [1]:
-                    errors.append("交付Runtime只允许RTP Group 1")
-            except (OSError, json.JSONDecodeError) as exc:
-                errors.append(f"交付Runtime game_core.json无效: {exc}")
-        checklist_path = root / "05-delivery/delivery_checklist.json"
-        delivery_report_path = workspace_report_path(reports, 5)
-        if checklist_path.is_file() and delivery_report_path.is_file():
-            actual = delivery_report_path.read_text(encoding="utf-8")
-            errors += validate_report_against_template(actual, (skill_root / TEMPLATE_PATHS[5]).read_text(encoding="utf-8"), 5)
-            if actual != render_stage5(delivery_manifest, load(checklist_path)):
-                errors.append("阶段5报告不是当前交付manifest与checklist的确定性完整输出")
-    return errors
+def walk_keys(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from walk_keys(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from walk_keys(item)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="验证固定 artifacts 结构与一致性")
-    parser.add_argument("--artifacts", required=True, type=Path)
-    parser.add_argument("--reports", type=Path)
-    parser.add_argument("--pre-delivery", action="store_true")
-    parser.add_argument("--historical-replay", action="store_true", help="仅用于显式复算受支持的旧版密封任务")
+    parser = argparse.ArgumentParser(description="校验slot-alignment v5合同与评价产物")
+    parser.add_argument("--contract", required=True)
+    parser.add_argument("--result", required=True)
+    parser.add_argument("--stage3-gate")
     args = parser.parse_args()
-    validation_mode = "historical_replay" if args.historical_replay else "stage_transition"
-    try:
-        errors = validate(
-            args.artifacts,
-            require_delivery=not args.pre_delivery,
-            reports=args.reports,
-            validation_mode=validation_mode,
-        )
-    except INPUT_VALIDATION_EXCEPTIONS as exc:
-        errors = [f"校验输入结构无效（{type(exc).__name__}）: {exc}"]
-    print(json.dumps({"status": "通过" if not errors else "失败", "errors": errors}, ensure_ascii=False, indent=2))
-    return 0 if not errors else 1
+    errors = []
+    contract = validate(ROOT / "assets/schemas/metric-contract.schema.json", args.contract, errors)
+    result = validate(ROOT / "assets/schemas/alignment-result.schema.json", args.result, errors)
+    if args.stage3_gate:
+        gate = validate(ROOT / "assets/schemas/stage3-gate.schema.json", args.stage3_gate, errors)
+        if gate["alignment_result_sha256"] != sha256_file(args.result):
+            errors.append("stage3_gate绑定的alignment_result_sha256不一致")
+        if gate["task_id"] != result["task_id"]:
+            errors.append("stage3_gate与评价结果task_id不一致")
+        if gate["baseline_final_status"] != result["summary"]["final_status"]:
+            errors.append("stage3_gate与评价结果最终状态不一致")
+    if result["metric_contract_sha256"] != sha256_file(args.contract):
+        errors.append("评价结果绑定的metric_contract_sha256不一致")
+    if result["task_id"] != contract["task_id"]:
+        errors.append("评价结果与指标合同task_id不一致")
+    if contract["hashes"]["contract_sha256"] != contract_digest(contract):
+        errors.append("metric_contract内部contract_sha256不一致")
+    for binding in [contract["metric_library"], *contract["policies"].values()]:
+        bound_path = ROOT / binding["path"]
+        if not bound_path.is_file():
+            errors.append(f"合同绑定文件不存在: {binding['path']}")
+        elif binding["sha256"] != sha256_file(bound_path):
+            errors.append(f"合同绑定文件hash不一致: {binding['path']}")
+    expected_cards = ["N1", "N2", "N3", "N4", "N5", "N6", "J1", "J2", "J3", "P1", "P2", "B1", "B2"]
+    if [item["card_id"] for item in contract["cards"]] != expected_cards:
+        errors.append("metric_contract卡片集合或顺序漂移")
+    if [item["card_id"] for item in result["card_results"]] != expected_cards:
+        errors.append("alignment_result卡片集合或顺序漂移")
+    forbidden = {"weight", "weights", "score", "scores", "score_profile", "score_budget_key", "waiver", "waivers"}
+    found = sorted(forbidden & (set(walk_keys(contract)) | set(walk_keys(result))))
+    if found:
+        errors.append(f"v5产物出现禁止字段: {found}")
+    contract_instances = [item["instance_id"] for card in contract["cards"] for item in card["instances"]]
+    result_instances = [item["instance_id"] for card in result["card_results"] for item in card["instances"]]
+    if contract_instances != result_instances:
+        errors.append("结果实例清单与冻结合同不一致")
+    if [item["audit_id"] for item in contract["audits"]] != [item["audit_id"] for item in result["audits"]]:
+        errors.append("结果审计清单与冻结合同不一致")
+    if errors:
+        print("\n".join(f"ERROR: {item}" for item in errors), file=sys.stderr)
+        raise SystemExit(1)
+    print(f"OK: v5产物校验通过，{len(contract_instances)}个正式实例，最终状态={result['summary']['final_status']}")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

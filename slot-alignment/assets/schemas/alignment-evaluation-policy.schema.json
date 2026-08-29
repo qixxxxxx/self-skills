@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment v5 Evaluation Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "distance_methods", "tolerance", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v5"},
+    "policy_id": {"const": "player-visible-alignment-evaluation-v5"},
+    "version": {"const": "5.0.0"},
+    "status": {"const": "已授权"},
+    "authority": {"const": "用户"},
+    "authorized_at": {"type": "string", "format": "date"},
+    "applies_to_metric_library": {"pattern": "^5\\."},
+    "decision_model": {
+      "type": "object",
+      "required": ["score_scale_enabled", "weights_enabled", "composite_score_enabled", "metric_compensation_enabled", "formal_metric_waiver_enabled", "all_hard_gates_must_pass", "all_active_alignment_subitems_must_pass", "card_aggregation", "conditional_group_aggregation"],
+      "properties": {
+        "score_scale_enabled": {"const": false},
+        "weights_enabled": {"const": false},
+        "composite_score_enabled": {"const": false},
+        "metric_compensation_enabled": {"const": false},
+        "formal_metric_waiver_enabled": {"const": false},
+        "all_hard_gates_must_pass": {"const": true},
+        "all_active_alignment_subitems_must_pass": {"const": true},
+        "card_aggregation": {"const": "maximum_deviation_ratio"},
+        "conditional_group_aggregation": {"const": "worst_group"}
+      }
+    },
+    "distance_methods": {"type": "object", "required": ["absolute_probability_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+    "tolerance": {
+      "type": "object",
+      "required": ["alignment_source", "joint_confidence_quantile", "joint_statistic", "factor", "maximum_perceptual_cap", "deterministic_rule_tolerance", "freeze_before_candidate", "candidate_result_may_change_tolerance"],
+      "properties": {
+        "alignment_source": {"const": "sealed_original_joint_self_comparison"},
+        "joint_confidence_quantile": {"const": 0.99},
+        "joint_statistic": {"const": "worst_standardized_active_subitem"},
+        "factor": {"const": 1.0},
+        "maximum_perceptual_cap": {"type": "null"},
+        "deterministic_rule_tolerance": {"const": 0.0},
+        "freeze_before_candidate": {"const": true},
+        "candidate_result_may_change_tolerance": {"const": false}
+      }
+    },
+    "statuses": {
+      "type": "array",
+      "const": ["通过", "不通过", "样本不足", "不适用", "计算异常"]
+    },
+    "sample_insufficiency": {
+      "type": "object",
+      "required": ["stops_execution", "removes_metric_instance", "allows_waiver", "report_only_for_process_control", "final_status"],
+      "properties": {
+        "stops_execution": {"const": false},
+        "removes_metric_instance": {"const": false},
+        "allows_waiver": {"const": false},
+        "report_only_for_process_control": {"const": true},
+        "final_status": {"const": "无法完整判定"}
+      }
+    },
+    "final_status_precedence": {"const": ["无法完整判定", "不通过", "通过"]},
+    "final_status_rules": {"type": "object", "required": ["无法完整判定", "不通过", "通过"]},
+    "audit_policy": {
+      "type": "object",
+      "required": ["affects_formal_status", "must_be_reported", "rule_consistency_error_is_contract_error"],
+      "properties": {
+        "affects_formal_status": {"const": false},
+        "must_be_reported": {"const": true},
+        "rule_consistency_error_is_contract_error": {"const": true}
+      }
+    }
+  }
+}

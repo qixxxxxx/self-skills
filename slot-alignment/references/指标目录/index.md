@@ -1,69 +1,58 @@
-# 指标库索引
+# Slot Alignment v5指标目录
 
-版本：2.7.0
-完整中文指标字典：[指标汇总.md](指标汇总.md)
+版本：`5.0.0`
 
-## 七类指标
+本目录只包含新任务使用的四类十三张指标卡；元素、符号、Feature、线路和作用域只扩展卡内子项，不增加权重。
 
-七类是人类阅读分组，由`categories[].source_categories`归并机器分类。`catalog.json.category`、`packages[].category`和每项指标的`category`必须保持真实玩法语义且彼此一致，不能为了报告排版改成七类阅读ID。
+## N：数值指标
 
-| 顺序 | 分类ID | 承接机器category | 中文分类 | 负责内容 |
-|---:|---|---|---|---|
-| 10 | `core` | `core` | 通用结果与风险 | 所有游戏共用的RTP、中奖率、触发率、波动、组件贡献、长尾及封顶门禁。 |
-| 20 | `board` | `board` | 盘面生成与符号结构 | 可见符号组成、空间结构、生成集中度、可变轴高和组合容量。 |
-| 30 | `settlement` | `settlement` | 中奖结算与构成 | 实际中奖符号、条件中奖规模、并发结果、赔付线和Cluster结算结构。 |
-| 40 | `trigger` | `trigger` | 玩法触发与入口 | 触发符号数量、位置配置及已进入Feature后的游戏内生入口来源构成。 |
-| 50 | `evolution` | `evolution` | 盘面演化与连续过程 | Cascade等一次入口内的连续盘面演化、补充和分层回报。 |
-| 60 | `feature` | `feature`、`award`、`state` | 特色玩法、奖励与状态 | 免费旋转、重转、Hold & Spin、奖励抽取、价值符号、Jackpot、持久状态及完整Feature周期。 |
-| 70 | `modifier` | `modifier`、`interaction` | 修饰器与跨玩法联合 | Collect、符号变形、Wild、倍率及有证据的跨玩法依赖。 |
+跨完整付费入口或组件的全局数值红线。
 
-## 包级目录
+| 卡 | 名称 | 类型 | 玩家问题 | Facet |
+|---|---|---|---|---|
+| N1 | 总RTP | hard_gate | 玩家长期每投注1单位平均返还多少？ | 用户确认总RTP（absolute_probability_error） |
+| N2 | 完整付费入口中奖率 | hard_gate | 一次实际付费入口最终获得任意正回报的概率是多少？ | 回报大于0概率（absolute_probability_error） |
+| N3 | Feature自然触发率 | hard_gate | 各Feature通过游戏内生规则自然进入的概率是多少？ | 逐Feature自然触发率（absolute_probability_error） |
+| N4 | 完整付费入口回报大于等于1x概率 | hard_gate | 一次完整付费入口至少收回实际成本的概率是多少？ | 回报大于等于实际成本概率（absolute_probability_error） |
+| N5 | Sigma | hard_gate | 总体及主要作用域的回报波动有多大？ | 总体及适用作用域Sigma（relative_error） |
+| N6 | 组件RTP贡献 | hard_gate | 总体返还由Base、各Feature和其他组件分别贡献多少？ | 逐组件RTP贡献（absolute_probability_error） |
 
-| 机器分类 | 类型 | 指标包 | 适用画像 |
+## J：中奖结算
+
+完整结算链中的实际派奖结果；Cascade连续消除属于本类。
+
+| 卡 | 名称 | 类型 | 玩家问题 | Facet |
+|---|---|---|---|---|
+| J1 | 中奖构成 | alignment | 正派奖时通常由哪些元素或线路参与？ | 逐结算元素中奖参与率（absolute_probability_error）；逐规范线路中奖参与率（absolute_probability_error） |
+| J2 | 中奖规模 | alignment | 单次中奖由多少符号、轴、Ways或结果构成，实际奖励有多大？ | 单个中奖结果结构规模（wasserstein_1d）；同步中奖结果数量（wasserstein_1d）；实际奖励大小（wasserstein_1d） |
+| J3 | 连续结算 | alignment | 一次动作会连续结算多少层，各层中奖规模如何？ | 连续结算总深度（wasserstein_1d）；指定层级中奖规模（wasserstein_1d） |
+
+## P：玩法过程
+
+跨结算步骤的Feature周期和特色机制结果状态。
+
+| 卡 | 名称 | 类型 | 玩家问题 | Facet |
+|---|---|---|---|---|
+| P1 | 周期节奏 | alignment | Feature开始时给多少免费旋转，完整Feature会持续多久？ | 初始免费旋转次数（wasserstein_1d）；完整Feature持续长度（wasserstein_1d） |
+| P2 | 机制结果状态 | alignment | 每次特色机制机会最终落入什么可感知结果状态？ | 逐机制结果状态分布（total_variation） |
+
+## B：盘面呈现
+
+稳定可见盘面的符号数量、位置和空间形态。
+
+| 卡 | 名称 | 类型 | 玩家问题 | Facet |
+|---|---|---|---|---|
+| B1 | 符号呈现 | alignment | 每个稳定可见盘面中，各符号通常出现多少个？ | 逐符号单盘数量分布（wasserstein_1d） |
+| B2 | 盘面空间结构 | alignment | 盘面形状如何变化，玩家关注的关键符号通常出现在哪里？ | 可变盘面形态（structural_wasserstein）；关键符号空间位置密度（structural_wasserstein） |
+
+## 审计
+
+| ID | 名称 | 来源卡 | 内容 |
 |---|---|---|---|
-| core | core | `core.general` | 全部游戏 |
-| board | atomic | `atomic.board-diversity` | `board.fixed-grid` ／ `board.variable-grid` |
-| board | atomic | `atomic.variable-grid` | `board.variable-grid` |
-| settlement | atomic | `atomic.settlement-diversity` | `settlement.payline` ／ `settlement.ways` ／ `settlement.count-pay` ／ `settlement.cluster-pay` |
-| settlement | atomic | `atomic.effective-ways-capacity` | Ways存在不能只由几何布局唯一推出的动态实际容量；可用于固定布局或可变布局叠加非几何规则 |
-| trigger | atomic | `atomic.trigger` | `trigger.symbol-count` ／ `trigger.random-event` ／ `trigger.state-threshold`；以及声明游戏内生入口来源的Feature画像 |
-| evolution | atomic | `atomic.cascade` | `evolution.cascade` |
-| feature | atomic | `atomic.free-spin` | `feature.free-spin` |
-| feature | atomic | `atomic.respin` | `feature.respin` |
-| feature | composite | `composite.feature-cycle` | `feature.free-spin` ／ `feature.respin` ／ `feature.hold-and-spin` ／ `feature.award-draw` ／ `feature.bonus-sequence` |
-| feature | atomic | `atomic.hold-and-spin` | `feature.hold-and-spin` |
-| modifier | atomic | `atomic.collect` | `modifier.collect` |
-| feature | atomic | `atomic.award-draw` | `feature.award-draw` |
-| award | atomic | `atomic.jackpot` | `award.jackpot` |
-| award | atomic | `atomic.value-symbol` | `award.value-symbol` |
-| modifier | atomic | `atomic.symbol-transform` | `modifier.symbol-transform` |
-| state | atomic | `atomic.persistent-state` | `state.persistent-state` |
-| modifier | atomic | `atomic.wild-effect` | `modifier.wild-substitute` ／ `modifier.expanding-wild` |
-| modifier | atomic | `atomic.modifier` | `modifier.win-multiplier` |
-| interaction | interaction | `interaction.cascade-multiplier` | `evolution.cascade` ＋ `modifier.win-multiplier` |
-| interaction | interaction | `interaction.multiplier-return` | `modifier.win-multiplier`且存在`return_dependency_evidence` |
-| feature | interaction | `interaction.hold-spin-return` | `feature.hold-and-spin`的终局锁定占用格数可与完整回报绑定 |
-| interaction | interaction | `interaction.wild-multiplier` | Wild节点通过`linked_multiplier_id`、专属依赖证据和共享事件集绑定倍率 |
-| interaction | interaction | `interaction.transform-return` | `modifier.symbol-transform`且存在回报依赖证据 |
+| A1 | 完整付费入口倍率分布与长尾 | N2, N4 | full_return_distribution, below_200x, above_or_equal_200x, observed_max, theoretical_max, cap |
+| A2 | 结算元素与线路RTP守恒 | J1, N6 | absolute_rtp_contribution, share_of_settlement_rtp, component_sum_check |
+| A3 | 连续结算派生统计 | J3 | continuation_probability, rtp_by_depth |
+| A4 | 玩法过程派生统计 | P1, P2 | retrigger_count, extension_events, mechanic_occurrence_rate, mechanic_effective_rate, incremental_rtp |
+| A5 | 盘面派生统计 | B1, B2 | symbol_presence_rate, fixed_board_rule_consistency |
 
-## Owner与去重规则
-
-- 每个`metric_id`只有一个Owner；匹配只能使用`mechanic_id + 标准属性 + scope`。
-- 完整分布是主评价时，其均值、中位数、零值率和可精确推出的条件率只能作为`derived_diagnostic`审计，权重固定为0。
-- 联合体验通常使用“边际＋条件分布”或纯依赖残差表达，禁止原始联合分布与其可复算边际同时计分。稳定对象移动只有在完整一一配对和完整位置对域均可证明时，才按数量转移分组评价扣除候选自身起点与终点边际后的纯配对残差；移动数量、位置边际和位置角色仍由独立Owner负责。
-- Core硬门禁允许交叉校验，但硬指标不进入综合分。
-- Interaction必须有画像中的专属依赖证据，不能仅因两个玩法同时存在而自动加载；Wild与倍率使用`wild_multiplier_dependency_evidence`，不得复用Cascade的泛化证据。
-- `trigger.entry_source_distribution`只评价`entry_source_domain=endogenous`；Feature Buy、强制测试、测试注入、运营覆盖和其他外生来源不得进入目标支持集或评分事件集。
-- 完整有限抽取随机链可由条件奖励结果分布、确定性转移、停止、聚合和终局投影复算时，`award_draw.outcome_distribution_given_draw_state`保留唯一评分Owner，Feature路径及路径回报确定性派生；链外仍有随机奖励、非确定聚合或未承接玩家决策时继续独立评分。
-- 同一指标拆成多个组件、状态或阶段时，先按`scope_aggregation`聚合；实例数量不得扩大`score_budget_key`预算。
-
-## 目录承接与任务覆盖边界
-
-- 公共目录只登记玩法画像到候选指标包的承接关系、Owner、统计语义和评价方法；目录引用完整不等于某个任务已实际覆盖。
-- 画像命中的Primary和Guard由阶段2任务指标合同实例化；Audit和派生项单独保留，不得混入主评价数量或评分预算。
-- 条件指标包只有在本游戏画像及属性证据命中后才加载，目录中存在不能视为任务已命中。
-- 退化支持和不适用必须在阶段2合同中依据实际可达支持密封原因码与证据，公共目录不能替任务预判。
-- 指标是否可测取决于任务统计脚本能否输出所需字段。必需覆盖率与指标可测率是否达到100%，只以阶段2任务指标合同为准。
-- 派生项不要求独立采样，随其主指标状态传播；审计项默认不进入综合评分，但仍保留证据和风险结论。
-- 矩阵中的审计/派生数量不属于Primary/Guard正式数值覆盖。Jackpot命中率先通过规则一致性和资料门禁：物质性层级使用“总体命中率＋命中后层级构成”低维评分，极低频且低贡献层级与动态奖值继续作不计分审计；已有活动Primary可完整投影时不重复评分。
-- 新增、删除或变更任何指标时，必须重新生成[指标汇总.md](指标汇总.md)，并保证全部指标ID恰好出现一次。
+正式门禁不使用权重、综合分或豁免；审计只展示和复核。

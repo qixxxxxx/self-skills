@@ -1,6 +1,6 @@
 interface:
-  display_name: "Slot 原版数值对齐 v4.5"
-  short_description: "开工前确认Runtime与样本，再持续完成FORMAL对齐"
-  default_prompt: "使用 $slot-alignment 先列举并确认Runtime候选与原版样本范围，再以默认确定性多Worker分片完成FORMAL对齐与交付。"
+  display_name: "Slot 原版体验对齐 v5.0"
+  short_description: "以四类十三张指标卡逐项完成Slot原版体验对齐与FORMAL交付"
+  default_prompt: "使用 $slot-alignment 按N/J/P/B四类指标冻结合同，逐项完成原版体验对齐与独立FORMAL验收。"
 policy:
   allow_implicit_invocation: false

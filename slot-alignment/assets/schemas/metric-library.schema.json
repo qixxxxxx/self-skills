@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment v5 Metric Library",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "library_id", "version", "status", "principles", "categories", "cards", "audits"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.metric-library.v5"},
+    "library_id": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^5\\."},
+    "status": {"const": "active"},
+    "principles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top_level_categories_are_mutually_exclusive", "all_profile_matched_formal_subitems_required", "formal_metric_waiver_allowed", "weights_allowed", "composite_score_allowed", "card_status_aggregation", "derived_values_are_audit_only"],
+      "properties": {
+        "top_level_categories_are_mutually_exclusive": {"const": true},
+        "all_profile_matched_formal_subitems_required": {"const": true},
+        "formal_metric_waiver_allowed": {"const": false},
+        "weights_allowed": {"const": false},
+        "composite_score_allowed": {"const": false},
+        "card_status_aggregation": {"const": "worst_subitem"},
+        "derived_values_are_audit_only": {"const": true}
+      }
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"$ref": "#/$defs/category"}
+    },
+    "cards": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "items": {"$ref": "#/$defs/card"}
+    },
+    "audits": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/audit"}
+    }
+  },
+  "$defs": {
+    "category": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category_id", "name_zh", "display_order", "owner_boundary_zh"],
+      "properties": {
+        "category_id": {"enum": ["N", "J", "P", "B"]},
+        "name_zh": {"type": "string", "minLength": 1},
+        "display_order": {"type": "integer", "minimum": 0},
+        "owner_boundary_zh": {"type": "string", "minLength": 1}
+      }
+    },
+    "condition": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "facet": {
+      "type": "object",
+      "required": ["facet_id", "name_zh", "sample_unit", "measurement", "target_source", "distance_method", "subitem_source"],
+      "properties": {
+        "facet_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "sample_unit": {"type": "string", "minLength": 1},
+        "measurement": {"type": "string", "minLength": 1},
+        "target_source": {"type": "string", "minLength": 1},
+        "distance_method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+        "subitem_source": {"type": "string", "minLength": 1},
+        "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative", "from_J2"]},
+        "position_transform": {"const": "log10_1p"},
+        "applies_when": {"$ref": "#/$defs/condition"},
+        "condition_on": {"type": "string", "minLength": 1},
+        "boundary": {"const": "inclusive"},
+        "feature_buy_cost_rule": {"const": "use_actual_purchase_cost"},
+        "deterministic_mapping_policy": {"const": "audit_only"},
+        "required_states": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "zero_bucket_required": {"const": true},
+        "fixed_board_policy": {"const": "audit_only"}
+      }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["card_id", "name_zh", "category_id", "display_order", "kind", "player_question_zh", "applies_when", "facets"],
+      "properties": {
+        "card_id": {"pattern": "^[NJPB][1-9][0-9]*$"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "category_id": {"enum": ["N", "J", "P", "B"]},
+        "display_order": {"type": "integer", "minimum": 0},
+        "kind": {"enum": ["hard_gate", "alignment"]},
+        "player_question_zh": {"type": "string", "minLength": 1},
+        "applies_when": {"$ref": "#/$defs/condition"},
+        "facets": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/facet"}}
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audit_id", "name_zh", "source_cards", "includes"],
+      "properties": {
+        "audit_id": {"pattern": "^A[1-9][0-9]*$"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "source_cards": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"pattern": "^[NJPB][1-9][0-9]*$"}},
+        "includes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

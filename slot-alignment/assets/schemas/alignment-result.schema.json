@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment v5 Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "phase", "metric_contract_sha256", "card_results", "audits", "summary"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.alignment-result.v5"},
+    "task_id": {"type": "string", "minLength": 1},
+    "phase": {"enum": ["BASELINE", "CALIBRATION", "FORMAL"]},
+    "metric_contract_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "card_results": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/card_result"}},
+    "audits": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/audit_result"}},
+    "summary": {"$ref": "#/$defs/summary"}
+  },
+  "$defs": {
+    "status": {"enum": ["通过", "不通过", "样本不足", "不适用", "计算异常"]},
+    "sample_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_count", "candidate_count"],
+      "properties": {
+        "target_count": {"type": "integer", "minimum": 0},
+        "candidate_count": {"type": "integer", "minimum": 0},
+        "required_target_count": {"type": ["integer", "null"], "minimum": 0},
+        "required_candidate_count": {"type": ["integer", "null"], "minimum": 0},
+        "gap_zh": {"type": ["string", "null"]}
+      }
+    },
+    "instance_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instance_id", "facet_id", "subitem_id", "target", "candidate", "distance_method", "distance", "tolerance", "deviation_ratio", "status", "sample_evidence"],
+      "properties": {
+        "instance_id": {"type": "string", "minLength": 1},
+        "facet_id": {"type": "string", "minLength": 1},
+        "subitem_id": {"type": "string", "minLength": 1},
+        "target": {},
+        "candidate": {},
+        "distance_method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+        "distance": {"type": ["number", "null"], "minimum": 0},
+        "tolerance": {"type": "number", "minimum": 0},
+        "deviation_ratio": {"type": ["number", "null"], "minimum": 0},
+        "status": {"$ref": "#/$defs/status"},
+        "sample_evidence": {"$ref": "#/$defs/sample_evidence"},
+        "reason_zh": {"type": ["string", "null"]}
+      }
+    },
+    "card_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["card_id", "name_zh", "category_id", "kind", "status", "maximum_deviation_ratio", "worst_instance_id", "instances"],
+      "properties": {
+        "card_id": {"pattern": "^[NJPB][1-9][0-9]*$"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "category_id": {"enum": ["N", "J", "P", "B"]},
+        "kind": {"enum": ["hard_gate", "alignment"]},
+        "status": {"$ref": "#/$defs/status"},
+        "maximum_deviation_ratio": {"type": ["number", "null"], "minimum": 0},
+        "worst_instance_id": {"type": ["string", "null"]},
+        "instances": {"type": "array", "items": {"$ref": "#/$defs/instance_result"}}
+      }
+    },
+    "audit_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audit_id", "name_zh", "status", "details"],
+      "properties": {
+        "audit_id": {"pattern": "^A[1-9][0-9]*$"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "status": {"enum": ["符合", "不符合", "样本不足", "缺失", "仅展示"]},
+        "details": {}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["final_status", "hard_gate_failures", "alignment_failures", "insufficient_or_error_instances", "maximum_deviation_ratio", "worst_instance_id"],
+      "properties": {
+        "final_status": {"enum": ["通过", "不通过", "无法完整判定"]},
+        "hard_gate_failures": {"type": "integer", "minimum": 0},
+        "alignment_failures": {"type": "integer", "minimum": 0},
+        "insufficient_or_error_instances": {"type": "integer", "minimum": 0},
+        "maximum_deviation_ratio": {"type": ["number", "null"], "minimum": 0},
+        "worst_instance_id": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

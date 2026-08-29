@@ -1,10 +1,15 @@
 {
-  "schema_version": "1.1",
-  "report_contract_version": "slot-alignment.reports.v3.3",
-  "task_id": "",
-  "delivery_version": "",
-  "alignment_status": "无法判定",
-  "delivery_status": "阻塞",
-  "files": [],
-  "generated_at": ""
+  "schema_version": "slot-alignment.delivery-manifest.v5",
+  "report_contract_version": "slot-alignment.report.v5",
+  "task_id": "<task-id>",
+  "runtime_version": "<task-id>",
+  "rtp_group": 1,
+  "formal_result_sha256": "<sha256>",
+  "runtime_files": [
+    {"name": "game_core.json", "path": "交付物/runtime/game_core.json", "sha256": "<sha256>"},
+    {"name": "payout_config.json", "path": "交付物/runtime/payout_config.json", "sha256": "<sha256>"},
+    {"name": "reel_config.json", "path": "交付物/runtime/reel_config.json", "sha256": "<sha256>"},
+    {"name": "symbol_catalog.json", "path": "交付物/runtime/symbol_catalog.json", "sha256": "<sha256>"}
+  ],
+  "generated_at": "<ISO-8601>"
 }

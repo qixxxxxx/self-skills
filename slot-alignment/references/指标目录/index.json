@@ -1,436 +1,406 @@
 {
-  "schema_version": "2.0",
-  "catalog_type": "metric_index",
-  "version": "2.7.1",
-  "summary_path": "指标汇总.md",
+  "schema_version": "slot-alignment.metric-library.v5",
+  "library_id": "slot-alignment-player-experience-metrics",
+  "version": "5.0.0",
+  "status": "active",
+  "principles": {
+    "top_level_categories_are_mutually_exclusive": true,
+    "all_profile_matched_formal_subitems_required": true,
+    "formal_metric_waiver_allowed": false,
+    "weights_allowed": false,
+    "composite_score_allowed": false,
+    "card_status_aggregation": "worst_subitem",
+    "derived_values_are_audit_only": true
+  },
   "categories": [
     {
-      "category_id": "core",
-      "name_zh": "通用结果与风险",
+      "category_id": "N",
+      "name_zh": "数值指标",
       "display_order": 10,
-      "source_categories": [
-        "core"
-      ],
-      "description_zh": "所有游戏共用的RTP、中奖率、触发率、波动、组件贡献、长尾及封顶门禁。"
+      "owner_boundary_zh": "跨完整付费入口或组件的全局数值红线。"
     },
     {
-      "category_id": "board",
-      "name_zh": "盘面生成与符号结构",
+      "category_id": "J",
+      "name_zh": "中奖结算",
       "display_order": 20,
-      "source_categories": [
-        "board"
-      ],
-      "description_zh": "可见符号组成、空间结构、生成集中度、可变轴高和组合容量。"
+      "owner_boundary_zh": "完整结算链中的实际派奖结果；Cascade连续消除属于本类。"
     },
     {
-      "category_id": "settlement",
-      "name_zh": "中奖结算与构成",
+      "category_id": "P",
+      "name_zh": "玩法过程",
       "display_order": 30,
-      "source_categories": [
-        "settlement"
-      ],
-      "description_zh": "实际中奖符号、条件中奖规模、并发结果、赔付线和Cluster结算结构。"
+      "owner_boundary_zh": "跨结算步骤的Feature周期和特色机制结果状态。"
     },
     {
-      "category_id": "trigger",
-      "name_zh": "玩法触发与入口",
+      "category_id": "B",
+      "name_zh": "盘面呈现",
       "display_order": 40,
-      "source_categories": [
-        "trigger"
-      ],
-      "description_zh": "触发符号数量、位置配置及已进入Feature后的游戏内生入口来源构成；外生选择不进入评分。"
-    },
-    {
-      "category_id": "evolution",
-      "name_zh": "盘面演化与连续过程",
-      "display_order": 50,
-      "source_categories": [
-        "evolution"
-      ],
-      "description_zh": "Cascade等一次入口内的连续盘面演化、补充和分层回报。"
-    },
-    {
-      "category_id": "feature",
-      "name_zh": "特色玩法、奖励与状态",
-      "display_order": 60,
-      "source_categories": [
-        "feature",
-        "award",
-        "state"
-      ],
-      "description_zh": "免费旋转、重转、Hold & Spin、奖励抽取、动态奖值、Jackpot、持久状态及完整Feature周期。"
-    },
-    {
-      "category_id": "modifier",
-      "name_zh": "修饰器与跨玩法联合",
-      "display_order": 70,
-      "source_categories": [
-        "modifier",
-        "interaction"
-      ],
-      "description_zh": "Collect、符号变形、Wild、倍率及有原版依赖证据的跨玩法联合体验。"
+      "owner_boundary_zh": "稳定可见盘面的符号数量、位置和空间形态。"
     }
   ],
-  "coverage_policy": {
-    "policy_id": "metric-coverage.v2",
-    "unique_owner_required": true,
-    "profile_match_uses_mechanic_id_and_standard_attributes": true,
-    "primary_and_guard_metrics_required_when_applicable": true,
-    "derived_metrics_must_be_audit": true,
-    "audit_score_weight_must_be_zero": true,
-    "score_budget_key_unique_within_semantic_scope": true,
-    "scope_instances_do_not_increase_score_budget": true,
-    "raw_joint_and_scored_marginals_forbidden": true,
-    "interaction_dependency_evidence_required": true,
-    "summary_must_cover_every_metric_id": true,
-    "summary_update_required_on_catalog_change": true
-  },
-  "packages": [
+  "cards": [
     {
-      "package_id": "core.general",
-      "type": "core",
-      "category": "core",
-      "path": "core/general/catalog.json",
+      "card_id": "N1",
+      "name_zh": "总RTP",
+      "category_id": "N",
       "display_order": 10,
-      "applies_when": {
-        "always": true
-      },
-      "version": "2.2.0",
-      "sha256": "625f927394eff64518b9fed0631a5ac3d576769e9d5ad95370fb341ac4f759a4"
+      "kind": "hard_gate",
+      "player_question_zh": "玩家长期每投注1单位平均返还多少？",
+      "applies_when": {"always": true},
+      "facets": [
+        {
+          "facet_id": "total_rtp",
+          "name_zh": "用户确认总RTP",
+          "sample_unit": "paid_entry",
+          "measurement": "sum(paid_entry_total_win)/sum(actual_economic_bet)",
+          "target_source": "user_confirmed_exact_rtp",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "single"
+        }
+      ]
     },
     {
-      "package_id": "atomic.board-diversity",
-      "type": "atomic",
-      "category": "board",
-      "path": "atomic/board-diversity/catalog.json",
-      "display_order": 10,
-      "applies_when": {
-        "mechanic_id_any": [
-          "board.fixed-grid",
-          "board.variable-grid"
-        ]
-      },
-      "version": "2.0.0",
-      "sha256": "6397ef5d001754bc56f40fd565c7b4877a60086d2c5bb12ec0de572cf7e2a510"
-    },
-    {
-      "package_id": "atomic.variable-grid",
-      "type": "atomic",
-      "category": "board",
-      "path": "atomic/variable-grid/catalog.json",
+      "card_id": "N2",
+      "name_zh": "完整付费入口中奖率",
+      "category_id": "N",
       "display_order": 20,
-      "applies_when": {
-        "mechanic_id": "board.variable-grid"
-      },
-      "version": "2.4.0",
-      "sha256": "e7048e928e1ad9c9fed9e80d5c0ec96ffcfb8e98bef0db29575a9e87cf0a19b0"
+      "kind": "hard_gate",
+      "player_question_zh": "一次实际付费入口最终获得任意正回报的概率是多少？",
+      "applies_when": {"always": true},
+      "facets": [
+        {
+          "facet_id": "positive_return_rate",
+          "name_zh": "回报大于0概率",
+          "sample_unit": "paid_entry",
+          "measurement": "P(paid_entry_return > 0)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "single"
+        }
+      ]
     },
     {
-      "package_id": "atomic.settlement-diversity",
-      "type": "atomic",
-      "category": "settlement",
-      "path": "atomic/settlement-diversity/catalog.json",
-      "display_order": 10,
-      "applies_when": {
-        "mechanic_id_any": [
-          "settlement.payline",
-          "settlement.ways",
-          "settlement.count-pay",
-          "settlement.cluster-pay"
-        ]
-      },
-      "version": "2.3.0",
-      "sha256": "267c645f6f3913e6b3f2e6927faffa5e8c7c0f4b06c47dee4de71ea2884ceeea"
-    },
-    {
-      "package_id": "atomic.effective-ways-capacity",
-      "type": "atomic",
-      "category": "settlement",
-      "path": "atomic/effective-ways-capacity/catalog.json",
-      "display_order": 20,
-      "applies_when": {
-        "mechanic_id": "settlement.effective-ways-capacity"
-      },
-      "version": "2.3.0",
-      "sha256": "0efb62777a50a54e90d224e2d46365e5e0fb98654a8776afbbeb6ac883016de1"
-    },
-    {
-      "package_id": "atomic.trigger",
-      "type": "atomic",
-      "category": "trigger",
-      "path": "atomic/trigger/catalog.json",
-      "display_order": 10,
-      "applies_when": {
-        "mechanic_id_any": [
-          "trigger.symbol-count",
-          "trigger.random-event",
-          "trigger.state-threshold",
-          "feature.free-spin",
-          "feature.respin",
-          "feature.hold-and-spin",
-          "feature.award-draw",
-          "feature.bonus-sequence"
-        ]
-      },
-      "version": "2.3.0",
-      "sha256": "805d833e8b7b6d89fd6535fc909f4530866ea7d68db6ba0794b6b275d8f53b70"
-    },
-    {
-      "package_id": "atomic.cascade",
-      "type": "atomic",
-      "category": "evolution",
-      "path": "atomic/cascade/catalog.json",
-      "display_order": 10,
-      "applies_when": {
-        "mechanic_id": "evolution.cascade"
-      },
-      "version": "2.4.0",
-      "sha256": "20b8148d9e59a4186cf81c3d00e33b34783808039543ee72d59181c2c2975127"
-    },
-    {
-      "package_id": "atomic.free-spin",
-      "type": "atomic",
-      "category": "feature",
-      "path": "atomic/free-spin/catalog.json",
-      "display_order": 20,
-      "applies_when": {
-        "mechanic_id": "feature.free-spin"
-      },
-      "version": "2.2.0",
-      "sha256": "c0f8d214b06bd959b27b685cbc64a286022655fb1646bbc67f7a546cc65803ab"
-    },
-    {
-      "package_id": "atomic.respin",
-      "type": "atomic",
-      "category": "feature",
-      "path": "atomic/respin/catalog.json",
+      "card_id": "N3",
+      "name_zh": "Feature自然触发率",
+      "category_id": "N",
       "display_order": 30,
-      "applies_when": {
-        "mechanic_id": "feature.respin"
-      },
-      "version": "2.6.0",
-      "sha256": "afad12a1774814acee9b49e346f389d010ab349ba0d12de65d15a7fd4db1e213"
+      "kind": "hard_gate",
+      "player_question_zh": "各Feature通过游戏内生规则自然进入的概率是多少？",
+      "applies_when": {"profile_has_any": ["feature"]},
+      "facets": [
+        {
+          "facet_id": "natural_trigger_rate",
+          "name_zh": "逐Feature自然触发率",
+          "sample_unit": "paid_entry",
+          "measurement": "P(natural_entry_into_feature)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "features_with_endogenous_entry"
+        }
+      ]
     },
     {
-      "package_id": "composite.feature-cycle",
-      "type": "composite",
-      "category": "feature",
-      "path": "composite/feature-cycle/catalog.json",
+      "card_id": "N4",
+      "name_zh": "完整付费入口回报大于等于1x概率",
+      "category_id": "N",
       "display_order": 40,
-      "applies_when": {
-        "mechanic_id_any": [
-          "feature.free-spin",
-          "feature.respin",
-          "feature.hold-and-spin",
-          "feature.award-draw",
-          "feature.bonus-sequence"
-        ]
-      },
-      "version": "2.4.0",
-      "sha256": "556ef7e3269699543d09eb8f51e67c35be438bfab70a801ab30ebd6d880c2b7a"
+      "kind": "hard_gate",
+      "player_question_zh": "一次完整付费入口至少收回实际成本的概率是多少？",
+      "applies_when": {"always": true},
+      "facets": [
+        {
+          "facet_id": "return_ge_cost_rate",
+          "name_zh": "回报大于等于实际成本概率",
+          "sample_unit": "paid_entry",
+          "measurement": "P(paid_entry_return >= actual_entry_cost)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "single",
+          "boundary": "inclusive",
+          "feature_buy_cost_rule": "use_actual_purchase_cost"
+        }
+      ]
     },
     {
-      "package_id": "atomic.hold-and-spin",
-      "type": "atomic",
-      "category": "feature",
-      "path": "atomic/hold-and-spin/catalog.json",
+      "card_id": "N5",
+      "name_zh": "Sigma",
+      "category_id": "N",
       "display_order": 50,
-      "applies_when": {
-        "mechanic_id": "feature.hold-and-spin"
-      },
-      "version": "2.8.0",
-      "sha256": "ec5b419303be4803666e64e9340859581cb254e0fda145997c0c5c56c85b52a6"
+      "kind": "hard_gate",
+      "player_question_zh": "总体及主要作用域的回报波动有多大？",
+      "applies_when": {"always": true},
+      "facets": [
+        {
+          "facet_id": "return_sigma",
+          "name_zh": "总体及适用作用域Sigma",
+          "sample_unit": "paid_entry_or_component_entry",
+          "measurement": "population_std(return_multiple)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "relative_error",
+          "subitem_source": "overall_and_profile_scopes"
+        }
+      ]
     },
     {
-      "package_id": "atomic.collect",
-      "type": "atomic",
-      "category": "modifier",
-      "path": "atomic/collect/catalog.json",
+      "card_id": "N6",
+      "name_zh": "组件RTP贡献",
+      "category_id": "N",
       "display_order": 60,
-      "applies_when": {
-        "mechanic_id": "modifier.collect"
-      },
-      "version": "2.3.0",
-      "sha256": "bccdafa7973aa64cc5fdad76ae1dddeb89de11cd719d761b9418a93ce69b5983"
+      "kind": "hard_gate",
+      "player_question_zh": "总体返还由Base、各Feature和其他组件分别贡献多少？",
+      "applies_when": {"always": true},
+      "facets": [
+        {
+          "facet_id": "component_rtp",
+          "name_zh": "逐组件RTP贡献",
+          "sample_unit": "paid_entry",
+          "measurement": "sum(component_win)/sum(actual_economic_bet)",
+          "target_source": "original_component_share_mapped_to_user_confirmed_total_rtp",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "base_features_and_other_components"
+        }
+      ]
     },
     {
-      "package_id": "atomic.award-draw",
-      "type": "atomic",
-      "category": "feature",
-      "path": "atomic/award-draw/catalog.json",
-      "display_order": 70,
-      "applies_when": {
-        "mechanic_id": "feature.award-draw"
-      },
-      "version": "2.2.0",
-      "sha256": "be3dc06e820877e04fc7855f2407abb417a4fed4d980353704e48371b2b4b2b7"
-    },
-    {
-      "package_id": "atomic.jackpot",
-      "type": "atomic",
-      "category": "award",
-      "path": "atomic/jackpot/catalog.json",
-      "display_order": 80,
-      "applies_when": {
-        "mechanic_id": "award.jackpot"
-      },
-      "version": "2.3.0",
-      "sha256": "4714ec493207d9b965deff5f4597aac5dadb18c219fec7383c53a42260203818"
-    },
-    {
-      "package_id": "atomic.value-symbol",
-      "type": "atomic",
-      "category": "award",
-      "path": "atomic/value-symbol/catalog.json",
+      "card_id": "J1",
+      "name_zh": "中奖构成",
+      "category_id": "J",
       "display_order": 10,
-      "applies_when": {
-        "mechanic_id": "award.value-symbol"
-      },
-      "version": "2.2.0",
-      "sha256": "b578116c0a538e7a0e1f6b1fcc2fe1761188d6b9603b921a0db7b35166d15458"
+      "kind": "alignment",
+      "player_question_zh": "正派奖时通常由哪些元素或线路参与？",
+      "applies_when": {"profile_has_any": ["settlement"]},
+      "facets": [
+        {
+          "facet_id": "element_win_participation_rate",
+          "name_zh": "逐结算元素中奖参与率",
+          "sample_unit": "positive_settlement_step",
+          "measurement": "P(element_participates | positive_settlement_step)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "settlement_elements"
+        },
+        {
+          "facet_id": "payline_win_participation_rate",
+          "name_zh": "逐规范线路中奖参与率",
+          "sample_unit": "positive_settlement_step",
+          "measurement": "P(payline_participates | positive_settlement_step)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "canonical_paylines",
+          "applies_when": {"settlement_type": "payline"}
+        }
+      ]
     },
     {
-      "package_id": "atomic.symbol-transform",
-      "type": "atomic",
-      "category": "modifier",
-      "path": "atomic/symbol-transform/catalog.json",
+      "card_id": "J2",
+      "name_zh": "中奖规模",
+      "category_id": "J",
       "display_order": 20,
-      "applies_when": {
-        "mechanic_id": "modifier.symbol-transform"
-      },
-      "version": "2.1.0",
-      "sha256": "4ad6f5b066458932f7dda15db90df0f4787092001f8af120ac8c0491dc071783"
+      "kind": "alignment",
+      "player_question_zh": "单次中奖由多少符号、轴、Ways或结果构成，实际奖励有多大？",
+      "applies_when": {"profile_has_any": ["settlement"]},
+      "facets": [
+        {
+          "facet_id": "single_win_structure_size",
+          "name_zh": "单个中奖结果结构规模",
+          "sample_unit": "win_result",
+          "measurement": "settlement_specific_structure_size",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "natural_linear",
+          "subitem_source": "settlement_elements_and_size_axes"
+        },
+        {
+          "facet_id": "simultaneous_win_count",
+          "name_zh": "同步中奖结果数量",
+          "sample_unit": "positive_settlement_step",
+          "measurement": "count(win_results_in_step)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "natural_linear",
+          "subitem_source": "settlement_scopes"
+        },
+        {
+          "facet_id": "actual_reward_size",
+          "name_zh": "实际奖励大小",
+          "sample_unit": "win_result",
+          "measurement": "win_amount/actual_economic_bet",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "nonnegative_multiplicative",
+          "position_transform": "log10_1p",
+          "subitem_source": "non_deterministic_payout_mappings",
+          "deterministic_mapping_policy": "audit_only"
+        }
+      ]
     },
     {
-      "package_id": "atomic.persistent-state",
-      "type": "atomic",
-      "category": "state",
-      "path": "atomic/persistent-state/catalog.json",
+      "card_id": "J3",
+      "name_zh": "连续结算",
+      "category_id": "J",
       "display_order": 30,
-      "applies_when": {
-        "mechanic_id": "state.persistent-state"
-      },
-      "version": "3.0.1",
-      "sha256": "bdc0e680cb5c1ec4e233c7846c826e3495d0e0ea96cf0c26048e289b1c2c75b8"
+      "kind": "alignment",
+      "player_question_zh": "一次动作会连续结算多少层，各层中奖规模如何？",
+      "applies_when": {"profile_has_any": ["cascade", "continuous_settlement"]},
+      "facets": [
+        {
+          "facet_id": "total_depth",
+          "name_zh": "连续结算总深度",
+          "sample_unit": "eligible_primary_action",
+          "measurement": "count(positive_continuous_settlement_steps); no_chain=0",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "natural_linear",
+          "subitem_source": "continuous_settlement_scopes"
+        },
+        {
+          "facet_id": "win_scale_by_depth",
+          "name_zh": "指定层级中奖规模",
+          "sample_unit": "positive_continuous_settlement_step",
+          "measurement": "J2_size_conditioned_on_depth",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "from_J2",
+          "subitem_source": "active_depth_and_J2_axes"
+        }
+      ]
     },
     {
-      "package_id": "atomic.wild-effect",
-      "type": "atomic",
-      "category": "modifier",
-      "path": "atomic/wild-effect/catalog.json",
-      "display_order": 40,
-      "applies_when": {
-        "mechanic_id_any": [
-          "modifier.wild-substitute",
-          "modifier.expanding-wild"
-        ]
-      },
-      "version": "2.5.0",
-      "sha256": "4328ccac4ba13453b4e3f35c6251487f394711c1eafae17e6640fdc13262f270"
-    },
-    {
-      "package_id": "atomic.modifier",
-      "type": "atomic",
-      "category": "modifier",
-      "path": "atomic/modifier/catalog.json",
-      "display_order": 50,
-      "applies_when": {
-        "mechanic_id": "modifier.win-multiplier"
-      },
-      "version": "2.3.0",
-      "sha256": "a4acef8bb5da88ca1602dce10c59ca1211de3724372e3940eb5089dcb6da5240"
-    },
-    {
-      "package_id": "interaction.cascade-multiplier",
-      "type": "interaction",
-      "category": "interaction",
-      "path": "interaction/cascade-multiplier/catalog.json",
+      "card_id": "P1",
+      "name_zh": "周期节奏",
+      "category_id": "P",
       "display_order": 10,
-      "applies_when": {
-        "mechanic_id_all": [
-          "evolution.cascade",
-          "modifier.win-multiplier"
-        ],
-        "required_attributes": [
-          "same_depth_multiplier_randomness"
-        ]
-      },
-      "version": "2.2.0",
-      "sha256": "477cb61f4bb058afe299877bf655f4451688660df8899c6788f8ba86beaf7d05"
+      "kind": "alignment",
+      "player_question_zh": "Feature开始时给多少免费旋转，完整Feature会持续多久？",
+      "applies_when": {"profile_has_any": ["feature"]},
+      "facets": [
+        {
+          "facet_id": "initial_free_spin_count",
+          "name_zh": "初始免费旋转次数",
+          "sample_unit": "free_spin_feature_start",
+          "measurement": "initial_awarded_free_spins",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "natural_linear",
+          "subitem_source": "free_spin_features",
+          "applies_when": {"feature_type": "free_spin"}
+        },
+        {
+          "facet_id": "feature_duration",
+          "name_zh": "完整Feature持续长度",
+          "sample_unit": "feature_cycle",
+          "measurement": "count(primary_actions_in_complete_feature)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "natural_linear",
+          "subitem_source": "feature_cycles"
+        }
+      ]
     },
     {
-      "package_id": "interaction.multiplier-return",
-      "type": "interaction",
-      "category": "interaction",
-      "path": "interaction/multiplier-return/catalog.json",
+      "card_id": "P2",
+      "name_zh": "机制结果状态",
+      "category_id": "P",
       "display_order": 20,
-      "applies_when": {
-        "mechanic_id": "modifier.win-multiplier",
-        "required_attributes": [
-          "return_dependency_evidence"
-        ]
-      },
-      "version": "2.2.0",
-      "sha256": "dba7796020e7d971c96a15daee6f9d7cf11727a51ad3ef226c2b9417323ff635"
+      "kind": "alignment",
+      "player_question_zh": "每次特色机制机会最终落入什么可感知结果状态？",
+      "applies_when": {"profile_has_any": ["mechanic"]},
+      "facets": [
+        {
+          "facet_id": "mechanic_result_state",
+          "name_zh": "逐机制结果状态分布",
+          "sample_unit": "eligible_mechanic_opportunity",
+          "measurement": "exclusive_complete_result_state",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "total_variation",
+          "subitem_source": "active_special_mechanics",
+          "required_states": ["not_occurred_or_not_effective"]
+        }
+      ]
     },
     {
-      "package_id": "interaction.hold-spin-return",
-      "type": "interaction",
-      "category": "feature",
-      "path": "interaction/hold-spin-return/catalog.json",
-      "display_order": 55,
-      "applies_when": {
-        "mechanic_id": "feature.hold-and-spin",
-        "required_attributes": [
-          "board_capacity",
-          "terminal_award_binding_rule"
-        ]
-      },
-      "version": "2.2.0",
-      "sha256": "9c4c9050e620ceca603b7e010dad92bdb1604cd7288341c7628a33a757d00e9b"
+      "card_id": "B1",
+      "name_zh": "符号呈现",
+      "category_id": "B",
+      "display_order": 10,
+      "kind": "alignment",
+      "player_question_zh": "每个稳定可见盘面中，各符号通常出现多少个？",
+      "applies_when": {"profile_has_any": ["board"]},
+      "facets": [
+        {
+          "facet_id": "symbol_count_per_board",
+          "name_zh": "逐符号单盘数量分布",
+          "sample_unit": "stable_visible_board",
+          "measurement": "count(symbol_on_board), including_zero",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "wasserstein_1d",
+          "axis_semantics": "natural_linear",
+          "subitem_source": "visible_symbols_and_board_scopes",
+          "zero_bucket_required": true
+        }
+      ]
     },
     {
-      "package_id": "interaction.wild-multiplier",
-      "type": "interaction",
-      "category": "interaction",
-      "path": "interaction/wild-multiplier/catalog.json",
-      "display_order": 30,
-      "applies_when": {
-        "mechanic_id_any": [
-          "modifier.wild-substitute",
-          "modifier.expanding-wild"
-        ],
-        "required_attributes": [
-          "linked_multiplier_id",
-          "wild_multiplier_dependency_evidence",
-          "linked_symbol_domain"
-        ],
-        "attribute_conditions": [
-          {
-            "mechanic_id": "modifier.win-multiplier",
-            "attribute": "linked_symbol_domain",
-            "operator": "exists"
-          }
-        ]
-      },
-      "version": "2.1.0",
-      "sha256": "946a58c29b3623a3a7862eb84989a7db63032ee1b2d405c69a9fe69982dd8752"
+      "card_id": "B2",
+      "name_zh": "盘面空间结构",
+      "category_id": "B",
+      "display_order": 20,
+      "kind": "alignment",
+      "player_question_zh": "盘面形状如何变化，玩家关注的关键符号通常出现在哪里？",
+      "applies_when": {"profile_has_any": ["board"]},
+      "facets": [
+        {
+          "facet_id": "board_shape",
+          "name_zh": "可变盘面形态",
+          "sample_unit": "stable_visible_board",
+          "measurement": "active_cell_mask_or_equivalent_visible_shape",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "structural_wasserstein",
+          "subitem_source": "variable_board_scopes",
+          "fixed_board_policy": "audit_only"
+        },
+        {
+          "facet_id": "key_symbol_position_density",
+          "name_zh": "关键符号空间位置密度",
+          "sample_unit": "stable_visible_board_with_symbol",
+          "measurement": "board_equalized_symbol_cell_density_conditioned_on_presence",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "structural_wasserstein",
+          "subitem_source": "profile_selected_spatial_symbols_and_board_scopes"
+        }
+      ]
+    }
+  ],
+  "audits": [
+    {
+      "audit_id": "A1",
+      "name_zh": "完整付费入口倍率分布与长尾",
+      "source_cards": ["N2", "N4"],
+      "includes": ["full_return_distribution", "below_200x", "above_or_equal_200x", "observed_max", "theoretical_max", "cap"]
     },
     {
-      "package_id": "interaction.transform-return",
-      "type": "interaction",
-      "category": "interaction",
-      "path": "interaction/transform-return/catalog.json",
-      "display_order": 40,
-      "applies_when": {
-        "mechanic_id": "modifier.symbol-transform",
-        "required_attributes": [
-          "transform_return_binding_rule",
-          "return_dependency_evidence"
-        ]
-      },
-      "version": "2.1.0",
-      "sha256": "63d629b674eb81c3c59325da7e62aa52c6b8841f7408d8920c7ae6bc2956c48e"
+      "audit_id": "A2",
+      "name_zh": "结算元素与线路RTP守恒",
+      "source_cards": ["J1", "N6"],
+      "includes": ["absolute_rtp_contribution", "share_of_settlement_rtp", "component_sum_check"]
+    },
+    {
+      "audit_id": "A3",
+      "name_zh": "连续结算派生统计",
+      "source_cards": ["J3"],
+      "includes": ["continuation_probability", "rtp_by_depth"]
+    },
+    {
+      "audit_id": "A4",
+      "name_zh": "玩法过程派生统计",
+      "source_cards": ["P1", "P2"],
+      "includes": ["retrigger_count", "extension_events", "mechanic_occurrence_rate", "mechanic_effective_rate", "incremental_rtp"]
+    },
+    {
+      "audit_id": "A5",
+      "name_zh": "盘面派生统计",
+      "source_cards": ["B1", "B2"],
+      "includes": ["symbol_presence_rate", "fixed_board_rule_consistency"]
     }
   ]
 }

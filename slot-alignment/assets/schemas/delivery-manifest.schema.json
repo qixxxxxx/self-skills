@@ -1,7 +1,31 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Delivery Manifest",
+  "title": "Slot Alignment v5 Delivery Manifest",
   "type": "object",
-  "required": ["schema_version", "task_id", "delivery_version", "alignment_status", "delivery_status", "files", "generated_at"],
-  "properties": {"files": {"type": "array"}, "alignment_status": {"enum": ["通过", "豁免后通过", "不通过", "无法判定"]}, "delivery_status": {"enum": ["通过", "阻塞"]}}
+  "additionalProperties": false,
+  "required": ["schema_version", "report_contract_version", "task_id", "runtime_version", "rtp_group", "formal_result_sha256", "runtime_files", "generated_at"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.delivery-manifest.v5"},
+    "report_contract_version": {"const": "slot-alignment.report.v5"},
+    "task_id": {"type": "string", "minLength": 1},
+    "runtime_version": {"type": "string", "minLength": 1},
+    "rtp_group": {"const": 1},
+    "formal_result_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "runtime_files": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path", "sha256"],
+        "properties": {
+          "name": {"enum": ["game_core.json", "payout_config.json", "reel_config.json", "symbol_catalog.json"]},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
 }

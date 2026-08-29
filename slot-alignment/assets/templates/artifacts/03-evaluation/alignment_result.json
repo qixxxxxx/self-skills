@@ -1,7 +1,7 @@
 {
   "schema_version": "slot-alignment.alignment-result.v5",
   "task_id": "<task-id>",
-  "phase": "FORMAL",
+  "phase": "BASELINE",
   "metric_contract_sha256": "<sha256>",
   "card_results": [],
   "audits": [],
