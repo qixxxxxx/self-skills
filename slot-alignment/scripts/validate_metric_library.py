@@ -152,6 +152,10 @@ def main():
     delivery_template = load(root / "assets/templates/artifacts/05-delivery/delivery_manifest.json")
     if delivery_template.get("runtime_version") != delivery_template.get("task_id"):
         errors.append("交付manifest模板的runtime_version必须与task_id使用同一占位值")
+    authority_docs = "\n".join((root / relative).read_text(encoding="utf-8") for relative in ["SKILL.md", "references/03-执行与报告.md"])
+    for marker in ["reel-strip", "默认", "重复次数与排列", "不得重复询问"]:
+        if marker not in authority_docs:
+            errors.append(f"默认reel-strip可调权重规则缺少标记: {marker}")
     old_major = "4"
     forbidden_markers = [
         f"v{old_major}.5",
