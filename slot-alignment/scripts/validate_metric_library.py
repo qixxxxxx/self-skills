@@ -50,6 +50,8 @@ def main():
     for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "joint-self-comparison.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
         Draft202012Validator.check_schema(load(root / "assets/schemas" / schema_name))
     library, evaluation, hard = load(library_path), load(evaluation_path), load(hard_path)
+    if library.get("version") != "5.2.0" or evaluation.get("version") != "5.2.0" or evaluation.get("applies_to_metric_library") != "5.2.0":
+        errors.append("指标库与评价政策版本必须统一为5.2.0")
     category_ids = [item["category_id"] for item in library["categories"]]
     if category_ids != ["N", "J", "P", "B"]:
         errors.append(f"顶层分类必须按N/J/P/B唯一排列，实际={category_ids}")
@@ -88,6 +90,17 @@ def main():
     n6 = next(item for item in cards if item["card_id"] == "N6")["facets"][0]
     if n6.get("target_source") != "original_component_share_mapped_to_user_confirmed_total_rtp" or n6.get("distance_method") != "absolute_probability_error":
         errors.append("N6必须由原版组件占比映射用户确认总RTP")
+    expected_j_facets = {
+        "J1": ["win_group_participation_rate"],
+        "J2": ["primary_structure_size", "simultaneous_visible_win_count", "visible_step_reward_size"],
+        "J3": ["total_depth", "chain_reward_size"],
+    }
+    for card_id, expected in expected_j_facets.items():
+        actual = [item["facet_id"] for item in next(item for item in cards if item["card_id"] == card_id)["facets"]]
+        if actual != expected:
+            errors.append(f"{card_id}精简Facet必须为{expected}，实际={actual}")
+    if any(card_id.startswith("J") for audit in library["audits"] for card_id in audit["source_cards"]):
+        errors.append("v5.2不保留J类审计项")
     calculation = hard["calculation"]
     if calculation.get("N1_interval_forbidden") is not True or calculation.get("N1_distance") != "abs(candidate-target)":
         errors.append("N1必须禁止区间目标并使用绝对RTP差")
@@ -97,13 +110,17 @@ def main():
     p2 = next(item for item in cards if item["card_id"] == "P2")["facets"][0]
     if "not_occurred_or_not_effective" not in p2.get("required_states", []):
         errors.append("P2必须包含未发生或未生效状态")
-    b1 = next(item for item in cards if item["card_id"] == "B1")["facets"][0]
-    if b1.get("zero_bucket_required") is not True:
-        errors.append("B1必须包含0桶")
+    b1_facets = {item["facet_id"]: item for item in next(item for item in cards if item["card_id"] == "B1")["facets"]}
+    density = b1_facets.get("symbol_group_density_per_board", {})
+    key_count = b1_facets.get("key_symbol_count_per_board", {})
+    if density.get("measurement") != "count(group_symbols_on_board)/count(active_visible_cells)" or density.get("support_span") != 1.0 or density.get("visible_cell_normalized") is not True:
+        errors.append("B1普通符号组必须按有效格密度评价并固定support_span=1")
+    if key_count.get("zero_bucket_required") is not True:
+        errors.append("B1关键符号数量必须包含0桶")
     b2 = next(item for item in cards if item["card_id"] == "B2")["facets"][1]
     if b2.get("measurement") != "board_equalized_symbol_cell_density_conditioned_on_presence":
         errors.append("B2关键符号位置必须按出现盘面等权归一化")
-    if b2.get("subitem_source") != "profile_selected_spatial_symbols_and_board_scopes" or "condition_on" in b2:
+    if b2.get("subitem_source") != "profile_selected_spatial_symbols_and_formal_board_scopes" or "condition_on" in b2:
         errors.append("B2只能按画像选定关键空间符号逐作用域展开，不得按数量展开")
     structural = evaluation["distance_methods"]["structural_wasserstein"]
     if structural.get("symbol_position_occurrence_mass") != "1/count_on_board":
@@ -178,7 +195,7 @@ def main():
     if errors:
         print("\n".join(f"ERROR: {item}" for item in errors), file=sys.stderr)
         raise SystemExit(1)
-    print(f"OK: v5指标库校验通过，4类13卡{sum(len(item['facets']) for item in cards)}个Facet")
+    print(f"OK: v5.2指标库校验通过，4类13卡{sum(len(item['facets']) for item in cards)}个Facet")
 
 
 if __name__ == "__main__":

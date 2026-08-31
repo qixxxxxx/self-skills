@@ -23,7 +23,7 @@
       }
     },
     "cards": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/card"}},
-    "audits": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/audit"}},
+    "audits": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/audit"}},
     "hashes": {
       "type": "object",
       "required": ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256", "contract_sha256"],

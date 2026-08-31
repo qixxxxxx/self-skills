@@ -10,7 +10,7 @@
     "phase": {"enum": ["BASELINE", "CALIBRATION", "FORMAL"]},
     "metric_contract_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "card_results": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/card_result"}},
-    "audits": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/audit_result"}},
+    "audits": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/audit_result"}},
     "summary": {"$ref": "#/$defs/summary"}
   },
   "$defs": {

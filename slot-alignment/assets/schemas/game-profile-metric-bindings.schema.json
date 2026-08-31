@@ -8,14 +8,15 @@
     "metric_bindings": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["features", "settlements", "continuous_settlements", "special_mechanics", "boards", "components", "sigma_scopes"],
+      "required": ["features", "settlements", "win_groups", "continuous_settlements", "special_mechanics", "boards", "components", "sigma_scopes"],
       "properties": {
         "features": {"type": "array", "items": {"$ref": "#/$defs/feature"}},
         "settlements": {"type": "array", "items": {"$ref": "#/$defs/settlement"}},
+        "win_groups": {"type": "array", "items": {"$ref": "#/$defs/win_group"}},
         "continuous_settlements": {"type": "array", "items": {"$ref": "#/$defs/continuous"}},
         "special_mechanics": {"type": "array", "items": {"$ref": "#/$defs/mechanic"}},
         "boards": {"type": "array", "items": {"$ref": "#/$defs/board"}},
-        "components": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "components": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/component"}},
         "sigma_scopes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
       }
     }
@@ -36,24 +37,47 @@
     "settlement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["settlement_id", "settlement_type", "elements", "paylines", "size_axes", "payout_mapping"],
+      "required": ["settlement_id", "component_id", "settlement_type", "elements", "primary_size_axis", "variable_primary_size"],
       "properties": {
         "settlement_id": {"$ref": "#/$defs/id"},
+        "component_id": {"$ref": "#/$defs/id"},
         "settlement_type": {"enum": ["payline", "ways", "count_pay", "cluster", "full_screen", "other"]},
-        "elements": {"$ref": "#/$defs/string_list"},
-        "paylines": {"$ref": "#/$defs/string_list"},
-        "size_axes": {"$ref": "#/$defs/string_list"},
-        "payout_mapping": {"enum": ["deterministic", "variable"]}
+        "elements": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "primary_size_axis": {"enum": ["matched_reels", "ways", "symbol_count", "cluster_cells", "cleared_cells", "custom"]},
+        "variable_primary_size": {"type": "boolean"}
+      }
+    },
+    "win_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_id", "group_id", "role", "elements"],
+      "properties": {
+        "component_id": {"$ref": "#/$defs/id"},
+        "group_id": {"$ref": "#/$defs/id"},
+        "role": {"enum": ["signature", "regular_high", "regular_low", "regular_other", "special"]},
+        "elements": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
       }
     },
     "continuous": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["continuous_id", "reachable_depths", "size_axes"],
+      "required": ["continuous_id", "component_id", "variable_depth", "variable_chain_reward"],
       "properties": {
         "continuous_id": {"$ref": "#/$defs/id"},
-        "reachable_depths": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
-        "size_axes": {"$ref": "#/$defs/string_list"}
+        "component_id": {"$ref": "#/$defs/id"},
+        "variable_depth": {"type": "boolean"},
+        "variable_chain_reward": {"type": "boolean"}
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_id", "display_bet_basis", "variable_simultaneous_win_count", "variable_visible_step_reward"],
+      "properties": {
+        "component_id": {"$ref": "#/$defs/id"},
+        "display_bet_basis": {"$ref": "#/$defs/id"},
+        "variable_simultaneous_win_count": {"type": "boolean"},
+        "variable_visible_step_reward": {"type": "boolean"}
       }
     },
     "mechanic": {
@@ -69,14 +93,33 @@
     "board": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["board_scope_id", "rows", "columns", "variable_shape", "symbols", "spatial_symbols"],
+      "required": ["board_scope_id", "component_id", "visual_phase", "rows", "columns", "variable_shape", "symbols", "symbol_groups", "key_symbols", "spatial_symbols"],
       "properties": {
         "board_scope_id": {"$ref": "#/$defs/id"},
+        "component_id": {"$ref": "#/$defs/id"},
+        "visual_phase": {"enum": ["initial", "cascade_visible"]},
         "rows": {"type": "integer", "minimum": 1},
         "columns": {"type": "integer", "minimum": 1},
         "variable_shape": {"type": "boolean"},
         "symbols": {"$ref": "#/$defs/string_list"},
+        "symbol_groups": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {"$ref": "#/$defs/symbol_group"}
+        },
+        "key_symbols": {"$ref": "#/$defs/string_list"},
         "spatial_symbols": {"$ref": "#/$defs/string_list"}
+      }
+    },
+    "symbol_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["group_id", "role", "symbols"],
+      "properties": {
+        "group_id": {"$ref": "#/$defs/id"},
+        "role": {"enum": ["signature", "regular_high", "regular_low", "regular_other"]},
+        "symbols": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
       }
     }
   }

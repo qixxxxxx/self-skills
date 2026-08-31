@@ -99,23 +99,34 @@ class EndToEndTests(unittest.TestCase):
                 "features": [{"feature_id": "free-spin", "feature_type": "free_spin", "endogenous_entry": True}],
                 "settlements": [{
                     "settlement_id": "main-ways",
+                    "component_id": "base",
                     "settlement_type": "ways",
                     "elements": ["a", "wild"],
-                    "paylines": [],
-                    "size_axes": ["reels", "ways"],
-                    "payout_mapping": "variable",
+                    "primary_size_axis": "ways",
+                    "variable_primary_size": True,
                 }],
-                "continuous_settlements": [{"continuous_id": "cascade", "reachable_depths": [1, 2], "size_axes": ["reels"]}],
+                "win_groups": [
+                    {"component_id": "base", "group_id": "regular", "role": "regular_other", "elements": ["a"]},
+                    {"component_id": "base", "group_id": "special", "role": "special", "elements": ["wild"]},
+                ],
+                "continuous_settlements": [{"continuous_id": "cascade", "component_id": "base", "variable_depth": True, "variable_chain_reward": True}],
                 "special_mechanics": [{"mechanic_id": "wild-multiplier", "result_states": ["not-occurred", "not-effective", "2x", "3x"], "inactive_state_ids": ["not-occurred", "not-effective"]}],
                 "boards": [{
-                    "board_scope_id": "base",
+                    "board_scope_id": "base-initial",
+                    "component_id": "base",
+                    "visual_phase": "initial",
                     "rows": 2,
                     "columns": 2,
                     "variable_shape": True,
                     "symbols": ["a", "wild"],
+                    "symbol_groups": [{"group_id": "regular", "role": "regular_other", "symbols": ["a"]}],
+                    "key_symbols": ["wild"],
                     "spatial_symbols": ["wild"],
                 }],
-                "components": ["base", "free-spin"],
+                "components": [
+                    {"component_id": "base", "display_bet_basis": "total-bet", "variable_simultaneous_win_count": True, "variable_visible_step_reward": True},
+                    {"component_id": "free-spin", "display_bet_basis": "total-bet", "variable_simultaneous_win_count": False, "variable_visible_step_reward": False},
+                ],
                 "sigma_scopes": ["free-spin"],
             },
         }
@@ -183,8 +194,25 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(n1["target"], 0.96)
         self.assertEqual(n1["target_source"]["method"], "user_confirmed_exact_rtp")
         self.assertEqual(n1["distance"]["method"], "absolute_probability_error")
+        j1_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "J1" for item in card["instances"]]
+        self.assertEqual(j1_ids, ["J1.win_group_participation_rate.base.regular", "J1.win_group_participation_rate.base.special"])
+        j2_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "J2" for item in card["instances"]]
+        self.assertEqual(j2_ids, [
+            "J2.primary_structure_size.main-ways",
+            "J2.simultaneous_visible_win_count.base",
+            "J2.visible_step_reward_size.base",
+        ])
+        j3_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "J3" for item in card["instances"]]
+        self.assertEqual(j3_ids, ["J3.total_depth.cascade", "J3.chain_reward_size.cascade"])
+        self.assertFalse(any("element_win_participation_rate" in item or "win_scale_by_depth" in item for item in j1_ids + j2_ids + j3_ids))
+        reward = next(item for card in contract["cards"] if card["card_id"] == "J2" for item in card["instances"] if item["facet_id"] == "visible_step_reward_size")
+        self.assertEqual(reward["scope"]["display_bet_basis"], "total-bet")
+        b1_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "B1" for item in card["instances"]]
+        self.assertEqual(b1_ids, ["B1.symbol_group_density_per_board.base-initial.regular", "B1.key_symbol_count_per_board.base-initial.wild"])
+        density = next(item for card in contract["cards"] if card["card_id"] == "B1" for item in card["instances"] if item["facet_id"] == "symbol_group_density_per_board")
+        self.assertEqual(density["distance"]["support_span"], 1.0)
         b2_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "B2" for item in card["instances"]]
-        self.assertEqual(b2_ids, ["B2.board_shape.base", "B2.key_symbol_position_density.base.wild"])
+        self.assertEqual(b2_ids, ["B2.board_shape.base-initial", "B2.key_symbol_position_density.base-initial.wild"])
         self.assertFalse(any("count-" in item for item in b2_ids))
         contract_schema = load(ROOT / "assets/schemas/metric-contract.schema.json")
         Draft202012Validator(contract_schema).validate(contract)
@@ -243,6 +271,72 @@ class EndToEndTests(unittest.TestCase):
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("唯一数值", result.stderr)
+
+    def test_board_symbol_partition_must_be_valid(self):
+        profile, targets, joint, bindings = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--output", str(self.path("invalid-board-contract.json"))]
+
+        data = load(profile)
+        data["metric_bindings"]["boards"][0]["symbol_groups"].append({"group_id": "duplicate", "role": "regular_other", "symbols": ["a"]})
+        write(profile, data)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("视觉符号组之间存在重复符号", result.stderr)
+
+        data = self.profile()
+        data["metric_bindings"]["boards"][0]["symbols"].append("bonus")
+        write(profile, data)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("可见符号域未被symbol_groups和key_symbols覆盖", result.stderr)
+
+        data = self.profile()
+        data["metric_bindings"]["boards"][0]["component_id"] = "unknown"
+        write(profile, data)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("component_id不在components中", result.stderr)
+
+    def test_win_groups_and_primary_axis_must_be_valid(self):
+        profile, targets, joint, bindings = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--output", str(self.path("invalid-j-contract.json"))]
+
+        data = self.profile()
+        data["metric_bindings"]["win_groups"][1]["elements"] = ["a", "wild"]
+        write(profile, data)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("win_groups之间存在重复元素", result.stderr)
+
+        data = self.profile()
+        data["metric_bindings"]["settlements"][0]["elements"].append("bonus")
+        write(profile, data)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("派奖元素未被win_groups覆盖", result.stderr)
+
+        data = self.profile()
+        data["metric_bindings"]["settlements"][0]["primary_size_axis"] = "matched_reels"
+        write(profile, data)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("primary_size_axis必须为ways", result.stderr)
+
+    def test_fixed_j_dimensions_do_not_generate_instances(self):
+        bindings = self.profile()["metric_bindings"]
+        bindings["settlements"][0]["variable_primary_size"] = False
+        bindings["components"][0]["variable_simultaneous_win_count"] = False
+        bindings["components"][0]["variable_visible_step_reward"] = False
+        bindings["continuous_settlements"][0]["variable_depth"] = False
+        bindings["continuous_settlements"][0]["variable_chain_reward"] = False
+        for card_id, facet_id in [
+            ("J2", "primary_structure_size"),
+            ("J2", "simultaneous_visible_win_count"),
+            ("J2", "visible_step_reward_size"),
+            ("J3", "total_depth"),
+            ("J3", "chain_reward_size"),
+        ]:
+            self.assertEqual(subitems(card_id, facet_id, bindings), [])
 
     def test_delivery_runtime_version_must_equal_task_id(self):
         formal_path = self.path("formal-delivery.json")

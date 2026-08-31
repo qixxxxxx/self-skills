@@ -1,11 +1,11 @@
 {
   "schema_version": "slot-alignment.alignment-evaluation-policy.v5",
   "policy_id": "player-visible-alignment-evaluation-v5",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "status": "已授权",
   "authority": "用户",
   "authorized_at": "2026-08-31",
-  "applies_to_metric_library": "5.0.0",
+  "applies_to_metric_library": "5.2.0",
   "decision_model": {
     "score_scale_enabled": false,
     "weights_enabled": false,

@@ -15,7 +15,7 @@ def render(library):
         "",
         f"版本：`{library['version']}`",
         "",
-        "本目录只包含新任务使用的四类十三张指标卡；元素、符号、Feature、线路和作用域只扩展卡内子项，不增加权重。",
+        "本目录只包含新任务使用的四类十三张指标卡；中奖组、组件、结算模型、Feature、符号和盘面作用域只按框架规则扩展卡内子项，不增加权重。",
         "",
     ]
     for category in library["categories"]:

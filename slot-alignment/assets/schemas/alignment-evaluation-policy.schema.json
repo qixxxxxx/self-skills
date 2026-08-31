@@ -7,7 +7,7 @@
   "properties": {
     "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v5"},
     "policy_id": {"const": "player-visible-alignment-evaluation-v5"},
-    "version": {"const": "5.1.0"},
+    "version": {"const": "5.2.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},

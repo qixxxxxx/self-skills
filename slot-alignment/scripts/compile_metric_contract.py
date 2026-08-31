@@ -27,9 +27,13 @@ def safe_id(value):
 def subitems(card_id, facet_id, bindings):
     features = bindings["features"]
     settlements = bindings["settlements"]
+    win_groups = bindings["win_groups"]
     continuous = bindings["continuous_settlements"]
     mechanics = bindings["special_mechanics"]
     boards = bindings["boards"]
+    components = bindings["components"]
+    component_map = {item["component_id"]: item for item in components}
+    settlement_components = list(dict.fromkeys(item["component_id"] for item in settlements))
     if (card_id, facet_id) in {("N1", "total_rtp"), ("N2", "positive_return_rate"), ("N4", "return_ge_cost_rate")}:
         return [("overall", {"scope": "overall"}, {})]
     if (card_id, facet_id) == ("N3", "natural_trigger_rate"):
@@ -37,29 +41,55 @@ def subitems(card_id, facet_id, bindings):
     if (card_id, facet_id) == ("N5", "return_sigma"):
         return [("overall", {"scope": "overall"}, {})] + [(scope, {"scope": scope}, {}) for scope in bindings["sigma_scopes"]]
     if (card_id, facet_id) == ("N6", "component_rtp"):
-        return [(component, {"component": component}, {}) for component in bindings["components"]]
-    if (card_id, facet_id) == ("J1", "element_win_participation_rate"):
-        return [(f"{item['settlement_id']}.{element}", {"settlement": item["settlement_id"], "element": element}, {}) for item in settlements for element in item["elements"]]
-    if (card_id, facet_id) == ("J1", "payline_win_participation_rate"):
-        return [(f"{item['settlement_id']}.{line}", {"settlement": item["settlement_id"], "payline": line}, {}) for item in settlements if item["settlement_type"] == "payline" for line in item["paylines"]]
-    if (card_id, facet_id) == ("J2", "single_win_structure_size"):
-        return [(f"{item['settlement_id']}.{element}.{axis}", {"settlement": item["settlement_id"], "element": element, "axis": axis}, {}) for item in settlements for element in item["elements"] for axis in item["size_axes"]]
-    if (card_id, facet_id) == ("J2", "simultaneous_win_count"):
-        return [(item["settlement_id"], {"settlement": item["settlement_id"]}, {}) for item in settlements]
-    if (card_id, facet_id) == ("J2", "actual_reward_size"):
-        return [(f"{item['settlement_id']}.{element}", {"settlement": item["settlement_id"], "element": element}, {}) for item in settlements if item["payout_mapping"] == "variable" for element in item["elements"]]
+        return [(item["component_id"], {"component": item["component_id"]}, {}) for item in components]
+    if (card_id, facet_id) == ("J1", "win_group_participation_rate"):
+        return [(f"{item['component_id']}.{item['group_id']}", {
+            "component": item["component_id"],
+            "win_group": item["group_id"],
+            "elements": item["elements"],
+        }, {}) for item in win_groups]
+    if (card_id, facet_id) == ("J2", "primary_structure_size"):
+        return [(item["settlement_id"], {
+            "component": item["component_id"],
+            "settlement": item["settlement_id"],
+            "primary_size_axis": item["primary_size_axis"],
+        }, {}) for item in settlements if item["variable_primary_size"]]
+    if (card_id, facet_id) == ("J2", "simultaneous_visible_win_count"):
+        return [(component, {"component": component}, {}) for component in settlement_components if component_map[component]["variable_simultaneous_win_count"]]
+    if (card_id, facet_id) == ("J2", "visible_step_reward_size"):
+        return [(component, {
+            "component": component,
+            "display_bet_basis": component_map[component]["display_bet_basis"],
+        }, {}) for component in settlement_components if component_map[component]["variable_visible_step_reward"]]
     if (card_id, facet_id) == ("J3", "total_depth"):
-        return [(item["continuous_id"], {"continuous_settlement": item["continuous_id"]}, {}) for item in continuous]
-    if (card_id, facet_id) == ("J3", "win_scale_by_depth"):
-        return [(f"{item['continuous_id']}.depth-{depth}.{axis}", {"continuous_settlement": item["continuous_id"], "depth": depth, "axis": axis}, {}) for item in continuous for depth in item["reachable_depths"] for axis in item["size_axes"]]
+        return [(item["continuous_id"], {"component": item["component_id"], "continuous_settlement": item["continuous_id"]}, {}) for item in continuous if item["variable_depth"]]
+    if (card_id, facet_id) == ("J3", "chain_reward_size"):
+        return [(item["continuous_id"], {
+            "component": item["component_id"],
+            "continuous_settlement": item["continuous_id"],
+            "display_bet_basis": component_map[item["component_id"]]["display_bet_basis"],
+        }, {}) for item in continuous if item["variable_chain_reward"]]
     if (card_id, facet_id) == ("P1", "initial_free_spin_count"):
         return [(item["feature_id"], {"feature": item["feature_id"]}, {}) for item in features if item["feature_type"] == "free_spin"]
     if (card_id, facet_id) == ("P1", "feature_duration"):
         return [(item["feature_id"], {"feature": item["feature_id"], "feature_type": item["feature_type"]}, {}) for item in features]
     if (card_id, facet_id) == ("P2", "mechanic_result_state"):
         return [(item["mechanic_id"], {"mechanic": item["mechanic_id"]}, {"sealed_states": item["result_states"]}) for item in mechanics]
-    if (card_id, facet_id) == ("B1", "symbol_count_per_board"):
-        return [(f"{board['board_scope_id']}.{symbol}", {"board": board["board_scope_id"], "symbol": symbol}, {}) for board in boards for symbol in board["symbols"]]
+    if (card_id, facet_id) == ("B1", "symbol_group_density_per_board"):
+        return [(f"{board['board_scope_id']}.{group['group_id']}", {
+            "board": board["board_scope_id"],
+            "component": board["component_id"],
+            "visual_phase": board["visual_phase"],
+            "symbol_group": group["group_id"],
+            "symbols": group["symbols"],
+        }, {}) for board in boards for group in board["symbol_groups"]]
+    if (card_id, facet_id) == ("B1", "key_symbol_count_per_board"):
+        return [(f"{board['board_scope_id']}.{symbol}", {
+            "board": board["board_scope_id"],
+            "component": board["component_id"],
+            "visual_phase": board["visual_phase"],
+            "symbol": symbol,
+        }, {}) for board in boards for symbol in board["key_symbols"]]
     if (card_id, facet_id) == ("B2", "board_shape"):
         return [(board["board_scope_id"], {"board": board["board_scope_id"]}, {"state_kind": "board_shape", "board_shape": [board["rows"], board["columns"]]}) for board in boards if board["variable_shape"]]
     if (card_id, facet_id) == ("B2", "key_symbol_position_density"):
@@ -69,10 +99,12 @@ def subitems(card_id, facet_id, bindings):
 
 def distance_contract(facet, target_record, extra):
     result = {"method": facet["distance_method"]}
-    if facet.get("axis_semantics") not in {None, "from_J2"}:
+    if facet.get("axis_semantics") is not None:
         result["axis_semantics"] = facet["axis_semantics"]
     if facet.get("position_transform"):
         result["position_transform"] = facet["position_transform"]
+    if facet.get("support_span"):
+        result["support_span"] = float(facet["support_span"])
     result.update(target_record.get("distance", {}))
     if result["method"] == "structural_wasserstein":
         result.update(extra)
@@ -91,7 +123,7 @@ def contract_digest(contract):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="编译slot-alignment v5指标合同")
+    parser = argparse.ArgumentParser(description="编译slot-alignment v5.2指标合同")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--targets", required=True)
     parser.add_argument("--joint-tolerances", required=True)
@@ -110,14 +142,101 @@ def main():
     Draft202012Validator(profile_schema).validate(profile)
     joint_schema = load_json(ROOT / "assets/schemas/joint-self-comparison.schema.json")
     Draft202012Validator(joint_schema).validate(joint)
+    component_ids = [item["component_id"] for item in bindings["components"]]
+    component_set = set(component_ids)
+    if len(component_ids) != len(component_set):
+        raise SystemExit("components.component_id重复")
+    settlement_ids = [item["settlement_id"] for item in bindings["settlements"]]
+    if len(settlement_ids) != len(set(settlement_ids)):
+        raise SystemExit("settlements.settlement_id重复")
+    primary_axes = {
+        "payline": "matched_reels",
+        "ways": "ways",
+        "count_pay": "symbol_count",
+        "cluster": "cluster_cells",
+        "full_screen": "cleared_cells",
+        "other": "custom",
+    }
+    elements_by_component = {component: set() for component in component_ids}
+    settlement_components = set()
+    for settlement in bindings["settlements"]:
+        component = settlement["component_id"]
+        if component not in component_set:
+            raise SystemExit(f"{settlement['settlement_id']} component_id不在components中")
+        settlement_components.add(component)
+        elements_by_component[component].update(settlement["elements"])
+        expected_axis = primary_axes[settlement["settlement_type"]]
+        if settlement["primary_size_axis"] != expected_axis:
+            raise SystemExit(f"{settlement['settlement_id']} primary_size_axis必须为{expected_axis}")
+    for component in bindings["components"]:
+        if component["component_id"] not in settlement_components and (component["variable_simultaneous_win_count"] or component["variable_visible_step_reward"]):
+            raise SystemExit(f"{component['component_id']}没有结算，不得声明可变J2指标")
+    continuous_ids = [item["continuous_id"] for item in bindings["continuous_settlements"]]
+    if len(continuous_ids) != len(set(continuous_ids)):
+        raise SystemExit("continuous_settlements.continuous_id重复")
+    for item in bindings["continuous_settlements"]:
+        if item["component_id"] not in settlement_components:
+            raise SystemExit(f"{item['continuous_id']} component_id必须引用存在结算的组件")
+        if not item["variable_depth"] and not item["variable_chain_reward"]:
+            raise SystemExit(f"{item['continuous_id']}没有可变J3指标，不应进入continuous_settlements")
+    groups_by_component = {component: [] for component in component_ids}
+    for group in bindings["win_groups"]:
+        if group["component_id"] not in component_set:
+            raise SystemExit(f"{group['group_id']} component_id不在components中")
+        groups_by_component[group["component_id"]].append(group)
+    for component, elements in elements_by_component.items():
+        groups = groups_by_component[component]
+        if not elements:
+            if groups:
+                raise SystemExit(f"{component}没有派奖元素，不得配置win_groups")
+            continue
+        if len(elements) == 1:
+            if groups:
+                raise SystemExit(f"{component}只有一个派奖元素，不得生成常量win_groups")
+            continue
+        if not 2 <= len(groups) <= 5:
+            raise SystemExit(f"{component}必须冻结2至5个互斥win_groups")
+        group_ids = [item["group_id"] for item in groups]
+        grouped = [element for item in groups for element in item["elements"]]
+        if len(group_ids) != len(set(group_ids)):
+            raise SystemExit(f"{component} win_groups.group_id重复")
+        if len(grouped) != len(set(grouped)):
+            raise SystemExit(f"{component} win_groups之间存在重复元素")
+        unknown = set(grouped) - elements
+        if unknown:
+            raise SystemExit(f"{component} win_groups元素不在settlements中: {sorted(unknown)}")
+        uncovered = elements - set(grouped)
+        if uncovered:
+            raise SystemExit(f"{component}派奖元素未被win_groups覆盖: {sorted(uncovered)}")
     for mechanic in bindings["special_mechanics"]:
         unknown = set(mechanic["inactive_state_ids"]) - set(mechanic["result_states"])
         if unknown:
             raise SystemExit(f"{mechanic['mechanic_id']} inactive_state_ids不在result_states中: {sorted(unknown)}")
+    board_keys = [(item["component_id"], item["visual_phase"]) for item in bindings["boards"]]
+    if len(board_keys) != len(set(board_keys)):
+        raise SystemExit("每个组件的initial/cascade_visible正式盘面只能各有一个")
     for board in bindings["boards"]:
-        unknown = set(board["spatial_symbols"]) - set(board["symbols"])
+        if board["component_id"] not in component_set:
+            raise SystemExit(f"{board['board_scope_id']} component_id不在components中")
+        symbols = set(board["symbols"])
+        key_symbols = set(board["key_symbols"])
+        spatial_symbols = set(board["spatial_symbols"])
+        group_ids = [item["group_id"] for item in board["symbol_groups"]]
+        grouped = [symbol for item in board["symbol_groups"] for symbol in item["symbols"]]
+        if len(group_ids) != len(set(group_ids)):
+            raise SystemExit(f"{board['board_scope_id']} symbol_groups.group_id重复")
+        if len(grouped) != len(set(grouped)):
+            raise SystemExit(f"{board['board_scope_id']}视觉符号组之间存在重复符号")
+        unknown = (set(grouped) | key_symbols | spatial_symbols) - symbols
         if unknown:
-            raise SystemExit(f"{board['board_scope_id']} spatial_symbols不在symbols中: {sorted(unknown)}")
+            raise SystemExit(f"{board['board_scope_id']}画像符号不在symbols中: {sorted(unknown)}")
+        if set(grouped) & key_symbols:
+            raise SystemExit(f"{board['board_scope_id']}视觉符号组不得与key_symbols重叠")
+        if spatial_symbols - key_symbols:
+            raise SystemExit(f"{board['board_scope_id']} spatial_symbols必须来自key_symbols")
+        uncovered = symbols - set(grouped) - key_symbols
+        if uncovered:
+            raise SystemExit(f"{board['board_scope_id']}可见符号域未被symbol_groups和key_symbols覆盖: {sorted(uncovered)}")
     cards, missing = [], []
     used_targets, used_tolerances = set(), set()
     for card in library["cards"]:

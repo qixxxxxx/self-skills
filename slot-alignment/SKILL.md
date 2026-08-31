@@ -3,7 +3,7 @@ name: slot-alignment
 description: 基于Slot原版采集证据、规则/规格、Runtime和用户认证的Python模拟脚本，冻结玩家感官导向的N数值门禁、J中奖结算、P玩法过程、B盘面呈现指标合同，并完成基线诊断、自动调参、独立FORMAL验收和中文交付。用于老虎机原版数值或体验对齐、盘面与中奖诊断、指标规划、候选验收及Runtime交付；所有画像命中的正式指标必须逐项通过且不得豁免。
 ---
 
-# Slot 原版体验对齐 5.0
+# Slot 原版体验对齐 5.2
 
 ## 目标与边界
 
@@ -40,9 +40,9 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 | N 数值指标 | N1～N6 | 跨完整付费入口或组件的全局数值红线 |
 | J 中奖结算 | J1～J3 | 完整结算链中的实际派奖结果 |
 | P 玩法过程 | P1～P2 | 跨结算步骤的Feature周期与机制结果状态 |
-| B 盘面呈现 | B1～B2 | 稳定可见盘面的符号数量与空间结构 |
+| B 盘面呈现 | B1～B2 | 稳定可见盘面的视觉符号组、关键符号数量与空间结构 |
 
-归属冲突时使用：结果归J、过程归P、静态画面归B、全局红线归N。Cascade连续消除归J3。固定、可确定性派生或守恒复核内容只作审计，不重复评分。
+归属冲突时使用：结果归J、过程归P、静态画面归B、全局红线归N。Cascade连续消除归J3。固定、条件必然或可由其他正式指标确定性派生的J细项不生成实例，也不得转为J审计。
 
 ## 判定规则
 
@@ -52,11 +52,15 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 - 每个画像命中的实例都必须取得S/A/B/C；卡、分类和最终FORMAL取最差等级，不按通过率删除或豁免实例。
 - 不计算综合分，不使用权重、平均补偿或豁免。
 - 卡状态取最差子项；条件组逐组评价。
+- J1按组件和候选出现前冻结的2～5个互斥中奖组评价；只有一个派奖元素的组件不生成J1。J2每个结算模型最多评价一个玩家可识别且实际可变的主要结构轴，并按组件评价实际可变的同步可见中奖数和单步可见奖励。J3只评价实际可变的连续结算总深度与整链奖励；逐元素、逐线路、次要结构轴、逐深度规模及固定单值不生成指标。
+- J1/J2/J3按Base、各Feature和其他玩家可区分组件拆分，不得合并平均。J2/J3奖励使用玩家界面展示投注基准，不使用Feature Buy购买成本；购买成本仍只进入N类经济口径。
+- B类正式盘面作用域按组件拆分为`initial`和存在连续结算时的`cascade_visible`；无中奖初始盘不得以terminal重复计分，独立terminal只作审计。
+- B1普通符号按候选出现前冻结的视觉符号组评价有效格密度；关键特殊符号保留含0的绝对数量分布。Base与Feature、initial与cascade_visible不得合并平均。
 - 输出目标、候选、距离、生效容差、偏差倍数、C级通过上限、FORMAL等级、状态和样本证据。
-- 普通概率使用绝对概率差；无序状态分布使用总变差；有序分布使用一维Wasserstein；可变盘面形态和关键符号位置使用结构Wasserstein。
+- 普通概率使用绝对概率差；无序状态分布使用总变差；数量、密度和其他有序分布使用一维Wasserstein；可变盘面形态和关键符号位置使用结构Wasserstein。
 - J/P/B使用候选出现前密封的原版联合99%自对照容差，容差系数固定1.0；FORMAL分级上限由冻结评价政策确定。
 - N4固定为`P(return >= actual_entry_cost)`，Feature Buy使用实际购买成本，容差系数1.5。
-- 原付费入口倍率分布、各元素RTP占比等只作审计。
+- 原付费入口倍率分布只作A1审计。
 
 ## 输入与工作区
 
@@ -94,8 +98,8 @@ target_rtp_confirmation_evidence
 1. 只读列举配置仓库、服务端缓存和资料目录的完整Runtime候选及bundle hash。
 2. 汇总全部原版样本根目录、来源数和完整付费入口数。
 3. 解析唯一原始Python脚本路径与SHA-256，并取得用户直接认证。
-4. 建立包含结算、Feature、特色机制、盘面、组件和Sigma作用域的玩法画像；逐盘面列出B2关键空间符号及原版证据。
-5. 列出观测缺口、未知玩法和参数权限；默认授权reel-strip数值权重调整，只有超出其结构边界时才询问新增权限。正式指标缺口必须在候选出现前补齐。
+4. 建立包含结算、Feature、特色机制、盘面、组件和Sigma作用域的玩法画像；逐组件冻结界面展示投注基准、2～5个互斥中奖组、每种结算模型唯一主要结构轴、J2/J3各维度是否存在多个可达值、连续结算作用域，以及`initial`与适用的`cascade_visible`盘面、视觉符号组、关键计数符号、B2关键空间符号及原版证据。只有一个派奖元素的组件不得创建常量中奖组。
+5. 视觉符号组必须互斥并与关键计数符号共同覆盖正式盘面的可见符号域；默认优先使用主题标志组、其他高价值组、低价值组，只有证据要求时才增加组。列出观测缺口、未知玩法和参数权限；默认授权reel-strip数值权重调整，只有超出其结构边界时才询问新增权限。正式指标缺口必须在候选出现前补齐。
 6. 取得用户直接提供或明确确认的唯一目标RTP及确认记录hash；若用户只提供区间，必须继续询问唯一数值。随后确认Runtime基线、样本范围、是否重算和参数权限。
 
 原始认证脚本保持只读。派生观测脚本必须证明RTP、RNG、逐局投注/派奖和状态语义等价。
@@ -124,6 +128,7 @@ target_rtp_confirmation_evidence
 
 ```text
 metric_library.schema_version = slot-alignment.metric-library.v5
+metric_library.version = 5.2.0
 game_profile.schema_version = slot-alignment.game-profile.v5
 joint_self_comparison.schema_version = slot-alignment.joint-self-comparison.v5
 metric_contract.schema_version = slot-alignment.metric-contract.v5
@@ -132,6 +137,8 @@ stage3_gate.schema_version = slot-alignment.stage3-gate.v5
 delivery_manifest.schema_version = slot-alignment.delivery-manifest.v5
 report_contract_version = slot-alignment.report.v5
 ```
+
+5.2只影响新冻结合同；既有任务继续由自身合同hash和指标库hash复算，不得原地迁移或追认。
 
 政策只使用：
 
