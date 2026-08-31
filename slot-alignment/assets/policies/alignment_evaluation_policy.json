@@ -1,10 +1,10 @@
 {
   "schema_version": "slot-alignment.alignment-evaluation-policy.v5",
   "policy_id": "player-visible-alignment-evaluation-v5",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "status": "已授权",
   "authority": "用户",
-  "authorized_at": "2026-08-29",
+  "authorized_at": "2026-08-31",
   "applies_to_metric_library": "5.0.0",
   "decision_model": {
     "score_scale_enabled": false,
@@ -54,6 +54,37 @@
     "freeze_before_candidate": true,
     "candidate_result_may_change_tolerance": false
   },
+  "formal_grading": {
+    "grades": ["S", "A", "B", "C", "F", "U", "NA"],
+    "pass_grades": ["S", "A", "B", "C"],
+    "labels_zh": {
+      "S": "高度一致",
+      "A": "稳定一致",
+      "B": "基本一致",
+      "C": "最低通过",
+      "F": "不通过",
+      "U": "无法判定",
+      "NA": "不适用"
+    },
+    "aggregation": "worst_grade",
+    "hard_gate_thresholds": {
+      "N1": {"S": 0.125, "A": 0.25, "B": 0.375, "C": 0.5},
+      "N2": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
+      "N3": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0},
+      "N4": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
+      "N5": {"S": 0.075, "A": 0.15, "B": 0.225, "C": 0.3},
+      "N6": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0}
+    },
+    "alignment_thresholds": {
+      "J": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
+      "P": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
+      "B": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0}
+    },
+    "deterministic_exact": {
+      "pass_grade": "S",
+      "fail_grade": "F"
+    }
+  },
   "statuses": ["通过", "不通过", "样本不足", "不适用", "计算异常"],
   "sample_insufficiency": {
     "stops_execution": false,
@@ -69,8 +100,8 @@
   ],
   "final_status_rules": {
     "无法完整判定": "任一正式实例为样本不足、计算异常或存在合同缺口",
-    "不通过": "不存在未判定实例且任一正式实例不通过",
-    "通过": "全部必需正式实例通过"
+    "不通过": "不存在未判定实例且任一正式实例为F级",
+    "通过": "全部必需正式实例为S、A、B或C级"
   },
   "audit_policy": {
     "affects_formal_status": false,

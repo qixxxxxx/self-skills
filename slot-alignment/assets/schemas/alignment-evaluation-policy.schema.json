@@ -3,11 +3,11 @@
   "title": "Slot Alignment v5 Evaluation Policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "distance_methods", "tolerance", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "distance_methods", "tolerance", "formal_grading", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
   "properties": {
     "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v5"},
     "policy_id": {"const": "player-visible-alignment-evaluation-v5"},
-    "version": {"const": "5.0.0"},
+    "version": {"const": "5.1.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
@@ -40,6 +40,45 @@
         "deterministic_rule_tolerance": {"const": 0.0},
         "freeze_before_candidate": {"const": true},
         "candidate_result_may_change_tolerance": {"const": false}
+      }
+    },
+    "formal_grading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grades", "pass_grades", "labels_zh", "aggregation", "hard_gate_thresholds", "alignment_thresholds", "deterministic_exact"],
+      "properties": {
+        "grades": {"const": ["S", "A", "B", "C", "F", "U", "NA"]},
+        "pass_grades": {"const": ["S", "A", "B", "C"]},
+        "labels_zh": {
+          "const": {
+            "S": "高度一致",
+            "A": "稳定一致",
+            "B": "基本一致",
+            "C": "最低通过",
+            "F": "不通过",
+            "U": "无法判定",
+            "NA": "不适用"
+          }
+        },
+        "aggregation": {"const": "worst_grade"},
+        "hard_gate_thresholds": {
+          "const": {
+            "N1": {"S": 0.125, "A": 0.25, "B": 0.375, "C": 0.5},
+            "N2": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
+            "N3": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0},
+            "N4": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
+            "N5": {"S": 0.075, "A": 0.15, "B": 0.225, "C": 0.3},
+            "N6": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0}
+          }
+        },
+        "alignment_thresholds": {
+          "const": {
+            "J": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
+            "P": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
+            "B": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0}
+          }
+        },
+        "deterministic_exact": {"const": {"pass_grade": "S", "fail_grade": "F"}}
       }
     },
     "statuses": {

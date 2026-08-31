@@ -12,6 +12,7 @@ from scipy.sparse import lil_matrix
 
 FORMAL_STATUSES = {"通过", "不通过", "样本不足", "不适用", "计算异常"}
 UNKNOWN_STATUSES = {"样本不足", "计算异常"}
+GRADE_SEVERITY = {"NA": -1, "S": 0, "A": 1, "B": 2, "C": 3, "F": 4, "U": 5}
 
 
 def load_json(path):
@@ -255,7 +256,37 @@ def _sample_evidence(value):
     }
 
 
-def evaluate_instance(instance, measurement):
+def grade_thresholds(card, evaluation_policy):
+    grading = evaluation_policy["formal_grading"]
+    if card["category_id"] == "N":
+        return grading["hard_gate_thresholds"][card["card_id"]]
+    return grading["alignment_thresholds"][card["category_id"]]
+
+
+def grade_ratio(ratio, thresholds):
+    for grade in ("S", "A", "B", "C"):
+        if ratio <= float(thresholds[grade]):
+            return grade
+    return "F"
+
+
+def worst_grade(grades):
+    values = [grade for grade in grades if grade != "NA"]
+    return max(values, key=GRADE_SEVERITY.__getitem__) if values else "NA"
+
+
+def _worst_instance(instance_results):
+    def key(item):
+        ratio, limit = item.get("deviation_ratio"), item.get("pass_limit")
+        normalized = ratio / limit if finite_number(ratio) and finite_number(limit) and limit > 0 else -1.0
+        return GRADE_SEVERITY[item["formal_grade"]], normalized
+
+    return max(instance_results, key=key, default=None)
+
+
+def evaluate_instance(card, instance, measurement, evaluation_policy):
+    thresholds = grade_thresholds(card, evaluation_policy)
+    pass_limit = float(thresholds["C"])
     status = measurement.get("status")
     if status in {"样本不足", "计算异常"}:
         return {
@@ -268,6 +299,8 @@ def evaluate_instance(instance, measurement):
             "distance": None,
             "tolerance": instance["tolerance"]["effective"],
             "deviation_ratio": None,
+            "pass_limit": pass_limit,
+            "formal_grade": "U",
             "status": status,
             "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
             "reason_zh": measurement.get("reason_zh"),
@@ -283,6 +316,8 @@ def evaluate_instance(instance, measurement):
             "distance": None,
             "tolerance": instance["tolerance"]["effective"],
             "deviation_ratio": None,
+            "pass_limit": pass_limit,
+            "formal_grade": "NA",
             "status": "不适用",
             "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
             "reason_zh": instance.get("inapplicability_reason"),
@@ -293,9 +328,11 @@ def evaluate_instance(instance, measurement):
     if tolerance == 0:
         passed = distance == 0
         ratio = 0.0 if passed else None
+        grade = evaluation_policy["formal_grading"]["deterministic_exact"]["pass_grade" if passed else "fail_grade"]
     else:
         ratio = distance / tolerance
-        passed = ratio <= 1.0
+        grade = grade_ratio(ratio, thresholds)
+        passed = grade in evaluation_policy["formal_grading"]["pass_grades"]
     return {
         "instance_id": instance["instance_id"],
         "facet_id": instance["facet_id"],
@@ -306,6 +343,8 @@ def evaluate_instance(instance, measurement):
         "distance": distance,
         "tolerance": tolerance,
         "deviation_ratio": ratio,
+        "pass_limit": pass_limit,
+        "formal_grade": grade,
         "status": "通过" if passed else "不通过",
         "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
         "reason_zh": None,
@@ -325,22 +364,22 @@ def aggregate_card(card, instance_results):
     else:
         status = "不适用"
     ranked = [item for item in instance_results if finite_number(item.get("deviation_ratio"))]
-    worst = max(ranked, key=lambda item: item["deviation_ratio"], default=None)
-    if worst is None:
-        worst = next((item for item in instance_results if item["status"] == "不通过"), None)
+    maximum = max(ranked, key=lambda item: item["deviation_ratio"], default=None)
+    worst = _worst_instance(instance_results)
     return {
         "card_id": card["card_id"],
         "name_zh": card["name_zh"],
         "category_id": card["category_id"],
         "kind": card["kind"],
         "status": status,
-        "maximum_deviation_ratio": worst.get("deviation_ratio") if worst else None,
+        "formal_grade": worst_grade(item["formal_grade"] for item in instance_results),
+        "maximum_deviation_ratio": maximum.get("deviation_ratio") if maximum else None,
         "worst_instance_id": worst.get("instance_id") if worst else None,
         "instances": instance_results,
     }
 
 
-def evaluate_contract(contract, measurements, phase, contract_sha256):
+def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation_policy):
     by_id = measurements.get("measurements", {})
     card_results = []
     for card in contract["cards"]:
@@ -350,9 +389,9 @@ def evaluate_contract(contract, measurements, phase, contract_sha256):
             if measurement is None:
                 measurement = {"status": "计算异常", "reason_zh": "缺少候选测量"}
             try:
-                results.append(evaluate_instance(instance, measurement))
+                results.append(evaluate_instance(card, instance, measurement, evaluation_policy))
             except Exception as exc:
-                results.append(evaluate_instance(instance, {"status": "计算异常", "reason_zh": str(exc)}))
+                results.append(evaluate_instance(card, instance, {"status": "计算异常", "reason_zh": str(exc)}, evaluation_policy))
         if not results and card.get("status") == "不适用":
             card_results.append({
                 "card_id": card["card_id"],
@@ -360,6 +399,7 @@ def evaluate_contract(contract, measurements, phase, contract_sha256):
                 "category_id": card["category_id"],
                 "kind": card["kind"],
                 "status": "不适用",
+                "formal_grade": "NA",
                 "maximum_deviation_ratio": None,
                 "worst_instance_id": None,
                 "instances": [],
@@ -371,7 +411,9 @@ def evaluate_contract(contract, measurements, phase, contract_sha256):
     hard_failures = sum(item["status"] == "不通过" for card in card_results if card["kind"] == "hard_gate" for item in card["instances"])
     alignment_failures = sum(item["status"] == "不通过" for card in card_results if card["kind"] == "alignment" for item in card["instances"])
     ranked = [item for item in all_instances if finite_number(item.get("deviation_ratio"))]
-    worst = max(ranked, key=lambda item: item["deviation_ratio"], default=None)
+    maximum = max(ranked, key=lambda item: item["deviation_ratio"], default=None)
+    worst = _worst_instance(all_instances)
+    final_grade = "U" if unknown else worst_grade(item["formal_grade"] for item in all_instances)
     final_status = "无法完整判定" if unknown else ("不通过" if hard_failures or alignment_failures else "通过")
     audit_measurements = {item.get("audit_id"): item for item in measurements.get("audits", [])}
     audit_results = []
@@ -392,10 +434,11 @@ def evaluate_contract(contract, measurements, phase, contract_sha256):
         "audits": audit_results,
         "summary": {
             "final_status": final_status,
+            "final_grade": final_grade,
             "hard_gate_failures": hard_failures,
             "alignment_failures": alignment_failures,
             "insufficient_or_error_instances": unknown,
-            "maximum_deviation_ratio": worst.get("deviation_ratio") if worst else None,
+            "maximum_deviation_ratio": maximum.get("deviation_ratio") if maximum else None,
             "worst_instance_id": worst.get("instance_id") if worst else None,
         },
     }

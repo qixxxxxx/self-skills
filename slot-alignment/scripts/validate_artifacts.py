@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from alignment import sha256_file
+from alignment import finite_number, grade_ratio, grade_thresholds, sha256_file, worst_grade
 from compile_metric_contract import contract_digest
 
 
@@ -80,6 +80,40 @@ def main():
         errors.append("结果实例清单与冻结合同不一致")
     if [item["audit_id"] for item in contract["audits"]] != [item["audit_id"] for item in result["audits"]]:
         errors.append("结果审计清单与冻结合同不一致")
+    policy = load(ROOT / contract["policies"]["alignment_evaluation"]["path"])
+    pass_grades = set(policy["formal_grading"]["pass_grades"])
+    all_results = []
+    for card, card_result in zip(contract["cards"], result["card_results"]):
+        thresholds = grade_thresholds(card, policy)
+        for item in card_result["instances"]:
+            all_results.append(item)
+            if item["pass_limit"] != thresholds["C"]:
+                errors.append(f"{item['instance_id']}的C级通过上限与评价政策不一致")
+            if item["status"] in {"样本不足", "计算异常"}:
+                expected_grade = "U"
+            elif item["status"] == "不适用":
+                expected_grade = "NA"
+            elif item["tolerance"] == 0:
+                expected_grade = "S" if item["distance"] == 0 else "F"
+            elif finite_number(item["deviation_ratio"]):
+                expected_grade = grade_ratio(item["deviation_ratio"], thresholds)
+            else:
+                expected_grade = "F"
+            if item["formal_grade"] != expected_grade:
+                errors.append(f"{item['instance_id']}的FORMAL等级与偏差倍数不一致")
+            expected_status = "通过" if expected_grade in pass_grades else "不通过"
+            if expected_grade not in {"U", "NA"} and item["status"] != expected_status:
+                errors.append(f"{item['instance_id']}的状态与FORMAL等级不一致")
+        expected_card_grade = worst_grade(item["formal_grade"] for item in card_result["instances"])
+        if card_result["formal_grade"] != expected_card_grade:
+            errors.append(f"{card['card_id']}卡级FORMAL等级未取最差实例")
+    unknown = any(item["formal_grade"] == "U" for item in all_results)
+    expected_final_grade = "U" if unknown else worst_grade(item["formal_grade"] for item in all_results)
+    if result["summary"]["final_grade"] != expected_final_grade:
+        errors.append("最终FORMAL等级未取最差实例")
+    expected_final_status = "无法完整判定" if unknown else ("不通过" if expected_final_grade == "F" else "通过")
+    if result["summary"]["final_status"] != expected_final_status:
+        errors.append("最终状态与FORMAL等级不一致")
     if errors:
         print("\n".join(f"ERROR: {item}" for item in errors), file=sys.stderr)
         raise SystemExit(1)

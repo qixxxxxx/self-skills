@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 
 from alignment import (
     absolute_probability_error,
+    grade_ratio,
     joint_q99_tolerances,
     sha256_file,
     structural_wasserstein,
@@ -56,6 +57,20 @@ class DistanceTests(unittest.TestCase):
         self.assertGreaterEqual(factor, 1.0)
         self.assertGreaterEqual(tolerances["a"], 0.01)
         self.assertGreaterEqual(tolerances["b"], 0.02)
+
+    def test_formal_grade_boundaries(self):
+        policy = load(ROOT / "assets/policies/alignment_evaluation_policy.json")
+        grading = policy["formal_grading"]
+        expected_c = {"N1": 0.5, "N2": 2.0, "N3": 1.0, "N4": 2.0, "N5": 0.3, "N6": 1.0}
+        for card_id, limit in expected_c.items():
+            thresholds = grading["hard_gate_thresholds"][card_id]
+            self.assertEqual(thresholds["C"], limit)
+            self.assertEqual(grade_ratio(limit, thresholds), "C")
+            self.assertEqual(grade_ratio(limit + 1e-9, thresholds), "F")
+        for category in ("J", "P", "B"):
+            thresholds = grading["alignment_thresholds"][category]
+            self.assertEqual(grade_ratio(4.0, thresholds), "C")
+            self.assertEqual(grade_ratio(4.000000001, thresholds), "F")
 
 
 class EndToEndTests(unittest.TestCase):
@@ -184,6 +199,8 @@ class EndToEndTests(unittest.TestCase):
         self.run_script("evaluate_alignment.py", "--contract", contract_path, "--measurements", measurements_path, "--phase", "FORMAL", "--output", result_path)
         result = load(result_path)
         Draft202012Validator(load(ROOT / "assets/schemas/alignment-result.schema.json")).validate(result)
+        self.assertEqual(result["summary"]["final_grade"], "S")
+        self.assertTrue(all(item["formal_grade"] == "S" for card in result["card_results"] for item in card["instances"]))
         if result["summary"]["final_status"] != "通过":
             bad = [(item["instance_id"], item["status"], item.get("reason_zh")) for card in result["card_results"] for item in card["instances"] if item["status"] != "通过"]
             self.fail(f"等值候选未通过: {bad}")

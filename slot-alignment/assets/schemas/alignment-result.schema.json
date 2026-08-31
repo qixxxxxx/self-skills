@@ -15,6 +15,7 @@
   },
   "$defs": {
     "status": {"enum": ["通过", "不通过", "样本不足", "不适用", "计算异常"]},
+    "formal_grade": {"enum": ["S", "A", "B", "C", "F", "U", "NA"]},
     "sample_evidence": {
       "type": "object",
       "additionalProperties": false,
@@ -30,7 +31,7 @@
     "instance_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["instance_id", "facet_id", "subitem_id", "target", "candidate", "distance_method", "distance", "tolerance", "deviation_ratio", "status", "sample_evidence"],
+      "required": ["instance_id", "facet_id", "subitem_id", "target", "candidate", "distance_method", "distance", "tolerance", "deviation_ratio", "pass_limit", "formal_grade", "status", "sample_evidence"],
       "properties": {
         "instance_id": {"type": "string", "minLength": 1},
         "facet_id": {"type": "string", "minLength": 1},
@@ -41,6 +42,8 @@
         "distance": {"type": ["number", "null"], "minimum": 0},
         "tolerance": {"type": "number", "minimum": 0},
         "deviation_ratio": {"type": ["number", "null"], "minimum": 0},
+        "pass_limit": {"type": "number", "minimum": 0},
+        "formal_grade": {"$ref": "#/$defs/formal_grade"},
         "status": {"$ref": "#/$defs/status"},
         "sample_evidence": {"$ref": "#/$defs/sample_evidence"},
         "reason_zh": {"type": ["string", "null"]}
@@ -49,13 +52,14 @@
     "card_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["card_id", "name_zh", "category_id", "kind", "status", "maximum_deviation_ratio", "worst_instance_id", "instances"],
+      "required": ["card_id", "name_zh", "category_id", "kind", "status", "formal_grade", "maximum_deviation_ratio", "worst_instance_id", "instances"],
       "properties": {
         "card_id": {"pattern": "^[NJPB][1-9][0-9]*$"},
         "name_zh": {"type": "string", "minLength": 1},
         "category_id": {"enum": ["N", "J", "P", "B"]},
         "kind": {"enum": ["hard_gate", "alignment"]},
         "status": {"$ref": "#/$defs/status"},
+        "formal_grade": {"$ref": "#/$defs/formal_grade"},
         "maximum_deviation_ratio": {"type": ["number", "null"], "minimum": 0},
         "worst_instance_id": {"type": ["string", "null"]},
         "instances": {"type": "array", "items": {"$ref": "#/$defs/instance_result"}}
@@ -75,9 +79,10 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["final_status", "hard_gate_failures", "alignment_failures", "insufficient_or_error_instances", "maximum_deviation_ratio", "worst_instance_id"],
+      "required": ["final_status", "final_grade", "hard_gate_failures", "alignment_failures", "insufficient_or_error_instances", "maximum_deviation_ratio", "worst_instance_id"],
       "properties": {
         "final_status": {"enum": ["通过", "不通过", "无法完整判定"]},
+        "final_grade": {"enum": ["S", "A", "B", "C", "F", "U"]},
         "hard_gate_failures": {"type": "integer", "minimum": 0},
         "alignment_failures": {"type": "integer", "minimum": 0},
         "insufficient_or_error_instances": {"type": "integer", "minimum": 0},

@@ -31,12 +31,12 @@ def render(contract, result):
     ]
     section_names = [("N", "3. N类数值门禁"), ("J", "4. J类中奖结算"), ("P", "5. P类玩法过程"), ("B", "6. B类盘面呈现")]
     for category, title in section_names:
-        lines += [f"## {title}", "", "| 卡/实例 | 目标 | 候选 | 距离 | 容差 | 偏差倍数 | 状态 |", "|---|---:|---:|---:|---:|---:|---|"]
+        lines += [f"## {title}", "", "| 卡/实例 | 目标 | 候选 | 容差 | 偏差倍数 | 通过上限 | 等级/状态 |", "|---|---:|---:|---:|---:|---:|---|"]
         for card in [item for item in contract["cards"] if item["category_id"] == category]:
             card_result = by_card[card["card_id"]]
-            lines.append(f"| **{card['card_id']} {card['name_zh']}** | — | — | — | — | {display(card_result['maximum_deviation_ratio'])} | **{card_result['status']}** |")
+            lines.append(f"| **{card['card_id']} {card['name_zh']}** | — | — | — | {display(card_result['maximum_deviation_ratio'])} | — | **{card_result['formal_grade']} / {card_result['status']}** |")
             for item in card_result["instances"]:
-                lines.append(f"| {item['instance_id']} | {display(item['target'])} | {display(item['candidate'])} | {display(item['distance'])} | {display(item['tolerance'])} | {display(item['deviation_ratio'])} | {item['status']} |")
+                lines.append(f"| {item['instance_id']} | {display(item['target'])} | {display(item['candidate'])} | {display(item['tolerance'])} | {display(item['deviation_ratio'])} | {display(item['pass_limit'])} | {item['formal_grade']} / {item['status']} |")
         lines.append("")
     lines += ["## 7. 审计与派生展示", ""]
     if result["audits"]:
@@ -61,6 +61,7 @@ def render(contract, result):
         "## 10. 最终状态",
         "",
         f"- 最终状态：**{summary['final_status']}**",
+        f"- FORMAL等级：**{summary['final_grade']}**",
         f"- 硬门禁失败实例：{summary['hard_gate_failures']}",
         f"- J/P/B失败实例：{summary['alignment_failures']}",
         f"- 样本不足或计算异常实例：{summary['insufficient_or_error_instances']}",

@@ -7,6 +7,7 @@
   "audits": [],
   "summary": {
     "final_status": "无法完整判定",
+    "final_grade": "U",
     "hard_gate_failures": 0,
     "alignment_failures": 0,
     "insufficient_or_error_instances": 1,
