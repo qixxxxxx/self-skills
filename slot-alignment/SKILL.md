@@ -1,9 +1,9 @@
 ---
 name: slot-alignment
-description: 基于Slot原版采集证据、规则/规格、Runtime和用户认证的Python模拟脚本，冻结玩家感官导向的N数值门禁、J中奖结算、P玩法过程、B盘面呈现指标合同，并完成基线诊断、自动调参、独立FORMAL验收和中文交付。用于老虎机原版数值或体验对齐、盘面与中奖诊断、指标规划、候选验收及Runtime交付；所有画像命中的正式指标必须逐项通过且不得豁免。
+description: 基于Slot原版采集证据、规则/规格、Runtime和用户认证的Python模拟脚本，冻结玩家感官导向的N数值门禁、J中奖结算、P玩法过程、B盘面呈现指标合同，并完成基线诊断、自动调参、独立FORMAL验收和中文交付。用于老虎机原版数值或体验对齐、盘面与中奖诊断、指标规划、候选验收及Runtime交付；所有画像命中的正式指标必须逐项通过且不得豁免，候选生成必须单次抽取生效，禁止重抽、拒绝采样和回溯规划。
 ---
 
-# Slot 原版体验对齐 5.2
+# Slot 原版体验对齐 5.4.0
 
 ## 目标与边界
 
@@ -16,6 +16,9 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 - 禁止修改玩法、状态机、触发与结算语义、RNG顺序、投注口径、封顶及未授权结构。
 - 原版Capture、规则和其他原版证据只用于冻结目标、估计参数、诊断差异和验收候选；禁止把原版完整盘面、单轴可见pattern、局部盘面组合、Tumble后续盘面或Feature链作为CALIBRATION候选或FORMAL模拟的直接生成数据，禁止重放、重采样或按经验盘面目录拼装模拟结果。
 - 候选与FORMAL盘面必须由交付Runtime原生支持且经过认证的随机源和生成流程产生，例如reel strips、stop weights、高度权重、refill weights及获授权的reel-set路由。禁止引入`initial_board_weights`、经验盘面采样器、Capture查表出盘或其他仅在派生Python中生效的隐藏生成机制，并禁止把此类机制伪装成可交付Runtime。
+- 候选与FORMAL的每个随机步骤必须单次抽取并立即生效。禁止在看到盘面、中奖、BONUS数量、Tumble深度、Feature结果或派奖后重抽；禁止拒绝采样、反复尝试、递归搜索、分支试探、回溯规划、失败换随机数，以及先指定目标结果再持续生成直到命中。
+- 允许按显式权重一次选择reel-set、随机源或获授权的条件类别，但选择结果只能决定后续使用哪套原生分布，不得成为必须实现的中奖、盘面、Tumble深度、BONUS数量或派奖后置条件。选中后必须按该分布自然执行完整流程，不得因实际结果偏离类别标签而重选或修复。
+- 条件随机源只有在玩法与交付Runtime明确授权、合法原子状态及其归一化权重可预先确定，并能一次加权抽取时才可使用。条件不可能、权重为空或配置矛盾时必须直接判为配置或实现错误；不得通过增加`attempt`、更换seed、重新抽stop/refill或搜索整条Tumble/Feature路径规避失败。
 - 经验盘面重采样只允许作为明确标记的离线诊断或结构可达性上限实验，必须隔离在诊断过程目录；其测量不得参与候选排序、合同评价、候选冻结、FORMAL、交付或通过结论。
 - 总RTP目标必须由用户直接提供，或由用户对资料候选值明确确认，并冻结为`(0,1]`内的唯一数值；区间、Agent自行选择和仅凭资料推定均无效。组件RTP按原版贡献占比映射用户确认总RTP。
 - 候选出现前冻结玩法画像、指标实例、目标、作用域、距离、容差和样本计划。
@@ -51,7 +54,8 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 
 - 每个正式实例先计算`偏差倍数 = 实际距离 / 生效容差`，再按卡片阈值判为S/A/B/C/F；S、A、B、C均为通过，F为不通过，样本不足或计算异常为U。
 - N类C级最高通过线固定为：N1 `0.5`、N2 `2.0`、N3 `1.0`、N4 `2.0`、N5 `0.3`、N6 `1.0`；S/A/B分别为该上限的25%/50%/75%。
-- J/P/B统一使用：S `<=1.0`、A `<=1.5`、B `<=2.5`、C `<=4.0`、F `>4.0`。
+- J中奖结算使用：S `<=1.0`、A `<=2.0`、B `<=4.0`、C `<=6.0`、F `>6.0`；P玩法过程使用：S `<=1.0`、A `<=2.5`、B `<=5.0`、C `<=8.0`、F `>8.0`；B盘面呈现使用：S `<=1.0`、A `<=3.0`、B `<=6.0`、C `<=10.0`、F `>10.0`。
+- CALIBRATION默认把J/P/B全部实例推进到B级及以上，即`J<=4.0`、`P<=5.0`、`B<=6.0`；C级只表示达到硬通过线，报告必须标记“最低通过”，不得描述为基本一致或稳定一致。
 - 每个画像命中的实例都必须取得S/A/B/C；卡、分类和最终FORMAL取最差等级，不按通过率删除或豁免实例。
 - 不计算综合分，不使用权重、平均补偿或豁免。
 - 卡状态取最差子项；条件组逐组评价。
@@ -111,6 +115,7 @@ target_rtp_confirmation_evidence
 
 ## 轻量执行硬约束
 
+- 候选出现前必须用确定性小样本审计随机调用：逐入口、逐状态和逐refill记录实际抽取次数及调用位置，证明不存在结果观察后的重抽、拒绝采样、搜索、回溯或失败换随机数。同一输入与seed必须一次执行即可复现；审计失败的模型不得进入CALIBRATION候选排序。
 - 完整逐局账本、逐RNG调用序列和状态哈希只用于候选出现前的小样本等价验证，不得默认覆盖CALIBRATION或FORMAL全样本。
 - CALIBRATION与FORMAL必须采用Worker内流式聚合：单局观测立即累计正式指标，不持久化全量逐局JSON/NDJSON，不写后再读。
 - 大样本执行的内存复杂度必须为单Worker `O(1)`每入口，持久化文件数量为`O(分片数)`；每个分片只保存聚合测量、累计器checkpoint、输入指纹和hash。
@@ -134,6 +139,7 @@ target_rtp_confirmation_evidence
 ```text
 metric_library.schema_version = slot-alignment.metric-library.v5
 metric_library.version = 5.2.0
+alignment_evaluation_policy.version = 5.4.0
 game_profile.schema_version = slot-alignment.game-profile.v5
 joint_self_comparison.schema_version = slot-alignment.joint-self-comparison.v5
 metric_contract.schema_version = slot-alignment.metric-contract.v5
@@ -143,7 +149,7 @@ delivery_manifest.schema_version = slot-alignment.delivery-manifest.v5
 report_contract_version = slot-alignment.report.v5
 ```
 
-5.2只影响新冻结合同；既有任务继续由自身合同hash和指标库hash复算，不得原地迁移或追认。
+5.4.0不改变指标Schema与`metric_library.version`。N逐卡门槛保持不变；J改为`1/2/4/6`，P改为`1/2.5/5/8`，B保持`1/3/6/10`。J最接近实际中奖和派奖，门槛仍严于P；P允许Feature节奏和机制状态有更大波动；B主要负责防止明显怪异盘面。门槛放宽不豁免任何命中实例，也不放宽规则守恒、结构可达性和候选生成合法性。5.2.1的单次抽取要求继续对所有尚未完成交付的候选生效。评价政策hash或版本变化后，尚未完成交付的任务如采用新政策，必须重新编译合同并重算基线、候选和FORMAL，不得直接修改旧合同或旧结果。
 
 政策只使用：
 
@@ -179,6 +185,7 @@ FORMAL把`--phase`改为`FORMAL`并重新执行产物校验。任何工具不得
 - 多Worker与单Worker在同一分片计划下结果等价。
 - 报告由当前机器JSON确定性生成。
 - 候选模拟器和FORMAL Runtime不包含原版盘面/局部pattern样本池、Capture查表出盘、经验盘面采样器或Runtime不支持的隐藏生成字段；诊断性经验重采样结果未进入候选排序、FORMAL和交付证据。
+- 候选模拟器和FORMAL Runtime不存在重抽、拒绝采样、反复尝试、递归搜索、分支回溯、完整路径预规划或结果不符后更换随机数；显式类别选择只路由随机源，不强制兑现结果标签。
 - FORMAL Runtime与交付manifest逐文件一致且只包含RTP Group 1；`game_core.json.meta.version`和`delivery_manifest.runtime_version`均严格等于`task_id`。
 
 存在任一样本不足或计算异常时，流程继续并交付报告，但最终等级为U、最终状态为`无法完整判定`；不存在未判定项但有F级实例时为`不通过`。

@@ -50,8 +50,8 @@ def main():
     for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "joint-self-comparison.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
         Draft202012Validator.check_schema(load(root / "assets/schemas" / schema_name))
     library, evaluation, hard = load(library_path), load(evaluation_path), load(hard_path)
-    if library.get("version") != "5.2.0" or evaluation.get("version") != "5.2.0" or evaluation.get("applies_to_metric_library") != "5.2.0":
-        errors.append("指标库与评价政策版本必须统一为5.2.0")
+    if library.get("version") != "5.2.0" or evaluation.get("version") != "5.4.0" or evaluation.get("applies_to_metric_library") != "5.2.0":
+        errors.append("指标库必须为5.2.0，评价政策必须为5.4.0且绑定指标库5.2.0")
     category_ids = [item["category_id"] for item in library["categories"]]
     if category_ids != ["N", "J", "P", "B"]:
         errors.append(f"顶层分类必须按N/J/P/B唯一排列，实际={category_ids}")

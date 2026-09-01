@@ -8,7 +8,7 @@
   "frozen_before_candidate": true,
   "metric_library": {
     "id": "slot-alignment-player-experience-metrics",
-    "version": "5.0.0",
+    "version": "5.2.0",
     "path": "references/指标目录/index.json",
     "sha256": "<sha256>"
   },
@@ -21,7 +21,7 @@
     },
     "alignment_evaluation": {
       "id": "player-visible-alignment-evaluation-v5",
-      "version": "5.0.0",
+      "version": "5.4.0",
       "path": "assets/policies/alignment_evaluation_policy.json",
       "sha256": "<sha256>"
     }

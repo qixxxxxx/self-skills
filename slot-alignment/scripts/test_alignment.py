@@ -67,10 +67,18 @@ class DistanceTests(unittest.TestCase):
             self.assertEqual(thresholds["C"], limit)
             self.assertEqual(grade_ratio(limit, thresholds), "C")
             self.assertEqual(grade_ratio(limit + 1e-9, thresholds), "F")
-        for category in ("J", "P", "B"):
-            thresholds = grading["alignment_thresholds"][category]
-            self.assertEqual(grade_ratio(4.0, thresholds), "C")
-            self.assertEqual(grade_ratio(4.000000001, thresholds), "F")
+        thresholds = grading["alignment_thresholds"]["J"]
+        self.assertEqual(thresholds, {"S": 1.0, "A": 2.0, "B": 4.0, "C": 6.0})
+        self.assertEqual(grade_ratio(6.0, thresholds), "C")
+        self.assertEqual(grade_ratio(6.000000001, thresholds), "F")
+        thresholds = grading["alignment_thresholds"]["P"]
+        self.assertEqual(thresholds, {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0})
+        self.assertEqual(grade_ratio(8.0, thresholds), "C")
+        self.assertEqual(grade_ratio(8.000000001, thresholds), "F")
+        thresholds = grading["alignment_thresholds"]["B"]
+        self.assertEqual(thresholds, {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0})
+        self.assertEqual(grade_ratio(10.0, thresholds), "C")
+        self.assertEqual(grade_ratio(10.000000001, thresholds), "F")
 
 
 class EndToEndTests(unittest.TestCase):

@@ -1,10 +1,10 @@
 {
   "schema_version": "slot-alignment.alignment-evaluation-policy.v5",
   "policy_id": "player-visible-alignment-evaluation-v5",
-  "version": "5.2.0",
+  "version": "5.4.0",
   "status": "已授权",
   "authority": "用户",
-  "authorized_at": "2026-08-31",
+  "authorized_at": "2026-09-01",
   "applies_to_metric_library": "5.2.0",
   "decision_model": {
     "score_scale_enabled": false,
@@ -76,9 +76,9 @@
       "N6": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0}
     },
     "alignment_thresholds": {
-      "J": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
-      "P": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
-      "B": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0}
+      "J": {"S": 1.0, "A": 2.0, "B": 4.0, "C": 6.0},
+      "P": {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0},
+      "B": {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0}
     },
     "deterministic_exact": {
       "pass_grade": "S",

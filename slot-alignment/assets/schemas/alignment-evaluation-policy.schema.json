@@ -7,7 +7,7 @@
   "properties": {
     "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v5"},
     "policy_id": {"const": "player-visible-alignment-evaluation-v5"},
-    "version": {"const": "5.2.0"},
+    "version": {"const": "5.4.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
@@ -73,9 +73,9 @@
         },
         "alignment_thresholds": {
           "const": {
-            "J": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
-            "P": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0},
-            "B": {"S": 1.0, "A": 1.5, "B": 2.5, "C": 4.0}
+            "J": {"S": 1.0, "A": 2.0, "B": 4.0, "C": 6.0},
+            "P": {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0},
+            "B": {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0}
           }
         },
         "deterministic_exact": {"const": {"pass_grade": "S", "fail_grade": "F"}}
