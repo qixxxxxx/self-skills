@@ -14,6 +14,9 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 - 只调整`parameter_authority.json`明确授权的数值参数。
 - `reel-strip`默认归为可调数值权重：允许调整现有符号的重复次数与排列，并同步对应stop weights；必须保持轴数、盘面几何、符号域、特殊符号轴/位置限制及玩法语义不变。除非用户明确锁定，否则计划确认后不得为此重复询问。
 - 禁止修改玩法、状态机、触发与结算语义、RNG顺序、投注口径、封顶及未授权结构。
+- 原版Capture、规则和其他原版证据只用于冻结目标、估计参数、诊断差异和验收候选；禁止把原版完整盘面、单轴可见pattern、局部盘面组合、Tumble后续盘面或Feature链作为CALIBRATION候选或FORMAL模拟的直接生成数据，禁止重放、重采样或按经验盘面目录拼装模拟结果。
+- 候选与FORMAL盘面必须由交付Runtime原生支持且经过认证的随机源和生成流程产生，例如reel strips、stop weights、高度权重、refill weights及获授权的reel-set路由。禁止引入`initial_board_weights`、经验盘面采样器、Capture查表出盘或其他仅在派生Python中生效的隐藏生成机制，并禁止把此类机制伪装成可交付Runtime。
+- 经验盘面重采样只允许作为明确标记的离线诊断或结构可达性上限实验，必须隔离在诊断过程目录；其测量不得参与候选排序、合同评价、候选冻结、FORMAL、交付或通过结论。
 - 总RTP目标必须由用户直接提供，或由用户对资料候选值明确确认，并冻结为`(0,1]`内的唯一数值；区间、Agent自行选择和仅凭资料推定均无效。组件RTP按原版贡献占比映射用户确认总RTP。
 - 候选出现前冻结玩法画像、指标实例、目标、作用域、距离、容差和样本计划。
 - 画像命中的正式指标不得删除、降级或豁免；结构不可达判为不通过。
@@ -175,6 +178,7 @@ FORMAL把`--phase`改为`FORMAL`并重新执行产物校验。任何工具不得
 - FORMAL使用独立样本，实际实例清单与冻结合同完全一致。
 - 多Worker与单Worker在同一分片计划下结果等价。
 - 报告由当前机器JSON确定性生成。
+- 候选模拟器和FORMAL Runtime不包含原版盘面/局部pattern样本池、Capture查表出盘、经验盘面采样器或Runtime不支持的隐藏生成字段；诊断性经验重采样结果未进入候选排序、FORMAL和交付证据。
 - FORMAL Runtime与交付manifest逐文件一致且只包含RTP Group 1；`game_core.json.meta.version`和`delivery_manifest.runtime_version`均严格等于`task_id`。
 
 存在任一样本不足或计算异常时，流程继续并交付报告，但最终等级为U、最终状态为`无法完整判定`；不存在未判定项但有F级实例时为`不通过`。
