@@ -97,7 +97,9 @@ target_rtp_confirmation_evidence
 - 路径缺失、结果不唯一或关键作用域不明确时停止并询问，不自行猜测。
 - Python只使用解析出的`python_bin`。
 - 多Worker必须使用不重叠确定性分片；Worker数不得改变总样本量或结果。
-- FORMAL样本量必须由冻结精度、条件事件暴露量和最小有效样本推导并保存证据；禁止无依据写死超大样本常量。
+- CALIBRATION与FORMAL默认使用`chunk_seeded`；`crn_v1`只允许用于隔离的离线诊断，不得作为候选排序或FORMAL正式协议。
+- 样本执行计划固定使用候选`100000 -> 500000 -> 2000000`累计局数、前2名另跑`2000000`独立复核，以及FORMAL `10000000/20000000/50000000`三档；按活动条件指标实例的整体有效分母选择最小满足档位，目标为每个实例至少`2000`个条件有效样本。
+- 不得按分布内单个稀有状态、单个P2状态或其他偶发桶反推FORMAL局数。`50000000`仍不足时不暂停、不再询问，继续跑完该档并把受影响实例标为`样本不足/U`。
 - 用户未确认唯一`target_rtp`时停止在开工确认阶段；资料只能用于核验或提出候选值，不得替用户作最终选择。
 
 ## 开工确认
@@ -121,7 +123,7 @@ target_rtp_confirmation_evidence
 - 大样本执行的内存复杂度必须为单Worker `O(1)`每入口，持久化文件数量为`O(分片数)`；每个分片只保存聚合测量、累计器checkpoint、输入指纹和hash。
 - 禁止为观测重复执行一次完整结算算法。确需补充中奖明细时，使用一次计算同时返回结算与观测结果，或使用已证明等价的优化实现。
 - 每个分片必须原子落盘并可校验续跑；只有task、合同、候选、Runtime、脚本bundle、种子、分片范围和输出hash全部一致时才允许复用。
-- FORMAL启动前必须先做代表性吞吐基准，报告局/秒、预计总时长、Worker数、临时磁盘量和续跑能力；发现可避免的逐局磁盘I/O或重复计算时禁止启动正式大样本。
+- 大样本执行前必须做代表性吞吐基准，记录局/秒、预计总时长、Worker数、临时磁盘量和续跑能力；基准用于发现并修正明显低效实现，但不生成性能通过/不通过状态，也不得阻止既定样本计划执行。
 - 轻量版必须与完整观测版在同种子小样本上取得逐入口语义、最终RNG状态、全部正式测量、累计器和单/多Worker完全等价，证据随任务保存。
 
 ## 五阶段工作流
@@ -129,7 +131,7 @@ target_rtp_confirmation_evidence
 1. 资料与画像：密封输入、脚本、玩法画像和参数权限。
 2. 指标合同：编译全部适用N/J/P/B实例，校准联合99%容差并冻结合同。
 3. 基线判定：逐硬门禁、逐卡、逐子项输出距离和偏差倍数。
-4. 自动对齐：按失败数量和最大偏差倍数持续CALIBRATION；冻结候选后使用独立样本执行FORMAL。
+4. 自动对齐：CALIBRATION按`10万 -> 累计50万 -> 累计200万 -> 前2名另跑200万独立复核`逐级淘汰；冻结候选后使用独立`chunk_seeded`样本执行FORMAL，并按条件实例整体分母自动选择`1000万/2000万/5000万`档位。
 5. 交付：验证机器产物、确定性中文报告、FORMAL Runtime和manifest；把`game_core.json.meta.version`与manifest中的`runtime_version`固定为`task_id`。
 
 阶段2至4必须使用同一冻结指标清单、顺序、目标、作用域、距离和容差。候选失败后继续不同候选；普通中间结果不要求用户确认。定义、观测、配置读取或合同错误必须修复，不得伪装成样本不足或不适用。
@@ -140,8 +142,10 @@ target_rtp_confirmation_evidence
 metric_library.schema_version = slot-alignment.metric-library.v5
 metric_library.version = 5.2.0
 alignment_evaluation_policy.version = 5.4.0
+sample_execution_policy.version = 1.0.0
 game_profile.schema_version = slot-alignment.game-profile.v5
 joint_self_comparison.schema_version = slot-alignment.joint-self-comparison.v5
+sample_execution_plan.schema_version = slot-alignment.sample-execution-plan.v1
 metric_contract.schema_version = slot-alignment.metric-contract.v5
 alignment_result.schema_version = slot-alignment.alignment-result.v5
 stage3_gate.schema_version = slot-alignment.stage3-gate.v5
@@ -155,6 +159,7 @@ report_contract_version = slot-alignment.report.v5
 
 - `assets/policies/hard_gate_tolerance_policy.json`
 - `assets/policies/alignment_evaluation_policy.json`
+- `assets/policies/sample_execution_policy.json`
 
 ## 确定性工具
 
@@ -162,7 +167,8 @@ report_contract_version = slot-alignment.report.v5
 <python_bin> scripts/validate_metric_library.py
 <python_bin> scripts/generate_metric_summary.py --check
 <python_bin> scripts/calibrate_joint_tolerances.py --input <self-distance.json> --output <joint-tolerance.json>
-<python_bin> scripts/compile_metric_contract.py --profile <game-profile.json> --targets <targets.json> --joint-tolerances <joint-tolerance.json> --bindings <bindings.json> --output <metric-contract.json>
+<python_bin> scripts/validate_sample_plan.py --plan <sample-execution-plan.json>
+<python_bin> scripts/compile_metric_contract.py --profile <game-profile.json> --targets <targets.json> --joint-tolerances <joint-tolerance.json> --bindings <bindings.json> --sample-plan <sample-execution-plan.json> --output <metric-contract.json>
 <python_bin> scripts/evaluate_alignment.py --contract <metric-contract.json> --measurements <measurements.json> --phase BASELINE --output <alignment-result.json>
 <python_bin> scripts/generate_stage3_gate.py --result <alignment-result.json> --output <stage3-gate.json>
 <python_bin> scripts/validate_artifacts.py --contract <metric-contract.json> --result <alignment-result.json> --stage3-gate <stage3-gate.json>

@@ -1,0 +1,31 @@
+{
+  "schema_version": "slot-alignment.sample-execution-plan.v1",
+  "task_id": "<task-id>",
+  "frozen_before_candidate": true,
+  "rtp_group": 1,
+  "sample_unit": "complete_paid_entry",
+  "policy": {
+    "id": "slot-alignment-fixed-sample-execution-v1",
+    "version": "1.1.0",
+    "sha256": "<sha256>"
+  },
+  "rng_protocol": "chunk_seeded",
+  "shard_size": 250000,
+  "calibration": {
+    "screen": 100000,
+    "review": 500000,
+    "finalist": 2000000,
+    "independent_recheck": 2000000,
+    "independent_recheck_top_candidates": 2
+  },
+  "formal": {
+    "tiers": [10000000, 20000000, 50000000],
+    "minimum_conditional_sample": 2000,
+    "conditional_probability_semantics": "whole_metric_instance_denominator_exposure_per_paid_entry",
+    "conditional_exposure_probabilities": {},
+    "selected_paid_entry_count": 10000000,
+    "owner_instance_id": null,
+    "projected_owner_sample": null,
+    "unresolved_below_minimum": []
+  }
+}

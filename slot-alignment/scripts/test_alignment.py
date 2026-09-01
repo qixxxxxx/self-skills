@@ -20,6 +20,7 @@ from alignment import (
     wasserstein_1d,
 )
 from compile_metric_contract import LIBRARY_PATH, subitems
+from validate_sample_plan import POLICY_PATH as SAMPLE_POLICY_PATH, derived_formal, validate_plan
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,6 +163,41 @@ class EndToEndTests(unittest.TestCase):
         cells = [[0, 0]] if state_kind == "symbol_position_density" else [[0, 0], [0, 1], [1, 0], [1, 1]]
         return {"value": {"board_shape": extra["board_shape"], "states": [{"cells": cells, "probability": 1.0}]}, "source": source}
 
+    def sample_plan(self, probabilities=None):
+        plan = {
+            "schema_version": "slot-alignment.sample-execution-plan.v1",
+            "task_id": "test-task",
+            "frozen_before_candidate": True,
+            "rtp_group": 1,
+            "sample_unit": "complete_paid_entry",
+            "policy": {
+                "id": "slot-alignment-fixed-sample-execution-v1",
+                "version": "1.0.0",
+                "sha256": sha256_file(SAMPLE_POLICY_PATH),
+            },
+            "rng_protocol": "chunk_seeded",
+            "shard_size": 250000,
+            "calibration": {
+                "screen": 100000,
+                "review": 500000,
+                "finalist": 2000000,
+                "independent_recheck": 2000000,
+                "independent_recheck_top_candidates": 2,
+            },
+            "formal": {
+                "tiers": [10000000, 20000000, 50000000],
+                "minimum_conditional_sample": 2000,
+                "conditional_probability_semantics": "whole_metric_instance_denominator_exposure_per_paid_entry",
+                "conditional_exposure_probabilities": probabilities or {},
+                "selected_paid_entry_count": 10000000,
+                "owner_instance_id": None,
+                "projected_owner_sample": None,
+                "unresolved_below_minimum": [],
+            },
+        }
+        plan["formal"].update(derived_formal(plan))
+        return plan
+
     def build_inputs(self):
         profile = self.profile()
         library = load(LIBRARY_PATH)
@@ -177,7 +213,7 @@ class EndToEndTests(unittest.TestCase):
                     targets[instance_id] = record
                     if card["kind"] == "alignment":
                         tolerances[instance_id] = 0.1
-        profile_path, targets_path, joint_path, bindings_path = [self.path(name) for name in ["profile.json", "targets.json", "joint.json", "bindings.json"]]
+        profile_path, targets_path, joint_path, bindings_path, sample_plan_path = [self.path(name) for name in ["profile.json", "targets.json", "joint.json", "bindings.json", "sample-plan.json"]]
         write(profile_path, profile)
         write(targets_path, {"targets": targets})
         write(joint_path, {"schema_version": "slot-alignment.joint-self-comparison.v5", "quantile": 0.99, "joint": True, "replicates": 100, "seed": 7, "evidence_sha256": "a" * 64, "joint_factor": 1.0, "tolerances": tolerances})
@@ -191,13 +227,42 @@ class EndToEndTests(unittest.TestCase):
             "game_profile_sha256": "e" * 64,
             "parameter_authority_sha256": "f" * 64,
         })
-        return profile_path, targets_path, joint_path, bindings_path
+        write(sample_plan_path, self.sample_plan({"P2.mechanic_result_state.wild-multiplier": 0.001}))
+        return profile_path, targets_path, joint_path, bindings_path, sample_plan_path
+
+    def test_sample_execution_tiers_and_maximum_behavior(self):
+        cases = [
+            (0.0003, 10000000, []),
+            (0.0002, 10000000, []),
+            (0.00015, 20000000, []),
+            (0.0001, 20000000, []),
+            (0.00005, 50000000, []),
+            (0.00004, 50000000, []),
+            (0.00002, 50000000, ["P2.mechanic_result_state.wild-multiplier"]),
+        ]
+        for probability, expected_tier, expected_unresolved in cases:
+            plan = self.sample_plan({"P2.mechanic_result_state.wild-multiplier": probability})
+            validate_plan(plan)
+            self.assertEqual(plan["formal"]["selected_paid_entry_count"], expected_tier)
+            self.assertEqual(plan["formal"]["unresolved_below_minimum"], expected_unresolved)
+
+    def test_sample_execution_policy_is_chunk_seeded_and_non_blocking(self):
+        policy = load(SAMPLE_POLICY_PATH)
+        self.assertEqual(policy["rng_protocol"]["calibration_default"], "chunk_seeded")
+        self.assertEqual(policy["rng_protocol"]["formal_default"], "chunk_seeded")
+        self.assertEqual(policy["rng_protocol"]["diagnostics_only"], ["crn_v1"])
+        self.assertFalse(policy["execution"]["benchmark_is_blocking_gate"])
+        self.assertTrue(policy["formal"]["state_frequency_must_not_drive_tier"])
+        self.assertEqual(policy["calibration"]["stages"][2]["cumulative_paid_entries"], 2000000)
+        self.assertEqual(policy["calibration"]["independent_recheck"]["additional_paid_entries"], 2000000)
 
     def test_compile_evaluate_and_schema(self):
-        profile, targets, joint, bindings = self.build_inputs()
+        profile, targets, joint, bindings, sample_plan = self.build_inputs()
         contract_path = self.path("contract.json")
-        self.run_script("compile_metric_contract.py", "--profile", profile, "--targets", targets, "--joint-tolerances", joint, "--bindings", bindings, "--output", contract_path)
+        self.run_script("compile_metric_contract.py", "--profile", profile, "--targets", targets, "--joint-tolerances", joint, "--bindings", bindings, "--sample-plan", sample_plan, "--output", contract_path)
         contract = load(contract_path)
+        self.assertEqual(contract["policies"]["sample_execution"]["version"], "1.0.0")
+        self.assertEqual(contract["hashes"]["sample_execution_plan_sha256"], sha256_file(sample_plan))
         n1 = next(item for card in contract["cards"] if card["card_id"] == "N1" for item in card["instances"])
         self.assertEqual(n1["target"], 0.96)
         self.assertEqual(n1["target_source"]["method"], "user_confirmed_exact_rtp")
@@ -262,12 +327,12 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(load(result_path)["summary"]["final_status"], "无法完整判定")
 
     def test_n1_rejects_missing_confirmation_and_interval(self):
-        profile, targets, joint, bindings = self.build_inputs()
+        profile, targets, joint, bindings, sample_plan = self.build_inputs()
         data = load(targets)
         n1 = data["targets"]["N1.total_rtp.overall"]
         n1["source"].pop("confirmation_evidence_sha256")
         write(targets, data)
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--output", str(self.path("invalid-contract-1.json"))]
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--output", str(self.path("invalid-contract-1.json"))]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("用户确认记录SHA-256", result.stderr)
@@ -281,8 +346,8 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("唯一数值", result.stderr)
 
     def test_board_symbol_partition_must_be_valid(self):
-        profile, targets, joint, bindings = self.build_inputs()
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--output", str(self.path("invalid-board-contract.json"))]
+        profile, targets, joint, bindings, sample_plan = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--output", str(self.path("invalid-board-contract.json"))]
 
         data = load(profile)
         data["metric_bindings"]["boards"][0]["symbol_groups"].append({"group_id": "duplicate", "role": "regular_other", "symbols": ["a"]})
@@ -306,8 +371,8 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("component_id不在components中", result.stderr)
 
     def test_win_groups_and_primary_axis_must_be_valid(self):
-        profile, targets, joint, bindings = self.build_inputs()
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--output", str(self.path("invalid-j-contract.json"))]
+        profile, targets, joint, bindings, sample_plan = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--output", str(self.path("invalid-j-contract.json"))]
 
         data = self.profile()
         data["metric_bindings"]["win_groups"][1]["elements"] = ["a", "wild"]

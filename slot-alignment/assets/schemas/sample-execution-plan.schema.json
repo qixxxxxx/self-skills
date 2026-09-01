@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Sample Execution Plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "frozen_before_candidate", "rtp_group", "sample_unit", "policy", "rng_protocol", "shard_size", "calibration", "formal"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.sample-execution-plan.v1"},
+    "task_id": {"type": "string", "minLength": 1},
+    "frozen_before_candidate": {"const": true},
+    "rtp_group": {"const": 1},
+    "sample_unit": {"const": "complete_paid_entry"},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sha256"],
+      "properties": {
+        "id": {"const": "slot-alignment-fixed-sample-execution-v1"},
+        "version": {"const": "1.1.0"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "rng_protocol": {"const": "chunk_seeded"},
+    "shard_size": {"const": 250000},
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["screen", "review", "finalist", "independent_recheck", "independent_recheck_top_candidates"],
+      "properties": {
+        "screen": {"const": 100000},
+        "review": {"const": 500000},
+        "finalist": {"const": 2000000},
+        "independent_recheck": {"const": 2000000},
+        "independent_recheck_top_candidates": {"const": 2}
+      }
+    },
+    "formal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tiers", "minimum_conditional_sample", "conditional_probability_semantics", "conditional_exposure_probabilities", "selected_paid_entry_count", "owner_instance_id", "projected_owner_sample", "unresolved_below_minimum"],
+      "properties": {
+        "tiers": {"const": [10000000, 20000000, 50000000]},
+        "minimum_conditional_sample": {"const": 2000},
+        "conditional_probability_semantics": {"const": "whole_metric_instance_denominator_exposure_per_paid_entry"},
+        "conditional_exposure_probabilities": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[NJPB][1-9][0-9]*\\.[a-z0-9_.:-]+$"},
+          "additionalProperties": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+        },
+        "selected_paid_entry_count": {"enum": [10000000, 20000000, 50000000]},
+        "owner_instance_id": {"type": ["string", "null"]},
+        "projected_owner_sample": {"type": ["number", "null"], "minimum": 0},
+        "unresolved_below_minimum": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[NJPB][1-9][0-9]*\\.[a-z0-9_.:-]+$"}
+        }
+      }
+    }
+  }
+}

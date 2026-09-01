@@ -16,17 +16,18 @@
     "policies": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["hard_gate_tolerance", "alignment_evaluation"],
+      "required": ["hard_gate_tolerance", "alignment_evaluation", "sample_execution"],
       "properties": {
         "hard_gate_tolerance": {"$ref": "#/$defs/binding"},
-        "alignment_evaluation": {"$ref": "#/$defs/binding"}
+        "alignment_evaluation": {"$ref": "#/$defs/binding"},
+        "sample_execution": {"$ref": "#/$defs/binding"}
       }
     },
     "cards": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/card"}},
     "audits": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/audit"}},
     "hashes": {
       "type": "object",
-      "required": ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256", "contract_sha256"],
+      "required": ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256", "sample_execution_plan_sha256", "contract_sha256"],
       "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
     }
   },

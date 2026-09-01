@@ -38,6 +38,7 @@ def main():
     library_path = root / "references/指标目录/index.json"
     evaluation_path = root / "assets/policies/alignment_evaluation_policy.json"
     hard_path = root / "assets/policies/hard_gate_tolerance_policy.json"
+    sample_path = root / "assets/policies/sample_execution_policy.json"
     errors = []
     for path in root.rglob("*.json"):
         try:
@@ -47,9 +48,10 @@ def main():
     errors += schema_errors(root / "assets/schemas/metric-library.schema.json", library_path)
     errors += schema_errors(root / "assets/schemas/alignment-evaluation-policy.schema.json", evaluation_path)
     errors += schema_errors(root / "assets/schemas/hard-gate-tolerance-policy.schema.json", hard_path)
-    for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "joint-self-comparison.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
+    errors += schema_errors(root / "assets/schemas/sample-execution-policy.schema.json", sample_path)
+    for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "joint-self-comparison.schema.json", "sample-execution-plan.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
         Draft202012Validator.check_schema(load(root / "assets/schemas" / schema_name))
-    library, evaluation, hard = load(library_path), load(evaluation_path), load(hard_path)
+    library, evaluation, hard, sample = load(library_path), load(evaluation_path), load(hard_path), load(sample_path)
     if library.get("version") != "5.2.0" or evaluation.get("version") != "5.4.0" or evaluation.get("applies_to_metric_library") != "5.2.0":
         errors.append("指标库必须为5.2.0，评价政策必须为5.4.0且绑定指标库5.2.0")
     category_ids = [item["category_id"] for item in library["categories"]]
@@ -130,17 +132,41 @@ def main():
         errors.append("v5评价政策不得启用分数、权重、补偿或豁免")
     if evaluation["tolerance"]["joint_confidence_quantile"] != 0.99 or evaluation["tolerance"]["maximum_perceptual_cap"] is not None:
         errors.append("J/P/B必须使用无额外上限的联合99%自对照")
+    if sample["rng_protocol"]["calibration_default"] != "chunk_seeded" or sample["rng_protocol"]["formal_default"] != "chunk_seeded":
+        errors.append("CALIBRATION与FORMAL默认RNG协议必须为chunk_seeded")
+    if sample["rng_protocol"]["diagnostics_only"] != ["crn_v1"]:
+        errors.append("crn_v1只能用于离线诊断")
+    if [item["cumulative_paid_entries"] for item in sample["calibration"]["stages"]] != [100000, 500000, 2000000]:
+        errors.append("CALIBRATION候选阶梯必须为10万、50万、200万累计局数")
+    recheck = sample["calibration"]["independent_recheck"]
+    if recheck != {"top_candidate_count": 2, "additional_paid_entries": 2000000, "independent_seed": True}:
+        errors.append("CALIBRATION前2名必须另跑200万独立复核")
+    formal = sample["formal"]
+    if formal["paid_entry_tiers"] != [10000000, 20000000, 50000000] or formal["minimum_conditional_sample"] != 2000:
+        errors.append("FORMAL必须使用1000万、2000万、5000万档位和2000个条件有效样本")
+    if formal["state_frequency_must_not_drive_tier"] is not True or "whole_metric_instance_denominator" not in formal["conditional_probability_semantics"]:
+        errors.append("FORMAL升档只能按指标实例整体条件分母，不得按分布内单个状态")
+    if formal["maximum_paid_entries"] != 50000000 or formal["maximum_tier_insufficient_action"] != "run_max_tier_then_mark_affected_instances_sample_insufficient_U":
+        errors.append("5000万不足时仍须执行并将受影响实例标为样本不足/U")
+    if sample["execution"]["benchmark_is_blocking_gate"] is not False:
+        errors.append("性能基准只能记录和优化，不得成为阻塞门禁")
     required_files = [
         "SKILL.md",
         "references/01-指标框架.md",
         "references/02-评价合同.md",
         "references/03-执行与报告.md",
         "references/04-工作区目录结构.md",
+        "references/05-性能与执行预算.md",
+        "assets/policies/sample_execution_policy.json",
+        "assets/schemas/sample-execution-policy.schema.json",
+        "assets/schemas/sample-execution-plan.schema.json",
+        "assets/templates/artifacts/02-metric-matching/sample_execution_plan.json",
         "assets/templates/reports/原版体验对齐报告.md",
         "assets/templates/reports/指标分类明细.md",
         "assets/templates/artifacts/05-delivery/delivery_manifest.json",
         "scripts/alignment.py",
         "scripts/compile_metric_contract.py",
+        "scripts/validate_sample_plan.py",
         "scripts/evaluate_alignment.py",
         "scripts/validate_delivery.py",
     ]

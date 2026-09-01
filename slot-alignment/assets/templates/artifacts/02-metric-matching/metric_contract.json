@@ -24,6 +24,12 @@
       "version": "5.4.0",
       "path": "assets/policies/alignment_evaluation_policy.json",
       "sha256": "<sha256>"
+    },
+    "sample_execution": {
+      "id": "slot-alignment-fixed-sample-execution-v1",
+      "version": "1.1.0",
+      "path": "assets/policies/sample_execution_policy.json",
+      "sha256": "<sha256>"
     }
   },
   "cards": [],
@@ -34,6 +40,7 @@
     "script_sha256": "<sha256>",
     "game_profile_sha256": "<sha256>",
     "parameter_authority_sha256": "<sha256>",
+    "sample_execution_plan_sha256": "<sha256>",
     "contract_sha256": "<sha256>"
   }
 }
