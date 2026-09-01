@@ -84,7 +84,9 @@ target_rtp_confirmation_evidence
 - `runtime_version`不接受独立输入，固定派生为`task_id`；所有FORMAL与交付Runtime的`game_core.json.meta.version`必须严格等于当前`task_id`，不得使用其他版本号。
 - 工作区固定为`slot-math-workbench:<game_code>/alignments/<mode>/<task_id>/`。
 - 任务内部目录和文件必须符合[工作区目录结构](references/04-工作区目录结构.md)，不得自创平行目录或用`work/`替代权威`artifacts/`。
+- 选定基线Runtime后立即将实际使用的四件套逐文件复制到`work/baseline/runtime/`，校验并记录源路径、逐文件SHA-256和bundle hash；基线模拟与候选派生只读取该只读封包，不得继续读取外部配置仓库或服务端缓存。
 - 默认扫描`slot-math-workbench:<game_code>/capture-summary/`下全部原版源。
+- 原始Python脚本优先扫描`slot-docs:<game_code>/math/scripts/`；该目录无候选时再检查其他资料路径，目录内结果不唯一时停止并询问。
 - 路径缺失、结果不唯一或关键作用域不明确时停止并询问，不自行猜测。
 - Python只使用解析出的`python_bin`。
 - 多Worker必须使用不重叠确定性分片；Worker数不得改变总样本量或结果。
