@@ -121,8 +121,12 @@ target_rtp_confirmation_evidence
 - 完整逐局账本、逐RNG调用序列和状态哈希只用于候选出现前的小样本等价验证，不得默认覆盖CALIBRATION或FORMAL全样本。
 - CALIBRATION与FORMAL必须采用Worker内流式聚合：单局观测立即累计正式指标，不持久化全量逐局JSON/NDJSON，不写后再读。
 - 大样本执行的内存复杂度必须为单Worker `O(1)`每入口，持久化文件数量为`O(分片数)`；每个分片只保存聚合测量、累计器checkpoint、输入指纹和hash。
+- 正式指标支持必须在执行前编成固定整数索引和有界数组；禁止逐入口更新TDigest、按精确赢分扩张无界映射、拼接字符串key或创建业务dict/dataclass/list。P95/P99等非正式分位数默认不进入CALIBRATION或FORMAL热路径。
+- Python只负责配置、分片、进程调度、checkpoint和最终合并；大样本核心循环使用批量NumPy、Numba或等价编译路径，复杂状态机至少使用整数状态、固定数组和标量局部变量，不得以逐入口Python对象链作为默认实现。
 - 禁止为观测重复执行一次完整结算算法。确需补充中奖明细时，使用一次计算同时返回结算与观测结果，或使用已证明等价的优化实现。
 - 每个分片必须原子落盘并可校验续跑；只有task、合同、候选、Runtime、脚本bundle、种子、分片范围和输出hash全部一致时才允许复用。
+- `250000`是确定性逻辑分片与checkpoint边界；Worker可在内部使用更小micro-batch控制内存，但不得改变该分片的RNG连续流、聚合结果或hash。每个Worker只加载一次不可变Runtime/规则上下文，每个候选只构建一次权重、采样表和条件缓存。
+- 单次执行只允许一层并行：候选级、分片级、Numba并行或底层线程池择一，禁止进程池、Numba parallel及BLAS/OpenMP线程嵌套超配。
 - 大样本执行前必须做代表性吞吐基准，记录局/秒、预计总时长、Worker数、临时磁盘量和续跑能力；基准用于发现并修正明显低效实现，但不生成性能通过/不通过状态，也不得阻止既定样本计划执行。
 - 轻量版必须与完整观测版在同种子小样本上取得逐入口语义、最终RNG状态、全部正式测量、累计器和单/多Worker完全等价，证据随任务保存。
 
@@ -142,7 +146,7 @@ target_rtp_confirmation_evidence
 metric_library.schema_version = slot-alignment.metric-library.v5
 metric_library.version = 5.2.0
 alignment_evaluation_policy.version = 5.4.0
-sample_execution_policy.version = 1.0.0
+sample_execution_policy.version = 1.1.0
 game_profile.schema_version = slot-alignment.game-profile.v5
 joint_self_comparison.schema_version = slot-alignment.joint-self-comparison.v5
 sample_execution_plan.schema_version = slot-alignment.sample-execution-plan.v1

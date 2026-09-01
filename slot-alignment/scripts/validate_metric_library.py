@@ -132,6 +132,8 @@ def main():
         errors.append("v5评价政策不得启用分数、权重、补偿或豁免")
     if evaluation["tolerance"]["joint_confidence_quantile"] != 0.99 or evaluation["tolerance"]["maximum_perceptual_cap"] is not None:
         errors.append("J/P/B必须使用无额外上限的联合99%自对照")
+    if sample.get("version") != "1.1.0":
+        errors.append("样本执行策略版本必须为1.1.0")
     if sample["rng_protocol"]["calibration_default"] != "chunk_seeded" or sample["rng_protocol"]["formal_default"] != "chunk_seeded":
         errors.append("CALIBRATION与FORMAL默认RNG协议必须为chunk_seeded")
     if sample["rng_protocol"]["diagnostics_only"] != ["crn_v1"]:
@@ -150,6 +152,27 @@ def main():
         errors.append("5000万不足时仍须执行并将受影响实例标为样本不足/U")
     if sample["execution"]["benchmark_is_blocking_gate"] is not False:
         errors.append("性能基准只能记录和优化，不得成为阻塞门禁")
+    execution = sample["execution"]
+    if execution.get("benchmark_profiles") != ["core_simulation", "formal_full_observation"]:
+        errors.append("性能基准必须分别记录纯核心模拟和全部正式观测吞吐")
+    if execution.get("shard_semantics") != "logical_checkpoint_and_rng_partition" or execution.get("internal_micro_batches_allowed") is not True or execution.get("internal_micro_batch_must_preserve_rng_stream") is not True:
+        errors.append("25万分片必须是逻辑seed/checkpoint边界，并允许保持RNG流的内部micro-batch")
+    if execution.get("worker_static_context_loads_once") is not True or execution.get("candidate_context_builds_once_per_worker") is not True:
+        errors.append("Worker静态上下文和候选参数上下文必须分别只构建一次")
+    if execution.get("core_loop_implementation") != "compiled_or_vectorized_batch_with_python_orchestration":
+        errors.append("大样本核心循环必须使用编译或批量路径，Python只负责调度")
+    if execution.get("accumulator_cardinality") != "bounded_by_frozen_metric_support":
+        errors.append("正式累计器基数必须由冻结指标支持限定")
+    if execution.get("parallelism_layer_count") != 1 or execution.get("nested_parallelism_forbidden") is not True:
+        errors.append("单次执行只允许一层并行，禁止嵌套超配")
+    required_hot_path_forbidden = {
+        "per_entry_tdigest_update",
+        "unbounded_exact_value_counts",
+        "per_entry_string_key_construction",
+        "per_entry_business_object_allocation",
+    }
+    if not required_hot_path_forbidden.issubset(set(execution.get("hot_path_forbidden", []))):
+        errors.append("热路径必须禁止逐入口TDigest、无界精确值表、字符串key和业务对象分配")
     required_files = [
         "SKILL.md",
         "references/01-指标框架.md",

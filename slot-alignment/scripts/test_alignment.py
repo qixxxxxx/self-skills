@@ -172,7 +172,7 @@ class EndToEndTests(unittest.TestCase):
             "sample_unit": "complete_paid_entry",
             "policy": {
                 "id": "slot-alignment-fixed-sample-execution-v1",
-                "version": "1.0.0",
+                "version": "1.1.0",
                 "sha256": sha256_file(SAMPLE_POLICY_PATH),
             },
             "rng_protocol": "chunk_seeded",
@@ -252,6 +252,16 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(policy["rng_protocol"]["formal_default"], "chunk_seeded")
         self.assertEqual(policy["rng_protocol"]["diagnostics_only"], ["crn_v1"])
         self.assertFalse(policy["execution"]["benchmark_is_blocking_gate"])
+        self.assertEqual(policy["execution"]["benchmark_profiles"], ["core_simulation", "formal_full_observation"])
+        self.assertTrue(policy["execution"]["internal_micro_batches_allowed"])
+        self.assertTrue(policy["execution"]["internal_micro_batch_must_preserve_rng_stream"])
+        self.assertTrue(policy["execution"]["worker_static_context_loads_once"])
+        self.assertTrue(policy["execution"]["candidate_context_builds_once_per_worker"])
+        self.assertEqual(policy["execution"]["parallelism_layer_count"], 1)
+        self.assertTrue(policy["execution"]["nested_parallelism_forbidden"])
+        self.assertIn("per_entry_tdigest_update", policy["execution"]["hot_path_forbidden"])
+        self.assertIn("unbounded_exact_value_counts", policy["execution"]["hot_path_forbidden"])
+        self.assertEqual(policy["execution"]["accumulator_cardinality"], "bounded_by_frozen_metric_support")
         self.assertTrue(policy["formal"]["state_frequency_must_not_drive_tier"])
         self.assertEqual(policy["calibration"]["stages"][2]["cumulative_paid_entries"], 2000000)
         self.assertEqual(policy["calibration"]["independent_recheck"]["additional_paid_entries"], 2000000)
@@ -261,7 +271,7 @@ class EndToEndTests(unittest.TestCase):
         contract_path = self.path("contract.json")
         self.run_script("compile_metric_contract.py", "--profile", profile, "--targets", targets, "--joint-tolerances", joint, "--bindings", bindings, "--sample-plan", sample_plan, "--output", contract_path)
         contract = load(contract_path)
-        self.assertEqual(contract["policies"]["sample_execution"]["version"], "1.0.0")
+        self.assertEqual(contract["policies"]["sample_execution"]["version"], "1.1.0")
         self.assertEqual(contract["hashes"]["sample_execution_plan_sha256"], sha256_file(sample_plan))
         n1 = next(item for card in contract["cards"] if card["card_id"] == "N1" for item in card["instances"])
         self.assertEqual(n1["target"], 0.96)
