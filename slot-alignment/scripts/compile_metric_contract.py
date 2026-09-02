@@ -22,7 +22,8 @@ RUNTIME_CAPABILITY_POLICY_PATH = ROOT / "assets" / "policies" / "runtime_capabil
 
 
 def safe_id(value):
-    value = re.sub(r"[^a-z0-9_.:-]+", "-", str(value).lower()).strip("-.")
+    value = str(value).lower().replace("+", "plus")
+    value = re.sub(r"[^a-z0-9_.:-]+", "-", value).strip("-.")
     if not value:
         raise ValueError("无法生成空子项ID")
     return value
@@ -51,28 +52,94 @@ def subitems(card_id, facet_id, bindings):
             "component": item["component_id"],
             "win_group": item["group_id"],
             "elements": item["elements"],
-        }, {}) for item in win_groups]
-    if (card_id, facet_id) == ("J2", "primary_structure_size"):
+        }, {
+            "budget_rule": "J1.participation",
+            "aggregation": {"dimension_id": "participation", "group_id": item["component_id"], "mode": "mean_items", "role": "item"},
+        }) for item in win_groups]
+    if card_id == "J2" and facet_id in {"primary_structure_bin_rate", "primary_structure_distribution_shift"}:
+        result = []
+        for item in settlements:
+            if not item["variable_primary_size"] or item.get("primary_size_evaluation_mode") != "categorical_distribution":
+                continue
+            aggregation = {"dimension_id": "primary_structure", "group_id": item["settlement_id"], "mode": "half_overall_half_items"}
+            base_scope = {"component": item["component_id"], "settlement": item["settlement_id"], "primary_size_axis": item["primary_size_axis"]}
+            if facet_id == "primary_structure_bin_rate":
+                for bin_id in item["primary_size_bins"]:
+                    result.append((f"{item['settlement_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
+                        "budget_rule": "J2.primary_structure_categorical.bin",
+                        "requires_bin_count": True,
+                        "aggregation": {**aggregation, "role": "bin"},
+                    }))
+            else:
+                result.append((item["settlement_id"], {**base_scope, "bins": item["primary_size_bins"]}, {
+                    "budget_rule": "J2.primary_structure_categorical.overall",
+                    "aggregation": {**aggregation, "role": "overall"},
+                }))
+        return result
+    if card_id == "J2" and facet_id in {"primary_structure_mean", "primary_structure_p50", "primary_structure_p90"}:
+        statistic = facet_id.rsplit("_", 1)[-1]
         return [(item["settlement_id"], {
             "component": item["component_id"],
             "settlement": item["settlement_id"],
             "primary_size_axis": item["primary_size_axis"],
-        }, {}) for item in settlements if item["variable_primary_size"]]
-    if (card_id, facet_id) == ("J2", "simultaneous_visible_win_count"):
-        return [(component, {"component": component}, {}) for component in settlement_components if component_map[component]["variable_simultaneous_win_count"]]
-    if (card_id, facet_id) == ("J2", "visible_step_reward_size"):
+            "natural_unit": item["primary_size_unit"],
+            "statistic": statistic,
+        }, {
+            "budget_rule": f"J2.primary_structure_summary.{statistic}",
+            "aggregation": {"dimension_id": "primary_structure", "group_id": item["settlement_id"], "mode": "mean_items", "role": "item"},
+        }) for item in settlements if item["variable_primary_size"] and item.get("primary_size_evaluation_mode") == "summary_triplet"]
+    if card_id == "J2" and facet_id in {"simultaneous_visible_win_count_bin_rate", "simultaneous_visible_win_count_distribution_shift"}:
+        result = []
+        for component in settlement_components:
+            binding = component_map[component]
+            if not binding["variable_simultaneous_win_count"]:
+                continue
+            bins = binding["simultaneous_win_count_bins"]
+            aggregation = {"dimension_id": "simultaneous_win_count", "group_id": component, "mode": "half_overall_half_items"}
+            if facet_id == "simultaneous_visible_win_count_bin_rate":
+                for bin_id in bins:
+                    result.append((f"{component}.{bin_id}", {"component": component, "bin": bin_id}, {
+                        "budget_rule": "J2.simultaneous_win_count.bin",
+                        "requires_bin_count": True,
+                        "aggregation": {**aggregation, "role": "bin"},
+                    }))
+            else:
+                result.append((component, {"component": component, "bins": bins}, {
+                    "budget_rule": "J2.simultaneous_win_count.overall",
+                    "aggregation": {**aggregation, "role": "overall"},
+                }))
+        return result
+    if card_id == "J2" and facet_id in {"visible_step_reward_mean", "visible_step_reward_p50", "visible_step_reward_p90"}:
+        statistic = facet_id.rsplit("_", 1)[-1]
         return [(component, {
             "component": component,
             "display_bet_basis": component_map[component]["display_bet_basis"],
-        }, {}) for component in settlement_components if component_map[component]["variable_visible_step_reward"]]
-    if (card_id, facet_id) == ("J3", "total_depth"):
-        return [(item["continuous_id"], {"component": item["component_id"], "continuous_settlement": item["continuous_id"]}, {}) for item in continuous if item["variable_depth"]]
-    if (card_id, facet_id) == ("J3", "chain_reward_size"):
-        return [(item["continuous_id"], {
-            "component": item["component_id"],
-            "continuous_settlement": item["continuous_id"],
-            "display_bet_basis": component_map[item["component_id"]]["display_bet_basis"],
-        }, {}) for item in continuous if item["variable_chain_reward"]]
+            "minimum_visible_reward_unit": component_map[component]["minimum_visible_reward_unit"],
+            "statistic": statistic,
+        }, {
+            "budget_rule": f"J2.visible_step_reward.{statistic}",
+            "aggregation": {"dimension_id": "visible_step_reward", "group_id": component, "mode": "mean_items", "role": "item"},
+        }) for component in settlement_components if component_map[component]["variable_visible_step_reward"]]
+    if card_id == "J3" and facet_id in {"total_depth_bin_rate", "total_depth_distribution_shift"}:
+        result = []
+        bins = ["0", "1", "2", "3", "4", "5", "6+"]
+        for item in continuous:
+            if not item["variable_depth"]:
+                continue
+            aggregation = {"dimension_id": "depth", "group_id": item["continuous_id"], "mode": "half_overall_half_items"}
+            base_scope = {"component": item["component_id"], "continuous_settlement": item["continuous_id"]}
+            if facet_id == "total_depth_bin_rate":
+                for bin_id in bins:
+                    result.append((f"{item['continuous_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
+                        "budget_rule": "J3.depth.bin",
+                        "aggregation": {**aggregation, "role": "bin"},
+                    }))
+            else:
+                result.append((item["continuous_id"], {**base_scope, "bins": bins}, {
+                    "budget_rule": "J3.depth.overall",
+                    "aggregation": {**aggregation, "role": "overall"},
+                }))
+        return result
     if (card_id, facet_id) == ("P1", "initial_free_spin_count"):
         return [(item["feature_id"], {"feature": item["feature_id"]}, {}) for item in features if item["feature_type"] == "free_spin"]
     if (card_id, facet_id) == ("P1", "feature_duration"):
@@ -119,6 +186,65 @@ def distance_contract(facet, target_record, extra):
     return result
 
 
+def n_c_tolerance(card_id, target, scope, bindings, policy):
+    rule = policy["c_tolerance_rules"][card_id]
+    method = rule["method"]
+    if method == "fixed_absolute":
+        return float(rule["value"])
+    if method == "target_relative_clamped":
+        value = abs(float(target)) * float(rule["relative"])
+        return min(max(value, float(rule["minimum"])), float(rule["maximum"]))
+    if method == "target_relative_by_rarity":
+        target = abs(float(target))
+        relative = rule["rare_relative"] if target < float(rule["rare_target_below"]) else rule["regular_relative"]
+        return target * float(relative)
+    if method == "scope_relative":
+        scope_id = scope.get("scope")
+        feature_ids = {item["feature_id"] for item in bindings["features"]}
+        key = "overall" if scope_id == "overall" else ("feature" if scope_id in feature_ids else "non_feature")
+        return float(rule[key])
+    raise ValueError(f"{card_id}不支持的C级玩家预算规则: {method}")
+
+
+def _is_feature_component(component_id, bindings):
+    return component_id in {item["feature_id"] for item in bindings["features"]}
+
+
+def _clamped_relative(target, rule):
+    value = abs(float(target)) * float(rule["relative"])
+    return min(max(value, float(rule["minimum"])), float(rule["maximum"]))
+
+
+def j_c_tolerance(target, scope, extra, bindings, policy):
+    rules = policy["j_player_budget_rules"]
+    rule_id = extra["budget_rule"]
+    feature = _is_feature_component(scope.get("component"), bindings)
+    scene = "feature" if feature else "base"
+    if rule_id == "J1.participation":
+        rule = rules["J1"][scene]
+        target = abs(float(target))
+        floor = min(target, float(rule["ordinary_floor"]))
+        return min(max(target * float(rule["relative"]), floor), float(rule["maximum"]))
+    if rule_id.startswith("J2.primary_structure_categorical."):
+        config = rules["J2"]["primary_structure_categorical"]
+        return float(config[f"{scene}_overall"]) if rule_id.endswith("overall") else _clamped_relative(target, config[f"{scene}_bin"])
+    if rule_id.startswith("J2.primary_structure_summary."):
+        statistic = rule_id.rsplit(".", 1)[-1]
+        relative = float(rules["J2"]["primary_structure_summary"][scene][f"{statistic}_relative"])
+        return max(abs(float(target)) * relative, float(scope["natural_unit"]))
+    if rule_id.startswith("J2.simultaneous_win_count."):
+        config = rules["J2"]["simultaneous_win_count"]
+        return float(config[f"{scene}_overall"]) if rule_id.endswith("overall") else _clamped_relative(target, config[f"{scene}_bin"])
+    if rule_id.startswith("J2.visible_step_reward."):
+        statistic = rule_id.rsplit(".", 1)[-1]
+        relative = float(rules["J2"]["visible_step_reward"][scene][f"{statistic}_relative"])
+        return max(abs(float(target)) * relative, float(scope["minimum_visible_reward_unit"]))
+    if rule_id.startswith("J3.depth."):
+        config = rules["J3"]
+        return float(config[f"{scene}_overall"]) if rule_id.endswith("overall") else _clamped_relative(target, config[f"{scene}_bin"])
+    raise ValueError(f"J类不支持的C级玩家预算规则: {rule_id}")
+
+
 def contract_digest(contract):
     clone = deepcopy(contract)
     clone["hashes"]["contract_sha256"] = "0" * 64
@@ -127,7 +253,7 @@ def contract_digest(contract):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="编译slot-alignment v5.2指标合同")
+    parser = argparse.ArgumentParser(description="编译slot-alignment v5.3指标合同")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--targets", required=True)
     parser.add_argument("--joint-tolerances", required=True)
@@ -190,17 +316,29 @@ def main():
         expected_axis = primary_axes[settlement["settlement_type"]]
         if settlement["primary_size_axis"] != expected_axis:
             raise SystemExit(f"{settlement['settlement_id']} primary_size_axis必须为{expected_axis}")
+        if settlement["variable_primary_size"]:
+            mode = settlement.get("primary_size_evaluation_mode")
+            if mode not in {"categorical_distribution", "summary_triplet"}:
+                raise SystemExit(f"{settlement['settlement_id']}必须冻结primary_size_evaluation_mode")
+            if mode == "categorical_distribution" and not settlement.get("primary_size_bins"):
+                raise SystemExit(f"{settlement['settlement_id']}自然档位模式必须冻结primary_size_bins")
+            if mode == "summary_triplet" and not finite_number(settlement.get("primary_size_unit")):
+                raise SystemExit(f"{settlement['settlement_id']}三值模式必须冻结primary_size_unit")
     for component in bindings["components"]:
         if component["component_id"] not in settlement_components and (component["variable_simultaneous_win_count"] or component["variable_visible_step_reward"]):
             raise SystemExit(f"{component['component_id']}没有结算，不得声明可变J2指标")
+        if component["variable_simultaneous_win_count"] and not component.get("simultaneous_win_count_bins"):
+            raise SystemExit(f"{component['component_id']}必须冻结simultaneous_win_count_bins")
+        if component["variable_visible_step_reward"] and not finite_number(component.get("minimum_visible_reward_unit")):
+            raise SystemExit(f"{component['component_id']}必须冻结minimum_visible_reward_unit")
     continuous_ids = [item["continuous_id"] for item in bindings["continuous_settlements"]]
     if len(continuous_ids) != len(set(continuous_ids)):
         raise SystemExit("continuous_settlements.continuous_id重复")
     for item in bindings["continuous_settlements"]:
         if item["component_id"] not in settlement_components:
             raise SystemExit(f"{item['continuous_id']} component_id必须引用存在结算的组件")
-        if not item["variable_depth"] and not item["variable_chain_reward"]:
-            raise SystemExit(f"{item['continuous_id']}没有可变J3指标，不应进入continuous_settlements")
+        if not item["variable_depth"]:
+            raise SystemExit(f"{item['continuous_id']}没有可变J3深度，不应进入continuous_settlements")
     groups_by_component = {component: [] for component in component_ids}
     for group in bindings["win_groups"]:
         if group["component_id"] not in component_set:
@@ -285,10 +423,24 @@ def main():
                         raise SystemExit("N1目标必须是(0,1]内的唯一数值，禁止区间")
                 if card["card_id"] == "N6" and target_method != "original_component_share_mapped_to_user_confirmed_total_rtp":
                     raise SystemExit("N6目标必须按原版组件占比映射用户确认总RTP")
+                if card["category_id"] == "J":
+                    minimum_sample = int(evaluation_policy["j_player_budget_rules"]["minimum_original_sample"])
+                    sample_count = target_record.get("sample_count")
+                    if not isinstance(sample_count, int) or isinstance(sample_count, bool) or sample_count < minimum_sample:
+                        raise SystemExit(f"{instance_id}原版有效样本必须至少{minimum_sample}")
+                    if extra.get("requires_bin_count"):
+                        minimum_bin = int(evaluation_policy["j_player_budget_rules"]["minimum_categorical_bin_count"])
+                        bucket_count = target_record.get("bucket_count")
+                        if not isinstance(bucket_count, int) or isinstance(bucket_count, bool) or bucket_count < minimum_bin:
+                            raise SystemExit(f"{instance_id}原版档位计数必须至少{minimum_bin}，否则应先合并尾部")
+                    if card["card_id"] == "J1" and (not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1):
+                        raise SystemExit(f"{instance_id} J1参与率必须在(0,1)内；0或100%不生成实例")
                 if card["kind"] == "hard_gate":
-                    base = float(target_record["base_tolerance"])
-                    factor = float(hard_policy["metric_factors"][card["card_id"]])
-                    tolerance = {"source": "hard_gate_task_contract", "base": base, "factor": factor, "effective": base * factor}
+                    budget = n_c_tolerance(card["card_id"], target_record["value"], scope, bindings, hard_policy)
+                    tolerance = {"source": "hard_gate_player_budget", "base": budget, "factor": 1.0, "effective": budget}
+                elif card["category_id"] == "J":
+                    budget = j_c_tolerance(target_record["value"], scope, extra, bindings, evaluation_policy)
+                    tolerance = {"source": "j_player_visible_budget", "base": budget, "factor": 1.0, "effective": budget}
                 elif target_record.get("deterministic_exact"):
                     tolerance = {"source": "deterministic_exact", "base": 0.0, "factor": 1.0, "effective": 0.0}
                 else:
@@ -310,7 +462,7 @@ def main():
                             "evidence_sha256": joint["evidence_sha256"],
                         },
                     }
-                instances.append({
+                instance = {
                     "instance_id": instance_id,
                     "facet_id": facet["facet_id"],
                     "subitem_id": safe_id(subitem_id),
@@ -322,7 +474,10 @@ def main():
                     "distance": distance_contract(facet, target_record, extra),
                     "tolerance": tolerance,
                     "status": "active",
-                })
+                }
+                if extra.get("aggregation"):
+                    instance["aggregation"] = extra["aggregation"]
+                instances.append(instance)
         cards.append({
             "card_id": card["card_id"],
             "name_zh": card["name_zh"],

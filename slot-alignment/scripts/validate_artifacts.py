@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from alignment import finite_number, grade_ratio, grade_thresholds, sha256_file, worst_grade
+from alignment import _j_card_score, finite_number, grade_ratio, grade_score, grade_thresholds, sha256_file, worst_grade
 from compile_metric_contract import contract_digest
 
 
@@ -70,7 +70,7 @@ def main():
         errors.append("metric_contract卡片集合或顺序漂移")
     if [item["card_id"] for item in result["card_results"]] != expected_cards:
         errors.append("alignment_result卡片集合或顺序漂移")
-    forbidden = {"weight", "weights", "score", "scores", "score_profile", "score_budget_key", "waiver", "waivers"}
+    forbidden = {"score_profile", "score_budget_key", "waiver", "waivers"}
     found = sorted(forbidden & (set(walk_keys(contract)) | set(walk_keys(result))))
     if found:
         errors.append(f"v5产物出现禁止字段: {found}")
@@ -95,6 +95,11 @@ def main():
                 expected_grade = "NA"
             elif item["tolerance"] == 0:
                 expected_grade = "S" if item["distance"] == 0 else "F"
+            elif card["category_id"] in {"N", "J"} and finite_number(item["deviation_ratio"]):
+                expected_score = max(0.0, 100.0 * (1.0 - item["deviation_ratio"]))
+                if not finite_number(item.get("score")) or abs(item["score"] - expected_score) > 1e-9:
+                    errors.append(f"{item['instance_id']}的N/J类单项分不正确")
+                expected_grade = grade_score(expected_score, policy) if item["deviation_ratio"] <= 1.0 else "F"
             elif finite_number(item["deviation_ratio"]):
                 expected_grade = grade_ratio(item["deviation_ratio"], thresholds)
             else:
@@ -105,13 +110,39 @@ def main():
             if expected_grade not in {"U", "NA"} and item["status"] != expected_status:
                 errors.append(f"{item['instance_id']}的状态与FORMAL等级不一致")
         expected_card_grade = worst_grade(item["formal_grade"] for item in card_result["instances"])
+        if card["category_id"] == "N" and card_result["status"] == "通过":
+            expected_card_score = sum(item["score"] for item in card_result["instances"]) / len(card_result["instances"])
+            if not finite_number(card_result.get("score")) or abs(card_result["score"] - expected_card_score) > 1e-9:
+                errors.append(f"{card['card_id']}卡分未按卡内活动子项等权平均")
+            expected_card_grade = grade_score(expected_card_score, policy)
+        elif card["category_id"] == "J" and card_result["status"] == "通过":
+            expected_card_score = _j_card_score(card, card_result["instances"])
+            if not finite_number(card_result.get("score")) or abs(card_result["score"] - expected_card_score) > 1e-9:
+                errors.append(f"{card['card_id']}卡分未按J类分层规则计算")
+            expected_card_grade = grade_score(expected_card_score, policy)
+        elif card_result.get("score") is not None:
+            errors.append(f"{card['card_id']}未全部通过或尚未落定评分，卡分必须为null")
         if card_result["formal_grade"] != expected_card_grade:
-            errors.append(f"{card['card_id']}卡级FORMAL等级未取最差实例")
+            errors.append(f"{card['card_id']}卡级FORMAL等级与当前聚合规则不一致")
     unknown = any(item["formal_grade"] == "U" for item in all_results)
-    expected_final_grade = "U" if unknown else worst_grade(item["formal_grade"] for item in all_results)
+    failed = any(item["formal_grade"] == "F" for item in all_results)
+    n_cards = [item for item in result["card_results"] if item["category_id"] == "N" and item["status"] != "不适用"]
+    expected_n_score = None
+    if n_cards and all(item["status"] == "通过" and finite_number(item.get("score")) for item in n_cards):
+        expected_n_score = sum(item["score"] for item in n_cards) / len(n_cards)
+    j_cards = [item for item in result["card_results"] if item["category_id"] == "J" and item["status"] != "不适用"]
+    expected_j_score = None
+    if j_cards and all(item["status"] == "通过" and finite_number(item.get("score")) for item in j_cards):
+        expected_j_score = sum(item["score"] for item in j_cards) / len(j_cards)
+    summary = result["summary"]
+    if summary["category_scores"] != {"N": expected_n_score, "J": expected_j_score, "P": None, "B": None}:
+        errors.append("当前分类分必须包含N/J，P/B保留null槽位")
+    if summary["composite_score"] != expected_n_score or summary["score_scope"] != ["N"] or summary["planned_score_scope"] != ["N", "J", "P", "B"]:
+        errors.append("当前综合分必须明确为N类阶段分，并预留N/J/P/B完整范围")
+    expected_final_grade = "U" if unknown else ("F" if failed else grade_score(expected_n_score, policy))
     if result["summary"]["final_grade"] != expected_final_grade:
-        errors.append("最终FORMAL等级未取最差实例")
-    expected_final_status = "无法完整判定" if unknown else ("不通过" if expected_final_grade == "F" else "通过")
+        errors.append("最终等级未按“全项先过C线，再看N类阶段分”计算")
+    expected_final_status = "无法完整判定" if unknown else ("不通过" if failed else "通过")
     if result["summary"]["final_status"] != expected_final_status:
         errors.append("最终状态与FORMAL等级不一致")
     if errors:

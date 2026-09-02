@@ -1,6 +1,6 @@
 # Slot Alignment v5指标目录
 
-版本：`5.2.0`
+版本：`5.3.0`
 
 本目录只包含新任务使用的四类十三张指标卡；中奖组、组件、结算模型、Feature、符号和盘面作用域只按框架规则扩展卡内子项，不增加权重。
 
@@ -23,9 +23,9 @@
 
 | 卡 | 名称 | 类型 | 玩家问题 | Facet |
 |---|---|---|---|---|
-| J1 | 中奖构成 | alignment | 正派奖时通常由哪些玩家可识别的中奖组参与？ | 逐组件中奖组参与率（absolute_probability_error） |
-| J2 | 中奖规模 | alignment | 单次可见结算的核心结构、同步中奖数和实际奖励有多大？ | 主要中奖结构规模（wasserstein_1d）；同步可见中奖结果数量（wasserstein_1d）；单步可见奖励大小（wasserstein_1d） |
-| J3 | 连续结算 | alignment | 一次动作会连续结算多少层，整条中奖链最终有多大？ | 连续结算总深度（wasserstein_1d）；整条连续结算奖励大小（wasserstein_1d） |
+| J1 | 中奖内容构成 | alignment | 每100次有奖结算中，通常会出现哪些玩家看得懂的中奖内容？ | 逐组件中奖组参与率（absolute_probability_error） |
+| J2 | 单次结算体验 | alignment | 每一步中奖本身有多大、同时中了几份、这一步合计给了多少倍？ | 主要中奖结构自然档位占比（absolute_probability_error）；主要中奖结构整体移动量（total_variation）；平均主要中奖结构规模（absolute_error）；常见主要中奖结构规模（absolute_error）；较大主要中奖结构规模（absolute_error）；同时中奖数量档位占比（absolute_probability_error）；同时中奖数量整体移动量（total_variation）；平均单次结算奖励（absolute_error）；常见单次结算奖励（absolute_error）；较高单次结算奖励（absolute_error） |
+| J3 | 连续结算 | alignment | 一次玩家动作开始后，有奖结算通常会连续走多深？ | 连续结算深度档位占比（absolute_probability_error）；连续结算深度整体移动量（total_variation） |
 
 ## P：玩法过程
 
@@ -53,4 +53,4 @@
 | A4 | 玩法过程派生统计 | P1, P2 | retrigger_count, extension_events, mechanic_occurrence_rate, mechanic_effective_rate, incremental_rtp |
 | A5 | 盘面派生统计 | B1, B2 | visual_symbol_group_coverage, key_symbol_presence_rate, terminal_board_diagnostics, fixed_board_rule_consistency |
 
-正式门禁不使用权重、综合分或豁免；审计只展示和复核。
+全部N/J/P/B必需项先过C级线，任一失败不得用分数补偿。当前已落定N/J卡分和分类分；N/J跨分类权重及P/B评分留待后续授权。

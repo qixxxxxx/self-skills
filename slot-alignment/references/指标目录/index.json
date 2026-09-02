@@ -1,14 +1,14 @@
 {
   "schema_version": "slot-alignment.metric-library.v5",
   "library_id": "slot-alignment-player-experience-metrics",
-  "version": "5.2.0",
+  "version": "5.3.0",
   "status": "active",
   "principles": {
     "top_level_categories_are_mutually_exclusive": true,
     "all_profile_matched_formal_subitems_required": true,
     "formal_metric_waiver_allowed": false,
-    "weights_allowed": false,
-    "composite_score_allowed": false,
+    "weights_allowed": true,
+    "composite_score_allowed": true,
     "card_status_aggregation": "worst_subitem",
     "derived_values_are_audit_only": true
   },
@@ -163,11 +163,11 @@
     },
     {
       "card_id": "J1",
-      "name_zh": "中奖构成",
+      "name_zh": "中奖内容构成",
       "category_id": "J",
       "display_order": 10,
       "kind": "alignment",
-      "player_question_zh": "正派奖时通常由哪些玩家可识别的中奖组参与？",
+      "player_question_zh": "每100次有奖结算中，通常会出现哪些玩家看得懂的中奖内容？",
       "applies_when": {"profile_has_any": ["settlement"]},
       "facets": [
         {
@@ -183,42 +183,101 @@
     },
     {
       "card_id": "J2",
-      "name_zh": "中奖规模",
+      "name_zh": "单次结算体验",
       "category_id": "J",
       "display_order": 20,
       "kind": "alignment",
-      "player_question_zh": "单次可见结算的核心结构、同步中奖数和实际奖励有多大？",
+      "player_question_zh": "每一步中奖本身有多大、同时中了几份、这一步合计给了多少倍？",
       "applies_when": {"profile_has_any": ["settlement"]},
       "facets": [
         {
-          "facet_id": "primary_structure_size",
-          "name_zh": "主要中奖结构规模",
+          "facet_id": "primary_structure_bin_rate",
+          "name_zh": "主要中奖结构自然档位占比",
           "sample_unit": "win_result",
-          "measurement": "settlement_primary_visible_size",
+          "measurement": "P(frozen_primary_size_bin | visible_win_result)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "natural_linear",
-          "subitem_source": "variable_component_settlement_primary_size_axis"
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "categorical_primary_size_bins"
         },
         {
-          "facet_id": "simultaneous_visible_win_count",
-          "name_zh": "同步可见中奖结果数量",
-          "sample_unit": "component_positive_settlement_step",
-          "measurement": "count(visible_win_results_in_component_step)",
+          "facet_id": "primary_structure_distribution_shift",
+          "name_zh": "主要中奖结构整体移动量",
+          "sample_unit": "win_result",
+          "measurement": "distribution(frozen_primary_size_bins)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "natural_linear",
-          "subitem_source": "components_with_variable_simultaneous_win_count"
+          "distance_method": "total_variation",
+          "subitem_source": "categorical_primary_size_distributions"
         },
         {
-          "facet_id": "visible_step_reward_size",
-          "name_zh": "单步可见奖励大小",
-          "sample_unit": "component_positive_settlement_step",
-          "measurement": "sum(visible_step_win)/display_bet_basis",
+          "facet_id": "primary_structure_mean",
+          "name_zh": "平均主要中奖结构规模",
+          "sample_unit": "win_result",
+          "measurement": "mean(settlement_primary_visible_size)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "nonnegative_multiplicative",
-          "position_transform": "log10_1p",
+          "distance_method": "absolute_error",
+          "subitem_source": "summary_primary_size_axes"
+        },
+        {
+          "facet_id": "primary_structure_p50",
+          "name_zh": "常见主要中奖结构规模",
+          "sample_unit": "win_result",
+          "measurement": "P50(settlement_primary_visible_size)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "summary_primary_size_axes"
+        },
+        {
+          "facet_id": "primary_structure_p90",
+          "name_zh": "较大主要中奖结构规模",
+          "sample_unit": "win_result",
+          "measurement": "P90(settlement_primary_visible_size)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "summary_primary_size_axes"
+        },
+        {
+          "facet_id": "simultaneous_visible_win_count_bin_rate",
+          "name_zh": "同时中奖数量档位占比",
+          "sample_unit": "component_positive_settlement_step",
+          "measurement": "P(frozen_simultaneous_win_count_bin | component_positive_settlement_step)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "component_simultaneous_win_count_bins"
+        },
+        {
+          "facet_id": "simultaneous_visible_win_count_distribution_shift",
+          "name_zh": "同时中奖数量整体移动量",
+          "sample_unit": "component_positive_settlement_step",
+          "measurement": "distribution(frozen_simultaneous_win_count_bins)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "total_variation",
+          "subitem_source": "component_simultaneous_win_count_distributions"
+        },
+        {
+          "facet_id": "visible_step_reward_mean",
+          "name_zh": "平均单次结算奖励",
+          "sample_unit": "component_positive_settlement_step",
+          "measurement": "mean(sum(visible_step_win)/display_bet_basis)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "components_with_variable_visible_step_reward"
+        },
+        {
+          "facet_id": "visible_step_reward_p50",
+          "name_zh": "常见单次结算奖励",
+          "sample_unit": "component_positive_settlement_step",
+          "measurement": "P50(sum(visible_step_win)/display_bet_basis)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "components_with_variable_visible_step_reward"
+        },
+        {
+          "facet_id": "visible_step_reward_p90",
+          "name_zh": "较高单次结算奖励",
+          "sample_unit": "component_positive_settlement_step",
+          "measurement": "P90(sum(visible_step_win)/display_bet_basis)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
           "subitem_source": "components_with_variable_visible_step_reward"
         }
       ]
@@ -229,29 +288,26 @@
       "category_id": "J",
       "display_order": 30,
       "kind": "alignment",
-      "player_question_zh": "一次动作会连续结算多少层，整条中奖链最终有多大？",
+      "player_question_zh": "一次玩家动作开始后，有奖结算通常会连续走多深？",
       "applies_when": {"profile_has_any": ["cascade", "continuous_settlement"]},
       "facets": [
         {
-          "facet_id": "total_depth",
-          "name_zh": "连续结算总深度",
+          "facet_id": "total_depth_bin_rate",
+          "name_zh": "连续结算深度档位占比",
           "sample_unit": "eligible_primary_action",
-          "measurement": "count(positive_continuous_settlement_steps); no_chain=0",
+          "measurement": "P(depth_bin in [0,1,2,3,4,5,6+])",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "natural_linear",
-          "subitem_source": "continuous_settlement_scopes_with_variable_depth"
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "continuous_settlement_fixed_depth_bins"
         },
         {
-          "facet_id": "chain_reward_size",
-          "name_zh": "整条连续结算奖励大小",
-          "sample_unit": "started_continuous_settlement_chain",
-          "measurement": "sum(visible_chain_win)/display_bet_basis | depth>0",
+          "facet_id": "total_depth_distribution_shift",
+          "name_zh": "连续结算深度整体移动量",
+          "sample_unit": "eligible_primary_action",
+          "measurement": "distribution(depth_bin in [0,1,2,3,4,5,6+])",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "nonnegative_multiplicative",
-          "position_transform": "log10_1p",
-          "subitem_source": "continuous_settlement_scopes_with_variable_chain_reward"
+          "distance_method": "total_variation",
+          "subitem_source": "continuous_settlement_fixed_depth_distributions"
         }
       ]
     },

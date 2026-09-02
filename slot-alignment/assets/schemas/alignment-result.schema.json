@@ -31,18 +31,19 @@
     "instance_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["instance_id", "facet_id", "subitem_id", "target", "candidate", "distance_method", "distance", "tolerance", "deviation_ratio", "pass_limit", "formal_grade", "status", "sample_evidence"],
+      "required": ["instance_id", "facet_id", "subitem_id", "target", "candidate", "distance_method", "distance", "tolerance", "deviation_ratio", "pass_limit", "score", "formal_grade", "status", "sample_evidence"],
       "properties": {
         "instance_id": {"type": "string", "minLength": 1},
         "facet_id": {"type": "string", "minLength": 1},
         "subitem_id": {"type": "string", "minLength": 1},
         "target": {},
         "candidate": {},
-        "distance_method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+        "distance_method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "absolute_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
         "distance": {"type": ["number", "null"], "minimum": 0},
         "tolerance": {"type": "number", "minimum": 0},
         "deviation_ratio": {"type": ["number", "null"], "minimum": 0},
         "pass_limit": {"type": "number", "minimum": 0},
+        "score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
         "formal_grade": {"$ref": "#/$defs/formal_grade"},
         "status": {"$ref": "#/$defs/status"},
         "sample_evidence": {"$ref": "#/$defs/sample_evidence"},
@@ -52,13 +53,14 @@
     "card_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["card_id", "name_zh", "category_id", "kind", "status", "formal_grade", "maximum_deviation_ratio", "worst_instance_id", "instances"],
+      "required": ["card_id", "name_zh", "category_id", "kind", "status", "score", "formal_grade", "maximum_deviation_ratio", "worst_instance_id", "instances"],
       "properties": {
         "card_id": {"pattern": "^[NJPB][1-9][0-9]*$"},
         "name_zh": {"type": "string", "minLength": 1},
         "category_id": {"enum": ["N", "J", "P", "B"]},
         "kind": {"enum": ["hard_gate", "alignment"]},
         "status": {"$ref": "#/$defs/status"},
+        "score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
         "formal_grade": {"$ref": "#/$defs/formal_grade"},
         "maximum_deviation_ratio": {"type": ["number", "null"], "minimum": 0},
         "worst_instance_id": {"type": ["string", "null"]},
@@ -79,10 +81,25 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["final_status", "final_grade", "hard_gate_failures", "alignment_failures", "insufficient_or_error_instances", "maximum_deviation_ratio", "worst_instance_id"],
+      "required": ["final_status", "final_grade", "composite_score", "category_scores", "score_scope", "planned_score_scope", "score_status", "hard_gate_failures", "alignment_failures", "insufficient_or_error_instances", "maximum_deviation_ratio", "worst_instance_id"],
       "properties": {
         "final_status": {"enum": ["通过", "不通过", "无法完整判定"]},
         "final_grade": {"enum": ["S", "A", "B", "C", "F", "U"]},
+        "composite_score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "category_scores": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["N", "J", "P", "B"],
+          "properties": {
+            "N": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+            "J": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+            "P": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+            "B": {"type": ["number", "null"], "minimum": 0, "maximum": 100}
+          }
+        },
+        "score_scope": {"const": ["N"]},
+        "planned_score_scope": {"const": ["N", "J", "P", "B"]},
+        "score_status": {"const": "NJ_READY_TOTAL_N_ONLY"},
         "hard_gate_failures": {"type": "integer", "minimum": 0},
         "alignment_failures": {"type": "integer", "minimum": 0},
         "insufficient_or_error_instances": {"type": "integer", "minimum": 0},

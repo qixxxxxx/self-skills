@@ -3,28 +3,27 @@
   "title": "Slot Alignment v5 Hard Gate Tolerance Policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "applies_to", "default_factor", "metric_factors", "locked_metrics", "audit_only_metrics", "calculation"],
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "applies_to", "c_tolerance_rules", "locked_metrics", "audit_only_metrics", "calculation"],
   "properties": {
     "schema_version": {"const": "slot-alignment.hard-gate-tolerance-policy.v5"},
     "policy_id": {"const": "player-experience-hard-gates-v5"},
-    "version": {"const": "5.0.0"},
+    "version": {"const": "5.1.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
     "source_path": {"const": "assets/policies/hard_gate_tolerance_policy.json"},
     "applies_to": {"type": "string", "minLength": 1},
-    "default_factor": {"const": 1.0},
-    "metric_factors": {
+    "c_tolerance_rules": {
       "type": "object",
       "additionalProperties": false,
       "required": ["N1", "N2", "N3", "N4", "N5", "N6"],
       "properties": {
-        "N1": {"const": 1.0},
-        "N2": {"const": 2.0},
-        "N3": {"const": 1.5},
-        "N4": {"const": 1.5},
-        "N5": {"const": 1.5},
-        "N6": {"const": 1.5}
+        "N1": {"const": {"method": "fixed_absolute", "value": 0.003}},
+        "N2": {"const": {"method": "target_relative_clamped", "relative": 0.06, "minimum": 0.008, "maximum": 0.02}},
+        "N3": {"const": {"method": "target_relative_by_rarity", "rare_target_below": 0.0005, "regular_relative": 0.12, "rare_relative": 0.2}},
+        "N4": {"const": {"method": "target_relative_clamped", "relative": 0.08, "minimum": 0.005, "maximum": 0.015}},
+        "N5": {"const": {"method": "scope_relative", "overall": 0.08, "non_feature": 0.08, "feature": 0.12, "feature_scope_source": "profile.metric_bindings.features[].feature_id"}},
+        "N6": {"const": {"method": "target_relative_clamped", "relative": 0.08, "minimum": 0.003, "maximum": 0.015}}
       }
     },
     "locked_metrics": {"const": ["N1"]},
@@ -32,9 +31,12 @@
     "calculation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["formula", "N1_target", "N1_distance", "N1_interval_forbidden", "target_mutation_forbidden", "N4_boundary", "N4_feature_buy_cost"],
+      "required": ["formula", "candidate_result_may_change_tolerance", "original_self_comparison_may_expand_tolerance", "insufficient_precision_action", "N1_target", "N1_distance", "N1_interval_forbidden", "target_mutation_forbidden", "N4_boundary", "N4_feature_buy_cost"],
       "properties": {
-        "formula": {"const": "effective_tolerance = base_tolerance * tolerance_factor"},
+        "formula": {"const": "effective_tolerance = frozen_player_perception_C_budget"},
+        "candidate_result_may_change_tolerance": {"const": false},
+        "original_self_comparison_may_expand_tolerance": {"const": false},
+        "insufficient_precision_action": {"const": "increase_sample_or_mark_U"},
         "N1_target": {"const": "single user-confirmed RTP scalar in (0,1]"},
         "N1_distance": {"const": "abs(candidate-target)"},
         "N1_interval_forbidden": {"const": true},

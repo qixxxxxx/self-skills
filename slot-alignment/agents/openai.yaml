@@ -1,5 +1,5 @@
 interface:
-  display_name: "Slot 原版体验对齐 v5.5.0"
+  display_name: "Slot 原版体验对齐 v5.7.0"
   short_description: "完整覆盖Runtime能力并逐项完成体验对齐和FORMAL交付"
   default_prompt: "使用 $slot-alignment 先审计全部已授权Runtime能力覆盖，再按N/J/P/B合同完成原版体验对齐与独立FORMAL验收。"
 policy:

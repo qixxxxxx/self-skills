@@ -8,20 +8,20 @@
   "frozen_before_candidate": true,
   "metric_library": {
     "id": "slot-alignment-player-experience-metrics",
-    "version": "5.2.0",
+    "version": "5.3.0",
     "path": "references/指标目录/index.json",
     "sha256": "<sha256>"
   },
   "policies": {
     "hard_gate_tolerance": {
       "id": "player-experience-hard-gates-v5",
-      "version": "5.0.0",
+      "version": "5.1.0",
       "path": "assets/policies/hard_gate_tolerance_policy.json",
       "sha256": "<sha256>"
     },
     "alignment_evaluation": {
       "id": "player-visible-alignment-evaluation-v5",
-      "version": "5.4.0",
+      "version": "5.6.0",
       "path": "assets/policies/alignment_evaluation_policy.json",
       "sha256": "<sha256>"
     },

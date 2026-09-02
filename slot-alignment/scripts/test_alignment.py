@@ -11,15 +11,18 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from alignment import (
+    _j_card_score,
     absolute_probability_error,
+    evaluate_contract,
     grade_ratio,
+    grade_score,
     joint_q99_tolerances,
     sha256_file,
     structural_wasserstein,
     total_variation,
     wasserstein_1d,
 )
-from compile_metric_contract import LIBRARY_PATH, subitems
+from compile_metric_contract import EVALUATION_POLICY_PATH, HARD_POLICY_PATH, LIBRARY_PATH, j_c_tolerance, n_c_tolerance, safe_id, subitems
 from validate_sample_plan import POLICY_PATH as SAMPLE_POLICY_PATH, derived_formal, validate_plan
 
 
@@ -63,16 +66,9 @@ class DistanceTests(unittest.TestCase):
     def test_formal_grade_boundaries(self):
         policy = load(ROOT / "assets/policies/alignment_evaluation_policy.json")
         grading = policy["formal_grading"]
-        expected_c = {"N1": 0.5, "N2": 2.0, "N3": 1.0, "N4": 2.0, "N5": 0.3, "N6": 1.0}
-        for card_id, limit in expected_c.items():
-            thresholds = grading["hard_gate_thresholds"][card_id]
-            self.assertEqual(thresholds["C"], limit)
-            self.assertEqual(grade_ratio(limit, thresholds), "C")
-            self.assertEqual(grade_ratio(limit + 1e-9, thresholds), "F")
-        thresholds = grading["alignment_thresholds"]["J"]
-        self.assertEqual(thresholds, {"S": 1.0, "A": 2.0, "B": 4.0, "C": 6.0})
-        self.assertEqual(grade_ratio(6.0, thresholds), "C")
-        self.assertEqual(grade_ratio(6.000000001, thresholds), "F")
+        self.assertEqual(grading["hard_gate_pass_limit"], 1.0)
+        for score, grade in [(100, "S"), (90, "S"), (89.999, "A"), (80, "A"), (79.999, "B"), (70, "B"), (69.999, "C"), (0, "C")]:
+            self.assertEqual(grade_score(score, policy), grade)
         thresholds = grading["alignment_thresholds"]["P"]
         self.assertEqual(thresholds, {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0})
         self.assertEqual(grade_ratio(8.0, thresholds), "C")
@@ -81,6 +77,79 @@ class DistanceTests(unittest.TestCase):
         self.assertEqual(thresholds, {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0})
         self.assertEqual(grade_ratio(10.0, thresholds), "C")
         self.assertEqual(grade_ratio(10.000000001, thresholds), "F")
+
+    def test_n_c_tolerance_rules(self):
+        policy = load(HARD_POLICY_PATH)
+        bindings = {"features": [{"feature_id": "free-spin"}]}
+        self.assertEqual(n_c_tolerance("N1", 0.96, {"scope": "overall"}, bindings, policy), 0.003)
+        self.assertAlmostEqual(n_c_tolerance("N2", 0.2, {"scope": "overall"}, bindings, policy), 0.012)
+        self.assertAlmostEqual(n_c_tolerance("N3", 0.001, {"feature": "free-spin"}, bindings, policy), 0.00012)
+        self.assertAlmostEqual(n_c_tolerance("N3", 0.0001, {"feature": "free-spin"}, bindings, policy), 0.00002)
+        self.assertEqual(n_c_tolerance("N4", 0.2, {"scope": "overall"}, bindings, policy), 0.015)
+        self.assertEqual(n_c_tolerance("N5", 10, {"scope": "overall"}, bindings, policy), 0.08)
+        self.assertEqual(n_c_tolerance("N5", 10, {"scope": "base"}, bindings, policy), 0.08)
+        self.assertEqual(n_c_tolerance("N5", 10, {"scope": "free-spin"}, bindings, policy), 0.12)
+        self.assertEqual(n_c_tolerance("N6", 0.2, {"component": "base"}, bindings, policy), 0.015)
+
+    def test_n_category_uses_equal_card_weight(self):
+        policy = load(ROOT / "assets/policies/alignment_evaluation_policy.json")
+        def instance(instance_id):
+            return {
+                "instance_id": instance_id,
+                "facet_id": "value",
+                "subitem_id": instance_id.rsplit(".", 1)[-1],
+                "target": 0.5,
+                "distance": {"method": "absolute_probability_error"},
+                "tolerance": {"effective": 0.1},
+                "status": "active",
+            }
+        contract = {
+            "task_id": "equal-card-weight",
+            "cards": [
+                {"card_id": "N1", "name_zh": "N1", "category_id": "N", "kind": "hard_gate", "instances": [instance("N1.value.one")]},
+                {"card_id": "N5", "name_zh": "N5", "category_id": "N", "kind": "hard_gate", "instances": [instance("N5.value.one"), instance("N5.value.two")]},
+            ],
+            "audits": [],
+        }
+        measurements = {"measurements": {
+            "N1.value.one": {"candidate": 0.5},
+            "N5.value.one": {"candidate": 0.52},
+            "N5.value.two": {"candidate": 0.52},
+        }}
+        result = evaluate_contract(contract, measurements, "FORMAL", "a" * 64, policy)
+        self.assertAlmostEqual(result["card_results"][0]["score"], 100.0)
+        self.assertAlmostEqual(result["card_results"][1]["score"], 80.0)
+        self.assertAlmostEqual(result["summary"]["composite_score"], 90.0)
+        self.assertEqual(result["summary"]["final_grade"], "S")
+
+    def test_j_c_tolerance_rules(self):
+        policy = load(EVALUATION_POLICY_PATH)
+        bindings = {"features": [{"feature_id": "free-spin"}]}
+        base, feature = {"component": "base"}, {"component": "free-spin"}
+        self.assertAlmostEqual(j_c_tolerance(0.0017, base, {"budget_rule": "J1.participation"}, bindings, policy), 0.0017)
+        self.assertAlmostEqual(j_c_tolerance(0.3, base, {"budget_rule": "J1.participation"}, bindings, policy), 0.025)
+        self.assertAlmostEqual(j_c_tolerance(0.3, feature, {"budget_rule": "J1.participation"}, bindings, policy), 0.03)
+        self.assertAlmostEqual(j_c_tolerance(0.01, base, {"budget_rule": "J2.primary_structure_categorical.bin"}, bindings, policy), 0.005)
+        self.assertAlmostEqual(j_c_tolerance(0.01, feature, {"budget_rule": "J2.primary_structure_categorical.bin"}, bindings, policy), 0.01)
+        self.assertAlmostEqual(j_c_tolerance(0.5, {**base, "natural_unit": 1}, {"budget_rule": "J2.primary_structure_summary.mean"}, bindings, policy), 1.0)
+        self.assertAlmostEqual(j_c_tolerance(0.01, base, {"budget_rule": "J2.simultaneous_win_count.bin"}, bindings, policy), 0.002)
+        self.assertAlmostEqual(j_c_tolerance(2.0, {**feature, "minimum_visible_reward_unit": 0.01}, {"budget_rule": "J2.visible_step_reward.p90"}, bindings, policy), 0.3)
+        self.assertAlmostEqual(j_c_tolerance(0.01, base, {"budget_rule": "J3.depth.bin"}, bindings, policy), 0.002)
+        self.assertAlmostEqual(j_c_tolerance({}, feature, {"budget_rule": "J3.depth.overall"}, bindings, policy), 0.04)
+
+    def test_j_card_hierarchical_scoring(self):
+        half_group = [
+            {"aggregation": {"dimension_id": "depth", "group_id": "base", "mode": "half_overall_half_items", "role": "overall"}},
+            {"aggregation": {"dimension_id": "depth", "group_id": "base", "mode": "half_overall_half_items", "role": "bin"}},
+            {"aggregation": {"dimension_id": "depth", "group_id": "base", "mode": "half_overall_half_items", "role": "bin"}},
+        ]
+        self.assertAlmostEqual(_j_card_score({"instances": half_group}, [{"score": 60}, {"score": 100}, {"score": 80}]), 75.0)
+        dimensions = [
+            {"aggregation": {"dimension_id": "primary_structure", "group_id": "ways", "mode": "mean_items", "role": "item"}},
+            {"aggregation": {"dimension_id": "simultaneous_win_count", "group_id": "base", "mode": "mean_items", "role": "item"}},
+            {"aggregation": {"dimension_id": "visible_step_reward", "group_id": "base", "mode": "mean_items", "role": "item"}},
+        ]
+        self.assertAlmostEqual(_j_card_score({"instances": dimensions}, [{"score": 80}, {"score": 60}, {"score": 100}]), 80.0)
 
 
 class EndToEndTests(unittest.TestCase):
@@ -100,7 +169,9 @@ class EndToEndTests(unittest.TestCase):
         return path
 
     def run_script(self, name, *args):
-        subprocess.run([sys.executable, str(ROOT / "scripts" / name), *map(str, args)], check=True, cwd=ROOT, capture_output=True, text=True)
+        result = subprocess.run([sys.executable, str(ROOT / "scripts" / name), *map(str, args)], cwd=ROOT, capture_output=True, text=True)
+        if result.returncode:
+            self.fail(result.stderr or result.stdout)
 
     def profile(self):
         return {
@@ -114,12 +185,14 @@ class EndToEndTests(unittest.TestCase):
                     "elements": ["a", "wild"],
                     "primary_size_axis": "ways",
                     "variable_primary_size": True,
+                    "primary_size_evaluation_mode": "summary_triplet",
+                    "primary_size_unit": 1,
                 }],
                 "win_groups": [
                     {"component_id": "base", "group_id": "regular", "role": "regular_other", "elements": ["a"]},
                     {"component_id": "base", "group_id": "special", "role": "special", "elements": ["wild"]},
                 ],
-                "continuous_settlements": [{"continuous_id": "cascade", "component_id": "base", "variable_depth": True, "variable_chain_reward": True}],
+                "continuous_settlements": [{"continuous_id": "cascade", "component_id": "base", "variable_depth": True}],
                 "special_mechanics": [{"mechanic_id": "wild-multiplier", "result_states": ["not-occurred", "not-effective", "2x", "3x"], "inactive_state_ids": ["not-occurred", "not-effective"]}],
                 "boards": [{
                     "board_scope_id": "base-initial",
@@ -134,7 +207,7 @@ class EndToEndTests(unittest.TestCase):
                     "spatial_symbols": ["wild"],
                 }],
                 "components": [
-                    {"component_id": "base", "display_bet_basis": "total-bet", "variable_simultaneous_win_count": True, "variable_visible_step_reward": True},
+                    {"component_id": "base", "display_bet_basis": "total-bet", "variable_simultaneous_win_count": True, "simultaneous_win_count_bins": ["1", "2", "3", "4+"], "variable_visible_step_reward": True, "minimum_visible_reward_unit": 0.01},
                     {"component_id": "free-spin", "display_bet_basis": "total-bet", "variable_simultaneous_win_count": False, "variable_visible_step_reward": False},
                 ],
                 "sigma_scopes": ["free-spin"],
@@ -150,19 +223,33 @@ class EndToEndTests(unittest.TestCase):
         else:
             source = {"method": "sealed_original_evidence"}
         if method == "range_error":
-            return {"value": {"min": 0.95, "max": 0.97}, "source": source, "base_tolerance": 0.001}
-        if method == "relative_error":
-            return {"value": 2.0, "source": source, "base_tolerance": 0.05}
-        if method == "absolute_probability_error":
-            return {"value": 0.96 if card["card_id"] == "N1" else 0.2, "source": source, "base_tolerance": 0.01}
-        if method == "total_variation":
-            return {"value": {"not-occurred": 0.5, "not-effective": 0.2, "2x": 0.2, "3x": 0.1}, "source": source}
-        if method == "wasserstein_1d":
+            record = {"value": {"min": 0.95, "max": 0.97}, "source": source, "base_tolerance": 0.001}
+        elif method == "relative_error":
+            record = {"value": 2.0, "source": source, "base_tolerance": 0.05}
+        elif method == "absolute_probability_error":
+            record = {"value": 0.96 if card["card_id"] == "N1" else 0.2, "source": source, "base_tolerance": 0.01}
+        elif method == "absolute_error":
+            record = {"value": 2.0, "source": source}
+        elif method == "total_variation":
+            if card["card_id"] == "J2":
+                value = {"1": 0.4, "2": 0.3, "3": 0.2, "4+": 0.1}
+            elif card["card_id"] == "J3":
+                value = {"0": 0.4, "1": 0.25, "2": 0.15, "3": 0.08, "4": 0.05, "5": 0.04, "6+": 0.03}
+            else:
+                value = {"not-occurred": 0.5, "not-effective": 0.2, "2x": 0.2, "3x": 0.1}
+            record = {"value": value, "source": source}
+        elif method == "wasserstein_1d":
             transform = facet.get("position_transform", "identity")
-            return {"value": {"0": 0.6, "1": 0.4}, "source": source, "distance": {"bin_positions": [0, 1], "position_transform": transform, **({"support_span": 1.0} if transform == "identity" else {})}}
-        state_kind = extra.get("state_kind", "symbol_position_density")
-        cells = [[0, 0]] if state_kind == "symbol_position_density" else [[0, 0], [0, 1], [1, 0], [1, 1]]
-        return {"value": {"board_shape": extra["board_shape"], "states": [{"cells": cells, "probability": 1.0}]}, "source": source}
+            record = {"value": {"0": 0.6, "1": 0.4}, "source": source, "distance": {"bin_positions": [0, 1], "position_transform": transform, **({"support_span": 1.0} if transform == "identity" else {})}}
+        else:
+            state_kind = extra.get("state_kind", "symbol_position_density")
+            cells = [[0, 0]] if state_kind == "symbol_position_density" else [[0, 0], [0, 1], [1, 0], [1, 1]]
+            record = {"value": {"board_shape": extra["board_shape"], "states": [{"cells": cells, "probability": 1.0}]}, "source": source}
+        if card["category_id"] == "J":
+            record["sample_count"] = 1000
+            if extra.get("requires_bin_count"):
+                record["bucket_count"] = 100
+        return record
 
     def sample_plan(self, probabilities=None):
         plan = {
@@ -290,12 +377,12 @@ class EndToEndTests(unittest.TestCase):
         for card in library["cards"]:
             for facet in card["facets"]:
                 for subitem, _scope, extra in subitems(card["card_id"], facet["facet_id"], bindings):
-                    instance_id = f"{card['card_id']}.{facet['facet_id']}.{subitem}"
+                    instance_id = f"{card['card_id']}.{facet['facet_id']}.{safe_id(subitem)}"
                     record = self.target_for(card, facet, extra)
                     if card["kind"] == "hard_gate" and "base_tolerance" not in record:
                         record["base_tolerance"] = 0.01
                     targets[instance_id] = record
-                    if card["kind"] == "alignment":
+                    if card["category_id"] in {"P", "B"}:
                         tolerances[instance_id] = 0.1
         profile_path, targets_path, joint_path, bindings_path, sample_plan_path, capabilities_path = [self.path(name) for name in ["profile.json", "targets.json", "joint.json", "bindings.json", "sample-plan.json", "runtime-capabilities.json"]]
         write(profile_path, profile)
@@ -374,19 +461,38 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(n1["target"], 0.96)
         self.assertEqual(n1["target_source"]["method"], "user_confirmed_exact_rtp")
         self.assertEqual(n1["distance"]["method"], "absolute_probability_error")
+        self.assertEqual(n1["tolerance"], {"source": "hard_gate_player_budget", "base": 0.003, "factor": 1.0, "effective": 0.003})
         j1_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "J1" for item in card["instances"]]
         self.assertEqual(j1_ids, ["J1.win_group_participation_rate.base.regular", "J1.win_group_participation_rate.base.special"])
         j2_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "J2" for item in card["instances"]]
         self.assertEqual(j2_ids, [
-            "J2.primary_structure_size.main-ways",
-            "J2.simultaneous_visible_win_count.base",
-            "J2.visible_step_reward_size.base",
+            "J2.primary_structure_mean.main-ways",
+            "J2.primary_structure_p50.main-ways",
+            "J2.primary_structure_p90.main-ways",
+            "J2.simultaneous_visible_win_count_bin_rate.base.1",
+            "J2.simultaneous_visible_win_count_bin_rate.base.2",
+            "J2.simultaneous_visible_win_count_bin_rate.base.3",
+            "J2.simultaneous_visible_win_count_bin_rate.base.4plus",
+            "J2.simultaneous_visible_win_count_distribution_shift.base",
+            "J2.visible_step_reward_mean.base",
+            "J2.visible_step_reward_p50.base",
+            "J2.visible_step_reward_p90.base",
         ])
         j3_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "J3" for item in card["instances"]]
-        self.assertEqual(j3_ids, ["J3.total_depth.cascade", "J3.chain_reward_size.cascade"])
+        self.assertEqual(j3_ids, [
+            "J3.total_depth_bin_rate.cascade.0",
+            "J3.total_depth_bin_rate.cascade.1",
+            "J3.total_depth_bin_rate.cascade.2",
+            "J3.total_depth_bin_rate.cascade.3",
+            "J3.total_depth_bin_rate.cascade.4",
+            "J3.total_depth_bin_rate.cascade.5",
+            "J3.total_depth_bin_rate.cascade.6plus",
+            "J3.total_depth_distribution_shift.cascade",
+        ])
         self.assertFalse(any("element_win_participation_rate" in item or "win_scale_by_depth" in item for item in j1_ids + j2_ids + j3_ids))
-        reward = next(item for card in contract["cards"] if card["card_id"] == "J2" for item in card["instances"] if item["facet_id"] == "visible_step_reward_size")
+        reward = next(item for card in contract["cards"] if card["card_id"] == "J2" for item in card["instances"] if item["facet_id"] == "visible_step_reward_mean")
         self.assertEqual(reward["scope"]["display_bet_basis"], "total-bet")
+        self.assertEqual(reward["tolerance"]["source"], "j_player_visible_budget")
         b1_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "B1" for item in card["instances"]]
         self.assertEqual(b1_ids, ["B1.symbol_group_density_per_board.base-initial.regular", "B1.key_symbol_count_per_board.base-initial.wild"])
         density = next(item for card in contract["cards"] if card["card_id"] == "B1" for item in card["instances"] if item["facet_id"] == "symbol_group_density_per_board")
@@ -408,6 +514,9 @@ class EndToEndTests(unittest.TestCase):
         result = load(result_path)
         Draft202012Validator(load(ROOT / "assets/schemas/alignment-result.schema.json")).validate(result)
         self.assertEqual(result["summary"]["final_grade"], "S")
+        self.assertEqual(result["summary"]["composite_score"], 100.0)
+        self.assertEqual(result["summary"]["score_scope"], ["N"])
+        self.assertEqual(result["summary"]["planned_score_scope"], ["N", "J", "P", "B"])
         self.assertTrue(all(item["formal_grade"] == "S" for card in result["card_results"] for item in card["instances"]))
         if result["summary"]["final_status"] != "通过":
             bad = [(item["instance_id"], item["status"], item.get("reason_zh")) for card in result["card_results"] for item in card["instances"] if item["status"] != "通过"]
@@ -417,6 +526,14 @@ class EndToEndTests(unittest.TestCase):
         self.run_script("validate_artifacts.py", "--contract", contract_path, "--result", result_path, "--stage3-gate", gate_path)
         self.run_script("render_alignment_report.py", "--contract", contract_path, "--result", result_path, "--output", report_path)
         self.assertIn("最终状态：**通过**", report_path.read_text(encoding="utf-8"))
+        n1_failure = copy.deepcopy(measurements)
+        n1_failure[n1["instance_id"]]["candidate"] = n1["target"] + 0.004
+        write(measurements_path, {"measurements": n1_failure, "audits": []})
+        self.run_script("evaluate_alignment.py", "--contract", contract_path, "--measurements", measurements_path, "--phase", "FORMAL", "--output", result_path)
+        failed_result = load(result_path)
+        self.assertEqual(failed_result["summary"]["final_status"], "不通过")
+        self.assertEqual(failed_result["summary"]["final_grade"], "F")
+        self.assertIsNone(failed_result["summary"]["composite_score"])
         first_alignment = next(instance for card in contract["cards"] if card["kind"] == "alignment" for instance in card["instances"])
         failing = copy.deepcopy(measurements)
         failing[first_alignment["instance_id"]]["candidate"] = 1.0 if isinstance(first_alignment["target"], (int, float)) else failing[first_alignment["instance_id"]]["candidate"]
@@ -508,15 +625,27 @@ class EndToEndTests(unittest.TestCase):
         bindings["components"][0]["variable_simultaneous_win_count"] = False
         bindings["components"][0]["variable_visible_step_reward"] = False
         bindings["continuous_settlements"][0]["variable_depth"] = False
-        bindings["continuous_settlements"][0]["variable_chain_reward"] = False
         for card_id, facet_id in [
-            ("J2", "primary_structure_size"),
-            ("J2", "simultaneous_visible_win_count"),
-            ("J2", "visible_step_reward_size"),
-            ("J3", "total_depth"),
-            ("J3", "chain_reward_size"),
+            ("J2", "primary_structure_bin_rate"),
+            ("J2", "primary_structure_distribution_shift"),
+            ("J2", "primary_structure_mean"),
+            ("J2", "primary_structure_p50"),
+            ("J2", "primary_structure_p90"),
+            ("J2", "simultaneous_visible_win_count_bin_rate"),
+            ("J2", "simultaneous_visible_win_count_distribution_shift"),
+            ("J2", "visible_step_reward_mean"),
+            ("J2", "visible_step_reward_p50"),
+            ("J2", "visible_step_reward_p90"),
+            ("J3", "total_depth_bin_rate"),
+            ("J3", "total_depth_distribution_shift"),
         ]:
             self.assertEqual(subitems(card_id, facet_id, bindings), [])
+
+    def test_removed_j3_field_is_rejected(self):
+        profile = self.profile()
+        profile["metric_bindings"]["continuous_settlements"][0]["variable_" + "chain_" + "reward"] = True
+        errors = list(Draft202012Validator(load(ROOT / "assets/schemas/game-profile-metric-bindings.schema.json")).iter_errors(profile))
+        self.assertTrue(errors)
 
     def test_delivery_runtime_version_must_equal_task_id(self):
         formal_path = self.path("formal-delivery.json")

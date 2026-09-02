@@ -16,7 +16,7 @@ def display(value):
 def render(contract, result):
     by_card = {item["card_id"]: item for item in result["card_results"]}
     lines = [
-        "# Slot Alignment v5指标判定报告",
+        "# Slot Alignment v5.7指标判定报告",
         "",
         "## 1. 冻结输入与Hash",
         "",
@@ -31,12 +31,12 @@ def render(contract, result):
     ]
     section_names = [("N", "3. N类数值门禁"), ("J", "4. J类中奖结算"), ("P", "5. P类玩法过程"), ("B", "6. B类盘面呈现")]
     for category, title in section_names:
-        lines += [f"## {title}", "", "| 卡/实例 | 目标 | 候选 | 容差 | 偏差倍数 | 通过上限 | 等级/状态 |", "|---|---:|---:|---:|---:|---:|---|"]
+        lines += [f"## {title}", "", "| 卡/实例 | 目标 | 候选 | C级容差 | 偏差倍数 | 单项/卡分 | 等级/状态 |", "|---|---:|---:|---:|---:|---:|---|"]
         for card in [item for item in contract["cards"] if item["category_id"] == category]:
             card_result = by_card[card["card_id"]]
-            lines.append(f"| **{card['card_id']} {card['name_zh']}** | — | — | — | {display(card_result['maximum_deviation_ratio'])} | — | **{card_result['formal_grade']} / {card_result['status']}** |")
+            lines.append(f"| **{card['card_id']} {card['name_zh']}** | — | — | — | {display(card_result['maximum_deviation_ratio'])} | {display(card_result['score'])} | **{card_result['formal_grade']} / {card_result['status']}** |")
             for item in card_result["instances"]:
-                lines.append(f"| {item['instance_id']} | {display(item['target'])} | {display(item['candidate'])} | {display(item['tolerance'])} | {display(item['deviation_ratio'])} | {display(item['pass_limit'])} | {item['formal_grade']} / {item['status']} |")
+                lines.append(f"| {item['instance_id']} | {display(item['target'])} | {display(item['candidate'])} | {display(item['tolerance'])} | {display(item['deviation_ratio'])} | {display(item['score'])} | {item['formal_grade']} / {item['status']} |")
         lines.append("")
     lines += ["## 7. 审计与派生展示", ""]
     if result["audits"]:
@@ -56,19 +56,23 @@ def render(contract, result):
         "",
         "## 9. CALIBRATION与FORMAL证据",
         "",
-        "本报告只呈现当前机器结果；候选排序按失败数量、最大偏差倍数和偏差倍数总和确定，不使用权重。",
+        "本报告只呈现当前机器结果；任一N/J/P/B必需项失败时不得用分数补偿。",
         "",
         "## 10. 最终状态",
         "",
         f"- 最终状态：**{summary['final_status']}**",
-        f"- FORMAL等级：**{summary['final_grade']}**",
+        f"- 当前阶段等级：**{summary['final_grade']}**",
+        f"- N类阶段分（当前等级使用）：{display(summary['category_scores']['N'])}",
+        f"- J类分（已计算，跨分类权重待授权）：{display(summary['category_scores']['J'])}",
+        f"- 当前评分范围：{', '.join(summary['score_scope'])}",
+        f"- 完整框架预留：{', '.join(summary['planned_score_scope'])}",
         f"- 硬门禁失败实例：{summary['hard_gate_failures']}",
         f"- J/P/B失败实例：{summary['alignment_failures']}",
         f"- 样本不足或计算异常实例：{summary['insufficient_or_error_instances']}",
         f"- 最大偏差倍数：{display(summary['maximum_deviation_ratio'])}",
         f"- 最差实例：{display(summary['worst_instance_id'])}",
         "",
-        "> 本报告不使用权重、综合分或指标豁免。",
+        "> 当前N卡分、J卡分和J类分已落定；N/J跨分类权重与P/B分数尚未授权，所以当前等级仍只使用N类阶段分。通过状态仍要求所有N/J/P/B必需项通过。",
         "",
     ]
     return "\n".join(lines)

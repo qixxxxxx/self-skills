@@ -74,6 +74,13 @@ def absolute_probability_error(target, candidate):
     return abs(candidate - target)
 
 
+def absolute_error(target, candidate):
+    target, candidate = float(target), float(candidate)
+    if not math.isfinite(target) or not math.isfinite(candidate):
+        raise ValueError("数值必须有限")
+    return abs(candidate - target)
+
+
 def relative_error(target, candidate, zero_floor=1e-12):
     target, candidate = float(target), float(candidate)
     return abs(candidate - target) / max(abs(target), float(zero_floor))
@@ -193,6 +200,8 @@ def calculate_distance(contract, target, candidate):
     method = contract["method"]
     if method == "absolute_probability_error":
         return absolute_probability_error(target, candidate)
+    if method == "absolute_error":
+        return absolute_error(target, candidate)
     if method == "relative_error":
         return relative_error(target, candidate, contract.get("zero_floor", 1e-12))
     if method == "range_error":
@@ -258,14 +267,22 @@ def _sample_evidence(value):
 
 def grade_thresholds(card, evaluation_policy):
     grading = evaluation_policy["formal_grading"]
-    if card["category_id"] == "N":
-        return grading["hard_gate_thresholds"][card["card_id"]]
+    if card["category_id"] in {"N", "J"}:
+        return {"C": float(grading["hard_gate_pass_limit"])}
     return grading["alignment_thresholds"][card["category_id"]]
 
 
 def grade_ratio(ratio, thresholds):
     for grade in ("S", "A", "B", "C"):
         if ratio <= float(thresholds[grade]):
+            return grade
+    return "F"
+
+
+def grade_score(score, evaluation_policy):
+    thresholds = evaluation_policy["composite_scoring"]["grade_thresholds"]
+    for grade in ("S", "A", "B", "C"):
+        if score >= float(thresholds[grade]):
             return grade
     return "F"
 
@@ -300,6 +317,7 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
             "tolerance": instance["tolerance"]["effective"],
             "deviation_ratio": None,
             "pass_limit": pass_limit,
+            "score": None,
             "formal_grade": "U",
             "status": status,
             "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
@@ -317,6 +335,7 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
             "tolerance": instance["tolerance"]["effective"],
             "deviation_ratio": None,
             "pass_limit": pass_limit,
+            "score": None,
             "formal_grade": "NA",
             "status": "不适用",
             "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
@@ -329,10 +348,17 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
         passed = distance == 0
         ratio = 0.0 if passed else None
         grade = evaluation_policy["formal_grading"]["deterministic_exact"]["pass_grade" if passed else "fail_grade"]
+        score = 100.0 if card["category_id"] in {"N", "J"} and passed else (0.0 if card["category_id"] in {"N", "J"} else None)
     else:
         ratio = distance / tolerance
-        grade = grade_ratio(ratio, thresholds)
-        passed = grade in evaluation_policy["formal_grading"]["pass_grades"]
+        if card["category_id"] in {"N", "J"}:
+            score = max(0.0, 100.0 * (1.0 - ratio))
+            passed = ratio <= pass_limit
+            grade = grade_score(score, evaluation_policy) if passed else "F"
+        else:
+            score = None
+            grade = grade_ratio(ratio, thresholds)
+            passed = grade in evaluation_policy["formal_grading"]["pass_grades"]
     return {
         "instance_id": instance["instance_id"],
         "facet_id": instance["facet_id"],
@@ -344,6 +370,7 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
         "tolerance": tolerance,
         "deviation_ratio": ratio,
         "pass_limit": pass_limit,
+        "score": score,
         "formal_grade": grade,
         "status": "通过" if passed else "不通过",
         "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
@@ -351,7 +378,30 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
     }
 
 
-def aggregate_card(card, instance_results):
+def _j_card_score(card, instance_results):
+    grouped = {}
+    for instance, result in zip(card["instances"], instance_results):
+        aggregation = instance.get("aggregation")
+        if not aggregation or not finite_number(result.get("score")):
+            continue
+        key = (aggregation["dimension_id"], aggregation["group_id"])
+        grouped.setdefault(key, {"mode": aggregation["mode"], "items": [], "overall": []})[aggregation["role"] if aggregation["role"] == "overall" else "items"].append(result["score"])
+    dimension_scores = {}
+    for (dimension_id, _group_id), group in grouped.items():
+        if group["mode"] == "half_overall_half_items":
+            if not group["overall"] or not group["items"]:
+                continue
+            score = sum(group["overall"]) / len(group["overall"]) * 0.5 + sum(group["items"]) / len(group["items"]) * 0.5
+        else:
+            if not group["items"]:
+                continue
+            score = sum(group["items"]) / len(group["items"])
+        dimension_scores.setdefault(dimension_id, []).append(score)
+    scores = [sum(values) / len(values) for values in dimension_scores.values() if values]
+    return sum(scores) / len(scores) if scores else None
+
+
+def aggregate_card(card, instance_results, evaluation_policy):
     statuses = [item["status"] for item in instance_results]
     if "计算异常" in statuses:
         status = "计算异常"
@@ -366,13 +416,23 @@ def aggregate_card(card, instance_results):
     ranked = [item for item in instance_results if finite_number(item.get("deviation_ratio"))]
     maximum = max(ranked, key=lambda item: item["deviation_ratio"], default=None)
     worst = _worst_instance(instance_results)
+    score = None
+    grade = worst_grade(item["formal_grade"] for item in instance_results)
+    if card["category_id"] == "N" and status == "通过":
+        scores = [item["score"] for item in instance_results if finite_number(item.get("score"))]
+        score = sum(scores) / len(scores) if scores else None
+        grade = grade_score(score, evaluation_policy) if score is not None else "U"
+    elif card["category_id"] == "J" and status == "通过":
+        score = _j_card_score(card, instance_results)
+        grade = grade_score(score, evaluation_policy) if score is not None else "U"
     return {
         "card_id": card["card_id"],
         "name_zh": card["name_zh"],
         "category_id": card["category_id"],
         "kind": card["kind"],
         "status": status,
-        "formal_grade": worst_grade(item["formal_grade"] for item in instance_results),
+        "score": score,
+        "formal_grade": grade,
         "maximum_deviation_ratio": maximum.get("deviation_ratio") if maximum else None,
         "worst_instance_id": worst.get("instance_id") if worst else None,
         "instances": instance_results,
@@ -399,13 +459,14 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
                 "category_id": card["category_id"],
                 "kind": card["kind"],
                 "status": "不适用",
+                "score": None,
                 "formal_grade": "NA",
                 "maximum_deviation_ratio": None,
                 "worst_instance_id": None,
                 "instances": [],
             })
         else:
-            card_results.append(aggregate_card(card, results))
+            card_results.append(aggregate_card(card, results, evaluation_policy))
     all_instances = [item for card in card_results for item in card["instances"]]
     unknown = sum(item["status"] in UNKNOWN_STATUSES for item in all_instances)
     hard_failures = sum(item["status"] == "不通过" for card in card_results if card["kind"] == "hard_gate" for item in card["instances"])
@@ -413,8 +474,17 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
     ranked = [item for item in all_instances if finite_number(item.get("deviation_ratio"))]
     maximum = max(ranked, key=lambda item: item["deviation_ratio"], default=None)
     worst = _worst_instance(all_instances)
-    final_grade = "U" if unknown else worst_grade(item["formal_grade"] for item in all_instances)
     final_status = "无法完整判定" if unknown else ("不通过" if hard_failures or alignment_failures else "通过")
+    category_scores = {category: None for category in ("N", "J", "P", "B")}
+    n_cards = [card for card in card_results if card["category_id"] == "N" and card["status"] != "不适用"]
+    if n_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in n_cards):
+        category_scores["N"] = sum(card["score"] for card in n_cards) / len(n_cards)
+    j_cards = [card for card in card_results if card["category_id"] == "J" and card["status"] != "不适用"]
+    if j_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in j_cards):
+        category_scores["J"] = sum(card["score"] for card in j_cards) / len(j_cards)
+    scoped_scores = [category_scores[category] for category in evaluation_policy["composite_scoring"]["score_scope"]]
+    composite_score = sum(scoped_scores) / len(scoped_scores) if scoped_scores and all(finite_number(item) for item in scoped_scores) else None
+    final_grade = "U" if unknown else ("F" if hard_failures or alignment_failures else grade_score(composite_score, evaluation_policy))
     audit_measurements = {item.get("audit_id"): item for item in measurements.get("audits", [])}
     audit_results = []
     for audit in contract.get("audits", []):
@@ -435,6 +505,11 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
         "summary": {
             "final_status": final_status,
             "final_grade": final_grade,
+            "composite_score": composite_score,
+            "category_scores": category_scores,
+            "score_scope": evaluation_policy["composite_scoring"]["score_scope"],
+            "planned_score_scope": evaluation_policy["composite_scoring"]["planned_score_scope"],
+            "score_status": evaluation_policy["composite_scoring"]["score_status"],
             "hard_gate_failures": hard_failures,
             "alignment_failures": alignment_failures,
             "insufficient_or_error_instances": unknown,

@@ -17,8 +17,8 @@
         "top_level_categories_are_mutually_exclusive": {"const": true},
         "all_profile_matched_formal_subitems_required": {"const": true},
         "formal_metric_waiver_allowed": {"const": false},
-        "weights_allowed": {"const": false},
-        "composite_score_allowed": {"const": false},
+        "weights_allowed": {"const": true},
+        "composite_score_allowed": {"const": true},
         "card_status_aggregation": {"const": "worst_subitem"},
         "derived_values_are_audit_only": {"const": true}
       }
@@ -65,7 +65,7 @@
         "sample_unit": {"type": "string", "minLength": 1},
         "measurement": {"type": "string", "minLength": 1},
         "target_source": {"type": "string", "minLength": 1},
-        "distance_method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+        "distance_method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "absolute_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
         "subitem_source": {"type": "string", "minLength": 1},
         "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative"]},
         "support_span": {"type": "number", "exclusiveMinimum": 0},

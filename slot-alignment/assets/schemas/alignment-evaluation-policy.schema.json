@@ -3,11 +3,11 @@
   "title": "Slot Alignment v5 Evaluation Policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "distance_methods", "tolerance", "formal_grading", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "composite_scoring", "distance_methods", "j_player_budget_rules", "tolerance", "formal_grading", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
   "properties": {
     "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v5"},
     "policy_id": {"const": "player-visible-alignment-evaluation-v5"},
-    "version": {"const": "5.4.0"},
+    "version": {"const": "5.6.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
@@ -16,23 +16,43 @@
       "type": "object",
       "required": ["score_scale_enabled", "weights_enabled", "composite_score_enabled", "metric_compensation_enabled", "formal_metric_waiver_enabled", "all_hard_gates_must_pass", "all_active_alignment_subitems_must_pass", "card_aggregation", "conditional_group_aggregation"],
       "properties": {
-        "score_scale_enabled": {"const": false},
-        "weights_enabled": {"const": false},
-        "composite_score_enabled": {"const": false},
+        "score_scale_enabled": {"const": true},
+        "weights_enabled": {"const": true},
+        "composite_score_enabled": {"const": true},
         "metric_compensation_enabled": {"const": false},
         "formal_metric_waiver_enabled": {"const": false},
         "all_hard_gates_must_pass": {"const": true},
         "all_active_alignment_subitems_must_pass": {"const": true},
-        "card_aggregation": {"const": "maximum_deviation_ratio"},
+        "card_aggregation": {"const": "category_specific_hierarchy_after_all_pass"},
         "conditional_group_aggregation": {"const": "worst_group"}
       }
     },
-    "distance_methods": {"type": "object", "required": ["absolute_probability_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+    "composite_scoring": {
+      "const": {
+        "scale": [0.0, 100.0],
+        "gate_before_grade": true,
+        "instance_formula": "max(0, 100 * (1 - deviation_ratio))",
+        "card_aggregation": "mean_active_instance_scores",
+        "category_aggregation": "mean_active_card_scores_equal_card_weight",
+        "available_category_scores": ["N", "J"],
+        "score_scope": ["N"],
+        "planned_score_scope": ["N", "J", "P", "B"],
+        "reserved_categories": ["P", "B"],
+        "complete_composite_status": "NJ_category_scores_ready_cross_category_weight_pending",
+        "future_total_aggregation": "pending_user_authorization_for_NJ_weight_and_PB_scoring",
+        "score_status": "NJ_READY_TOTAL_N_ONLY",
+        "unscored_categories_must_still_pass": true,
+        "grade_thresholds": {"S": 90.0, "A": 80.0, "B": 70.0, "C": 0.0}
+      }
+    },
+    "distance_methods": {"type": "object", "required": ["absolute_probability_error", "absolute_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+    "j_player_budget_rules": {"type": "object", "required": ["minimum_original_sample", "minimum_categorical_bin_count", "instance_score_formula", "J1", "J2", "J3", "category_score", "cross_category_weight"]},
     "tolerance": {
       "type": "object",
-      "required": ["alignment_source", "joint_confidence_quantile", "joint_statistic", "factor", "maximum_perceptual_cap", "deterministic_rule_tolerance", "freeze_before_candidate", "candidate_result_may_change_tolerance"],
+      "required": ["J_source", "P_B_source", "joint_confidence_quantile", "joint_statistic", "factor", "maximum_perceptual_cap", "deterministic_rule_tolerance", "freeze_before_candidate", "candidate_result_may_change_tolerance"],
       "properties": {
-        "alignment_source": {"const": "sealed_original_joint_self_comparison"},
+        "J_source": {"const": "frozen_player_visible_C_budget"},
+        "P_B_source": {"const": "sealed_original_joint_self_comparison"},
         "joint_confidence_quantile": {"const": 0.99},
         "joint_statistic": {"const": "worst_standardized_active_subitem"},
         "factor": {"const": 1.0},
@@ -45,7 +65,7 @@
     "formal_grading": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["grades", "pass_grades", "labels_zh", "aggregation", "hard_gate_thresholds", "alignment_thresholds", "deterministic_exact"],
+      "required": ["grades", "pass_grades", "labels_zh", "aggregation", "hard_gate_pass_limit", "alignment_thresholds", "deterministic_exact"],
       "properties": {
         "grades": {"const": ["S", "A", "B", "C", "F", "U", "NA"]},
         "pass_grades": {"const": ["S", "A", "B", "C"]},
@@ -60,20 +80,10 @@
             "NA": "不适用"
           }
         },
-        "aggregation": {"const": "worst_grade"},
-        "hard_gate_thresholds": {
-          "const": {
-            "N1": {"S": 0.125, "A": 0.25, "B": 0.375, "C": 0.5},
-            "N2": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
-            "N3": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0},
-            "N4": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
-            "N5": {"S": 0.075, "A": 0.15, "B": 0.225, "C": 0.3},
-            "N6": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0}
-          }
-        },
+        "aggregation": {"const": "all_required_pass_then_scoped_composite_score"},
+        "hard_gate_pass_limit": {"const": 1.0},
         "alignment_thresholds": {
           "const": {
-            "J": {"S": 1.0, "A": 2.0, "B": 4.0, "C": 6.0},
             "P": {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0},
             "B": {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0}
           }

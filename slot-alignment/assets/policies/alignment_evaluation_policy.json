@@ -1,26 +1,46 @@
 {
   "schema_version": "slot-alignment.alignment-evaluation-policy.v5",
   "policy_id": "player-visible-alignment-evaluation-v5",
-  "version": "5.4.0",
+  "version": "5.6.0",
   "status": "已授权",
   "authority": "用户",
-  "authorized_at": "2026-09-01",
-  "applies_to_metric_library": "5.2.0",
+  "authorized_at": "2026-09-02",
+  "applies_to_metric_library": "5.3.0",
   "decision_model": {
-    "score_scale_enabled": false,
-    "weights_enabled": false,
-    "composite_score_enabled": false,
+    "score_scale_enabled": true,
+    "weights_enabled": true,
+    "composite_score_enabled": true,
     "metric_compensation_enabled": false,
     "formal_metric_waiver_enabled": false,
     "all_hard_gates_must_pass": true,
     "all_active_alignment_subitems_must_pass": true,
-    "card_aggregation": "maximum_deviation_ratio",
+    "card_aggregation": "category_specific_hierarchy_after_all_pass",
     "conditional_group_aggregation": "worst_group"
+  },
+  "composite_scoring": {
+    "scale": [0.0, 100.0],
+    "gate_before_grade": true,
+    "instance_formula": "max(0, 100 * (1 - deviation_ratio))",
+    "card_aggregation": "mean_active_instance_scores",
+    "category_aggregation": "mean_active_card_scores_equal_card_weight",
+    "available_category_scores": ["N", "J"],
+    "score_scope": ["N"],
+    "planned_score_scope": ["N", "J", "P", "B"],
+    "reserved_categories": ["P", "B"],
+    "complete_composite_status": "NJ_category_scores_ready_cross_category_weight_pending",
+    "future_total_aggregation": "pending_user_authorization_for_NJ_weight_and_PB_scoring",
+    "score_status": "NJ_READY_TOTAL_N_ONLY",
+    "unscored_categories_must_still_pass": true,
+    "grade_thresholds": {"S": 90.0, "A": 80.0, "B": 70.0, "C": 0.0}
   },
   "distance_methods": {
     "absolute_probability_error": {
       "formula": "abs(candidate-target)",
       "range": [0.0, 1.0]
+    },
+    "absolute_error": {
+      "formula": "abs(candidate-target)",
+      "range": [0.0, null]
     },
     "total_variation": {
       "formula": "0.5*sum(abs(candidate_i-target_i))",
@@ -44,8 +64,62 @@
       "distribution_distance": "wasserstein_over_structural_states"
     }
   },
+  "j_player_budget_rules": {
+    "minimum_original_sample": 500,
+    "minimum_categorical_bin_count": 30,
+    "instance_score_formula": "max(0, 100 * (1 - distance/C_budget))",
+    "J1": {
+      "base": {"relative": 0.1, "ordinary_floor": 0.008, "maximum": 0.025},
+      "feature": {"relative": 0.12, "ordinary_floor": 0.008, "maximum": 0.03},
+      "rare_group_floor_rule": "min(target, ordinary_floor)",
+      "component_score": "mean_group_scores",
+      "card_score": "mean_component_scores"
+    },
+    "J2": {
+      "primary_structure_categorical": {
+        "base_bin": {"relative": 0.2, "minimum": 0.005, "maximum": 0.02},
+        "feature_bin": {"relative": 0.25, "minimum": 0.01, "maximum": 0.03},
+        "base_overall": 0.03,
+        "feature_overall": 0.05,
+        "group_score": "overall_50_percent_plus_mean_bins_50_percent"
+      },
+      "primary_structure_summary": {
+        "base": {"mean_relative": 0.1, "p50_relative": 0.12, "p90_relative": 0.12},
+        "feature": {"mean_relative": 0.12, "p50_relative": 0.15, "p90_relative": 0.15},
+        "minimum_budget": "one_frozen_natural_unit",
+        "group_score": "mean_mean_p50_p90_scores"
+      },
+      "simultaneous_win_count": {
+        "base_bin": {"relative": 0.1, "minimum": 0.002, "maximum": 0.015},
+        "feature_bin": {"relative": 0.12, "minimum": 0.003, "maximum": 0.02},
+        "base_overall": 0.03,
+        "feature_overall": 0.04,
+        "default_bins": ["1", "2", "3", "4+"],
+        "group_score": "overall_50_percent_plus_mean_bins_50_percent"
+      },
+      "visible_step_reward": {
+        "base": {"mean_relative": 0.08, "p50_relative": 0.12, "p90_relative": 0.12},
+        "feature": {"mean_relative": 0.12, "p50_relative": 0.15, "p90_relative": 0.15},
+        "minimum_budget": "one_frozen_minimum_visible_reward_unit",
+        "group_score": "mean_mean_p50_p90_scores"
+      },
+      "card_score": "mean_active_dimension_scores_equal_dimension_weight"
+    },
+    "J3": {
+      "depth_bins": ["0", "1", "2", "3", "4", "5", "6+"],
+      "base_bin": {"relative": 0.1, "minimum": 0.002, "maximum": 0.015},
+      "feature_bin": {"relative": 0.12, "minimum": 0.003, "maximum": 0.02},
+      "base_overall": 0.03,
+      "feature_overall": 0.04,
+      "component_score": "overall_50_percent_plus_mean_bins_50_percent",
+      "card_score": "mean_component_scores"
+    },
+    "category_score": "mean_active_J1_J2_J3_card_scores_equal_card_weight",
+    "cross_category_weight": "pending_user_authorization"
+  },
   "tolerance": {
-    "alignment_source": "sealed_original_joint_self_comparison",
+    "J_source": "frozen_player_visible_C_budget",
+    "P_B_source": "sealed_original_joint_self_comparison",
     "joint_confidence_quantile": 0.99,
     "joint_statistic": "worst_standardized_active_subitem",
     "factor": 1.0,
@@ -66,17 +140,9 @@
       "U": "无法判定",
       "NA": "不适用"
     },
-    "aggregation": "worst_grade",
-    "hard_gate_thresholds": {
-      "N1": {"S": 0.125, "A": 0.25, "B": 0.375, "C": 0.5},
-      "N2": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
-      "N3": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0},
-      "N4": {"S": 0.5, "A": 1.0, "B": 1.5, "C": 2.0},
-      "N5": {"S": 0.075, "A": 0.15, "B": 0.225, "C": 0.3},
-      "N6": {"S": 0.25, "A": 0.5, "B": 0.75, "C": 1.0}
-    },
+    "aggregation": "all_required_pass_then_scoped_composite_score",
+    "hard_gate_pass_limit": 1.0,
     "alignment_thresholds": {
-      "J": {"S": 1.0, "A": 2.0, "B": 4.0, "C": 6.0},
       "P": {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0},
       "B": {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0}
     },
@@ -100,8 +166,8 @@
   ],
   "final_status_rules": {
     "无法完整判定": "任一正式实例为样本不足、计算异常或存在合同缺口",
-    "不通过": "不存在未判定实例且任一正式实例为F级",
-    "通过": "全部必需正式实例为S、A、B或C级"
+    "不通过": "不存在未判定实例且任一必需正式实例未达C级最低通过线",
+    "通过": "全部必需正式实例达到C级最低通过线，再按当前score_scope内阶段分评C/B/A/S"
   },
   "audit_policy": {
     "affects_formal_status": false,

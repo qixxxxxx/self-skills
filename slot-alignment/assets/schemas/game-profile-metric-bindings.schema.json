@@ -44,7 +44,10 @@
         "settlement_type": {"enum": ["payline", "ways", "count_pay", "cluster", "full_screen", "other"]},
         "elements": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
         "primary_size_axis": {"enum": ["matched_reels", "ways", "symbol_count", "cluster_cells", "cleared_cells", "custom"]},
-        "variable_primary_size": {"type": "boolean"}
+        "variable_primary_size": {"type": "boolean"},
+        "primary_size_evaluation_mode": {"enum": ["categorical_distribution", "summary_triplet"]},
+        "primary_size_bins": {"type": "array", "minItems": 2, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "primary_size_unit": {"type": "number", "exclusiveMinimum": 0}
       }
     },
     "win_group": {
@@ -61,12 +64,11 @@
     "continuous": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["continuous_id", "component_id", "variable_depth", "variable_chain_reward"],
+      "required": ["continuous_id", "component_id", "variable_depth"],
       "properties": {
         "continuous_id": {"$ref": "#/$defs/id"},
         "component_id": {"$ref": "#/$defs/id"},
-        "variable_depth": {"type": "boolean"},
-        "variable_chain_reward": {"type": "boolean"}
+        "variable_depth": {"type": "boolean"}
       }
     },
     "component": {
@@ -77,7 +79,9 @@
         "component_id": {"$ref": "#/$defs/id"},
         "display_bet_basis": {"$ref": "#/$defs/id"},
         "variable_simultaneous_win_count": {"type": "boolean"},
-        "variable_visible_step_reward": {"type": "boolean"}
+        "simultaneous_win_count_bins": {"type": "array", "minItems": 2, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "variable_visible_step_reward": {"type": "boolean"},
+        "minimum_visible_reward_unit": {"type": "number", "exclusiveMinimum": 0}
       }
     },
     "mechanic": {

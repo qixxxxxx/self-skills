@@ -48,7 +48,7 @@
       "type": "object",
       "required": ["method"],
       "properties": {
-        "method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
+        "method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "absolute_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
         "bin_positions": {"type": "array", "minItems": 2, "items": {"type": "number"}},
         "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative"]},
         "position_transform": {"enum": ["identity", "log10_1p"]},
@@ -83,7 +83,7 @@
       "additionalProperties": false,
       "required": ["source", "base", "factor", "effective"],
       "properties": {
-        "source": {"enum": ["hard_gate_task_contract", "sealed_original_joint_self_comparison", "deterministic_exact"]},
+        "source": {"enum": ["hard_gate_player_budget", "j_player_visible_budget", "sealed_original_joint_self_comparison", "deterministic_exact"]},
         "base": {"type": "number", "minimum": 0},
         "factor": {"type": "number", "exclusiveMinimum": 0},
         "effective": {"type": "number", "minimum": 0},
@@ -105,6 +105,17 @@
         "target": {},
         "distance": {"$ref": "#/$defs/distance"},
         "tolerance": {"$ref": "#/$defs/tolerance"},
+        "aggregation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dimension_id", "group_id", "mode", "role"],
+          "properties": {
+            "dimension_id": {"type": "string", "minLength": 1},
+            "group_id": {"type": "string", "minLength": 1},
+            "mode": {"enum": ["mean_items", "half_overall_half_items"]},
+            "role": {"enum": ["item", "bin", "overall"]}
+          }
+        },
         "status": {"enum": ["active", "不适用"]},
         "inapplicability_reason": {"type": "string", "minLength": 1}
       }
