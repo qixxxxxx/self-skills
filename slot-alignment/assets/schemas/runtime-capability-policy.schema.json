@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Runtime Capability Policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "version", "status", "source_path", "required_layers", "required_capability_ids", "rules", "allowed_exemptions"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.runtime-capability-policy.v1"},
+    "policy_id": {"const": "slot-alignment-runtime-capability-coverage-v1"},
+    "version": {"const": "1.0.0"},
+    "status": {"const": "已授权"},
+    "source_path": {"const": "assets/policies/runtime_capability_policy.json"},
+    "required_layers": {
+      "const": ["certified_script", "server_runtime", "candidate_generator", "calibration_simulator", "formal_simulator", "optimizer"]
+    },
+    "required_capability_ids": {
+      "const": ["state-reel-set-pool-cardinality", "reel-set-selection-scope", "reel-strip-symbol-count-and-order", "stop-weights", "refill-profile-count", "refill-symbol-weights", "height-weights", "feature-mechanic-weights"]
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorized_native_capability_must_be_fully_covered",
+        "implementation_must_not_narrow_authorized_cardinality",
+        "optimizer_exposure_and_sensitivity_plan_required",
+        "equivalence_required_before_calibration",
+        "search_cost_is_not_valid_exemption",
+        "candidate_failure_requires_planned_capability_escalation",
+        "status_query_does_not_change_execution_scope"
+      ],
+      "properties": {
+        "authorized_native_capability_must_be_fully_covered": {"const": true},
+        "implementation_must_not_narrow_authorized_cardinality": {"const": true},
+        "optimizer_exposure_and_sensitivity_plan_required": {"const": true},
+        "equivalence_required_before_calibration": {"const": true},
+        "search_cost_is_not_valid_exemption": {"const": true},
+        "candidate_failure_requires_planned_capability_escalation": {"const": true},
+        "status_query_does_not_change_execution_scope": {"const": true}
+      }
+    },
+    "allowed_exemptions": {
+      "const": ["explicit_user_lock", "server_runtime_not_deliverable", "pre_candidate_mathematical_irrelevance_proof", "game_profile_not_applicable"]
+    }
+  }
+}

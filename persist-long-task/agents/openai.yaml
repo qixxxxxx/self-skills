@@ -1,6 +1,6 @@
 interface:
   display_name: "长任务持久化"
-  short_description: "通过有界历史、检查点与恢复门禁让长任务可靠续跑"
-  default_prompt: "使用 $persist-long-task 为这个长任务建立可恢复状态、近期轨迹和检查点并持续执行。"
+  short_description: "通过检查点和恢复门禁持续执行，状态查询也不中断"
+  default_prompt: "使用 $persist-long-task 为这个长任务建立可恢复状态并持续执行，状态查询只做中间汇报，不停止原任务。"
 policy:
   allow_implicit_invocation: false

@@ -1,9 +1,9 @@
 ---
 name: slot-alignment
-description: 基于Slot原版采集证据、规则/规格、Runtime和用户认证的Python模拟脚本，冻结玩家感官导向的N数值门禁、J中奖结算、P玩法过程、B盘面呈现指标合同，并完成基线诊断、自动调参、独立FORMAL验收和中文交付。用于老虎机原版数值或体验对齐、盘面与中奖诊断、指标规划、候选验收及Runtime交付；所有画像命中的正式指标必须逐项通过且不得豁免，候选生成必须单次抽取生效，禁止重抽、拒绝采样和回溯规划。
+description: 基于Slot原版采集证据、规则/规格、Runtime和用户认证的Python模拟脚本，冻结玩家感官导向的N数值门禁、J中奖结算、P玩法过程、B盘面呈现指标合同，审计认证脚本、服务端、候选生成器、快速模拟器、FORMAL和优化器的Runtime能力覆盖，并完成基线诊断、自动调参、独立FORMAL验收和中文交付。用于老虎机原版数值或体验对齐、盘面与中奖诊断、指标规划、候选验收及Runtime交付；所有画像命中的正式指标必须逐项通过且不得豁免，候选生成必须单次抽取生效，禁止重抽、拒绝采样、回溯规划及缩窄已授权原生调参能力。
 ---
 
-# Slot 原版体验对齐 5.4.0
+# Slot 原版体验对齐 5.5.0
 
 ## 目标与边界
 
@@ -12,6 +12,8 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 - 全部说明、状态和报告使用中文。
 - 原版资料、密封输入、认证脚本和FORMAL证据只读，不得覆盖。
 - 只调整`parameter_authority.json`明确授权的数值参数。
+- 候选出现前必须生成并冻结`runtime_capability_matrix.json`，逐项核对认证脚本、服务端Runtime、候选生成器、CALIBRATION快速模拟器、FORMAL模拟器和优化器是否完整支持每项已授权原生能力。任何实现层不得把动态ReelSet列表、补位档数量、权重维度或其他已授权能力写死为更小范围。
+- “完整支持”表示能力能被候选生成器表达、被CALIBRATION/FORMAL执行、被优化器暴露并有明确敏感性或升级计划；不要求第一轮同时搜索全部参数，但搜索成本、实现方便或当前基线只用了较小数量不能作为永久不启用的理由。
 - `reel-strip`默认归为可调数值权重：允许调整现有符号的重复次数与排列，并同步对应stop weights；必须保持轴数、盘面几何、符号域、特殊符号轴/位置限制及玩法语义不变。除非用户明确锁定，否则计划确认后不得为此重复询问。
 - 禁止修改玩法、状态机、触发与结算语义、RNG顺序、投注口径、封顶及未授权结构。
 - 原版Capture、规则和其他原版证据只用于冻结目标、估计参数、诊断差异和验收候选；禁止把原版完整盘面、单轴可见pattern、局部盘面组合、Tumble后续盘面或Feature链作为CALIBRATION候选或FORMAL模拟的直接生成数据，禁止重放、重采样或按经验盘面目录拼装模拟结果。
@@ -113,7 +115,7 @@ target_rtp_confirmation_evidence
 5. 视觉符号组必须互斥并与关键计数符号共同覆盖正式盘面的可见符号域；默认优先使用主题标志组、其他高价值组、低价值组，只有证据要求时才增加组。列出观测缺口、未知玩法和参数权限；默认授权reel-strip数值权重调整，只有超出其结构边界时才询问新增权限。正式指标缺口必须在候选出现前补齐。
 6. 取得用户直接提供或明确确认的唯一目标RTP及确认记录hash；若用户只提供区间，必须继续询问唯一数值。随后确认Runtime基线、样本范围、是否重算和参数权限。
 
-原始认证脚本保持只读。派生观测脚本必须证明RTP、RNG、逐局投注/派奖和状态语义等价。
+原始认证脚本保持只读。派生观测脚本必须证明RTP、RNG、逐局投注/派奖和状态语义等价。从认证脚本和服务端实际读取逻辑枚举Runtime原生能力，不得仅按基线当前启用的A/B、`refill_1/final`或其他实例数量推断能力上限；能力矩阵必须记录数量范围、抽取作用域、证据位置、授权操作、优化器参数和敏感性计划。
 
 ## 轻量执行硬约束
 
@@ -129,13 +131,14 @@ target_rtp_confirmation_evidence
 - 单次执行只允许一层并行：候选级、分片级、Numba并行或底层线程池择一，禁止进程池、Numba parallel及BLAS/OpenMP线程嵌套超配。
 - 大样本执行前必须做代表性吞吐基准，记录局/秒、预计总时长、Worker数、临时磁盘量和续跑能力；基准用于发现并修正明显低效实现，但不生成性能通过/不通过状态，也不得阻止既定样本计划执行。
 - 轻量版必须与完整观测版在同种子小样本上取得逐入口语义、最终RNG状态、全部正式测量、累计器和单/多Worker完全等价，证据随任务保存。
+- 轻量版和FORMAL版必须覆盖能力矩阵中全部已授权能力。允许为性能预分配固定容量数组，但容量必须覆盖授权上限并按Runtime实际数量工作；禁止用`len == 固定值`、`numbered_profile_count == 1`等检查缩窄认证脚本和服务端已支持的配置。
 
 ## 五阶段工作流
 
-1. 资料与画像：密封输入、脚本、玩法画像和参数权限。
+1. 资料与画像：密封输入、脚本、玩法画像和参数权限；生成Runtime能力矩阵并通过六层覆盖门禁。
 2. 指标合同：编译全部适用N/J/P/B实例，校准联合99%容差并冻结合同。
 3. 基线判定：逐硬门禁、逐卡、逐子项输出距离和偏差倍数。
-4. 自动对齐：CALIBRATION按`10万 -> 累计50万 -> 累计200万 -> 前2名另跑200万独立复核`逐级淘汰；冻结候选后使用独立`chunk_seeded`样本执行FORMAL，并按条件实例整体分母自动选择`1000万/2000万/5000万`档位。
+4. 自动对齐：CALIBRATION按`10万 -> 累计50万 -> 累计200万 -> 前2名另跑200万独立复核`逐级淘汰；若失败结构或最大偏差没有实质改善，必须按能力矩阵中的升级计划逐层开放更多原生维度，不能长期停留在少量全局旋钮；冻结候选后使用独立`chunk_seeded`样本执行FORMAL，并按条件实例整体分母自动选择`1000万/2000万/5000万`档位。
 5. 交付：验证机器产物、确定性中文报告、FORMAL Runtime和manifest；把`game_core.json.meta.version`与manifest中的`runtime_version`固定为`task_id`。
 
 阶段2至4必须使用同一冻结指标清单、顺序、目标、作用域、距离和容差。候选失败后继续不同候选；普通中间结果不要求用户确认。定义、观测、配置读取或合同错误必须修复，不得伪装成样本不足或不适用。
@@ -147,6 +150,8 @@ metric_library.schema_version = slot-alignment.metric-library.v5
 metric_library.version = 5.2.0
 alignment_evaluation_policy.version = 5.4.0
 sample_execution_policy.version = 1.1.0
+runtime_capability_policy.version = 1.0.0
+runtime_capability_matrix.schema_version = slot-alignment.runtime-capability-matrix.v1
 game_profile.schema_version = slot-alignment.game-profile.v5
 joint_self_comparison.schema_version = slot-alignment.joint-self-comparison.v5
 sample_execution_plan.schema_version = slot-alignment.sample-execution-plan.v1
@@ -157,13 +162,14 @@ delivery_manifest.schema_version = slot-alignment.delivery-manifest.v5
 report_contract_version = slot-alignment.report.v5
 ```
 
-5.4.0不改变指标Schema与`metric_library.version`。N逐卡门槛保持不变；J改为`1/2/4/6`，P改为`1/2.5/5/8`，B保持`1/3/6/10`。J最接近实际中奖和派奖，门槛仍严于P；P允许Feature节奏和机制状态有更大波动；B主要负责防止明显怪异盘面。门槛放宽不豁免任何命中实例，也不放宽规则守恒、结构可达性和候选生成合法性。5.2.1的单次抽取要求继续对所有尚未完成交付的候选生效。评价政策hash或版本变化后，尚未完成交付的任务如采用新政策，必须重新编译合同并重算基线、候选和FORMAL，不得直接修改旧合同或旧结果。
+5.5.0只增加Runtime能力发现、覆盖和防缩窄门禁，不改变指标Schema、`metric_library.version`或5.4.0评价阈值。N逐卡门槛保持不变；J为`1/2/4/6`，P为`1/2.5/5/8`，B为`1/3/6/10`。J最接近实际中奖和派奖，门槛仍严于P；P允许Feature节奏和机制状态有更大波动；B主要负责防止明显怪异盘面。门槛放宽不豁免任何命中实例，也不放宽规则守恒、结构可达性、候选生成合法性或Runtime能力覆盖。单次抽取要求继续对所有尚未完成交付的候选生效。评价政策、能力矩阵hash或脚本bundle发生变化后，受影响的旧基线、候选和FORMAL不得继续复用。
 
 政策只使用：
 
 - `assets/policies/hard_gate_tolerance_policy.json`
 - `assets/policies/alignment_evaluation_policy.json`
 - `assets/policies/sample_execution_policy.json`
+- `assets/policies/runtime_capability_policy.json`
 
 ## 确定性工具
 
@@ -172,7 +178,8 @@ report_contract_version = slot-alignment.report.v5
 <python_bin> scripts/generate_metric_summary.py --check
 <python_bin> scripts/calibrate_joint_tolerances.py --input <self-distance.json> --output <joint-tolerance.json>
 <python_bin> scripts/validate_sample_plan.py --plan <sample-execution-plan.json>
-<python_bin> scripts/compile_metric_contract.py --profile <game-profile.json> --targets <targets.json> --joint-tolerances <joint-tolerance.json> --bindings <bindings.json> --sample-plan <sample-execution-plan.json> --output <metric-contract.json>
+<python_bin> scripts/validate_runtime_capability_coverage.py --matrix <runtime-capability-matrix.json> --phase PRE_CALIBRATION
+<python_bin> scripts/compile_metric_contract.py --profile <game-profile.json> --targets <targets.json> --joint-tolerances <joint-tolerance.json> --bindings <bindings.json> --sample-plan <sample-execution-plan.json> --runtime-capabilities <runtime-capability-matrix.json> --output <metric-contract.json>
 <python_bin> scripts/evaluate_alignment.py --contract <metric-contract.json> --measurements <measurements.json> --phase BASELINE --output <alignment-result.json>
 <python_bin> scripts/generate_stage3_gate.py --result <alignment-result.json> --output <stage3-gate.json>
 <python_bin> scripts/validate_artifacts.py --contract <metric-contract.json> --result <alignment-result.json> --stage3-gate <stage3-gate.json>
@@ -193,6 +200,7 @@ FORMAL把`--phase`改为`FORMAL`并重新执行产物校验。任何工具不得
 - 无样本不足、计算异常、指标缺口、Owner冲突或合同漂移。
 - FORMAL使用独立样本，实际实例清单与冻结合同完全一致。
 - 多Worker与单Worker在同一分片计划下结果等价。
+- Runtime能力矩阵状态为“通过”，全部已授权原生能力在认证脚本、服务端、候选生成器、CALIBRATION、FORMAL和优化器之间没有缩窄；候选冻结与FORMAL前重新校验同一矩阵hash。
 - 报告由当前机器JSON确定性生成。
 - 候选模拟器和FORMAL Runtime不包含原版盘面/局部pattern样本池、Capture查表出盘、经验盘面采样器或Runtime不支持的隐藏生成字段；诊断性经验重采样结果未进入候选排序、FORMAL和交付证据。
 - 候选模拟器和FORMAL Runtime不存在重抽、拒绝采样、反复尝试、递归搜索、分支回溯、完整路径预规划或结果不符后更换随机数；显式类别选择只路由随机源，不强制兑现结果标签。

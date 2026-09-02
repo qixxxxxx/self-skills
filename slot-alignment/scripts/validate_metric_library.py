@@ -39,6 +39,7 @@ def main():
     evaluation_path = root / "assets/policies/alignment_evaluation_policy.json"
     hard_path = root / "assets/policies/hard_gate_tolerance_policy.json"
     sample_path = root / "assets/policies/sample_execution_policy.json"
+    capability_policy_path = root / "assets/policies/runtime_capability_policy.json"
     errors = []
     for path in root.rglob("*.json"):
         try:
@@ -49,9 +50,10 @@ def main():
     errors += schema_errors(root / "assets/schemas/alignment-evaluation-policy.schema.json", evaluation_path)
     errors += schema_errors(root / "assets/schemas/hard-gate-tolerance-policy.schema.json", hard_path)
     errors += schema_errors(root / "assets/schemas/sample-execution-policy.schema.json", sample_path)
-    for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "joint-self-comparison.schema.json", "sample-execution-plan.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
+    errors += schema_errors(root / "assets/schemas/runtime-capability-policy.schema.json", capability_policy_path)
+    for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "joint-self-comparison.schema.json", "sample-execution-plan.schema.json", "runtime-capability-matrix.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
         Draft202012Validator.check_schema(load(root / "assets/schemas" / schema_name))
-    library, evaluation, hard, sample = load(library_path), load(evaluation_path), load(hard_path), load(sample_path)
+    library, evaluation, hard, sample, capability_policy = load(library_path), load(evaluation_path), load(hard_path), load(sample_path), load(capability_policy_path)
     if library.get("version") != "5.2.0" or evaluation.get("version") != "5.4.0" or evaluation.get("applies_to_metric_library") != "5.2.0":
         errors.append("指标库必须为5.2.0，评价政策必须为5.4.0且绑定指标库5.2.0")
     category_ids = [item["category_id"] for item in library["categories"]]
@@ -134,6 +136,8 @@ def main():
         errors.append("J/P/B必须使用无额外上限的联合99%自对照")
     if sample.get("version") != "1.1.0":
         errors.append("样本执行策略版本必须为1.1.0")
+    if capability_policy.get("version") != "1.0.0" or capability_policy.get("rules", {}).get("implementation_must_not_narrow_authorized_cardinality") is not True:
+        errors.append("Runtime能力策略必须为1.0.0并禁止实现层缩窄已授权能力")
     if sample["rng_protocol"]["calibration_default"] != "chunk_seeded" or sample["rng_protocol"]["formal_default"] != "chunk_seeded":
         errors.append("CALIBRATION与FORMAL默认RNG协议必须为chunk_seeded")
     if sample["rng_protocol"]["diagnostics_only"] != ["crn_v1"]:
@@ -181,8 +185,12 @@ def main():
         "references/04-工作区目录结构.md",
         "references/05-性能与执行预算.md",
         "assets/policies/sample_execution_policy.json",
+        "assets/policies/runtime_capability_policy.json",
         "assets/schemas/sample-execution-policy.schema.json",
         "assets/schemas/sample-execution-plan.schema.json",
+        "assets/schemas/runtime-capability-policy.schema.json",
+        "assets/schemas/runtime-capability-matrix.schema.json",
+        "assets/templates/artifacts/01-input-profile/runtime_capability_matrix.json",
         "assets/templates/artifacts/02-metric-matching/sample_execution_plan.json",
         "assets/templates/reports/原版体验对齐报告.md",
         "assets/templates/reports/指标分类明细.md",
@@ -190,6 +198,7 @@ def main():
         "scripts/alignment.py",
         "scripts/compile_metric_contract.py",
         "scripts/validate_sample_plan.py",
+        "scripts/validate_runtime_capability_coverage.py",
         "scripts/evaluate_alignment.py",
         "scripts/validate_delivery.py",
     ]

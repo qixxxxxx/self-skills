@@ -1,6 +1,6 @@
 interface:
-  display_name: "Slot 原版体验对齐 v5.4.0"
-  short_description: "以四类十三张指标卡逐项完成Slot原版体验对齐与FORMAL交付"
-  default_prompt: "使用 $slot-alignment 按N/J/P/B四类指标冻结合同，以单次抽取且禁止重抽的模型完成原版体验对齐与独立FORMAL验收。"
+  display_name: "Slot 原版体验对齐 v5.5.0"
+  short_description: "完整覆盖Runtime能力并逐项完成体验对齐和FORMAL交付"
+  default_prompt: "使用 $slot-alignment 先审计全部已授权Runtime能力覆盖，再按N/J/P/B合同完成原版体验对齐与独立FORMAL验收。"
 policy:
   allow_implicit_invocation: false

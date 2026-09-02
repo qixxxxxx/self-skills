@@ -1,0 +1,40 @@
+{
+  "schema_version": "slot-alignment.runtime-capability-policy.v1",
+  "policy_id": "slot-alignment-runtime-capability-coverage-v1",
+  "version": "1.0.0",
+  "status": "已授权",
+  "source_path": "assets/policies/runtime_capability_policy.json",
+  "required_layers": [
+    "certified_script",
+    "server_runtime",
+    "candidate_generator",
+    "calibration_simulator",
+    "formal_simulator",
+    "optimizer"
+  ],
+  "required_capability_ids": [
+    "state-reel-set-pool-cardinality",
+    "reel-set-selection-scope",
+    "reel-strip-symbol-count-and-order",
+    "stop-weights",
+    "refill-profile-count",
+    "refill-symbol-weights",
+    "height-weights",
+    "feature-mechanic-weights"
+  ],
+  "rules": {
+    "authorized_native_capability_must_be_fully_covered": true,
+    "implementation_must_not_narrow_authorized_cardinality": true,
+    "optimizer_exposure_and_sensitivity_plan_required": true,
+    "equivalence_required_before_calibration": true,
+    "search_cost_is_not_valid_exemption": true,
+    "candidate_failure_requires_planned_capability_escalation": true,
+    "status_query_does_not_change_execution_scope": true
+  },
+  "allowed_exemptions": [
+    "explicit_user_lock",
+    "server_runtime_not_deliverable",
+    "pre_candidate_mathematical_irrelevance_proof",
+    "game_profile_not_applicable"
+  ]
+}

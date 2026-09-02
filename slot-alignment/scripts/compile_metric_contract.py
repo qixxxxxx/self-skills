@@ -9,6 +9,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from alignment import dump_json, finite_number, load_json, sha256_file
+from validate_runtime_capability_coverage import validate_matrix
 from validate_sample_plan import validate_plan
 
 
@@ -17,6 +18,7 @@ LIBRARY_PATH = ROOT / "references" / "指标目录" / "index.json"
 HARD_POLICY_PATH = ROOT / "assets" / "policies" / "hard_gate_tolerance_policy.json"
 EVALUATION_POLICY_PATH = ROOT / "assets" / "policies" / "alignment_evaluation_policy.json"
 SAMPLE_POLICY_PATH = ROOT / "assets" / "policies" / "sample_execution_policy.json"
+RUNTIME_CAPABILITY_POLICY_PATH = ROOT / "assets" / "policies" / "runtime_capability_policy.json"
 
 
 def safe_id(value):
@@ -131,6 +133,7 @@ def main():
     parser.add_argument("--joint-tolerances", required=True)
     parser.add_argument("--bindings", required=True)
     parser.add_argument("--sample-plan", required=True)
+    parser.add_argument("--runtime-capabilities", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     profile = load_json(args.profile)
@@ -138,6 +141,7 @@ def main():
     joint = load_json(args.joint_tolerances)
     bindings_file = load_json(args.bindings)
     sample_plan = load_json(args.sample_plan)
+    runtime_capabilities = load_json(args.runtime_capabilities)
     library = load_json(LIBRARY_PATH)
     hard_policy = load_json(HARD_POLICY_PATH)
     evaluation_policy = load_json(EVALUATION_POLICY_PATH)
@@ -148,6 +152,13 @@ def main():
         raise SystemExit(f"样本执行计划无效: {exc}") from exc
     if sample_plan["task_id"] != bindings_file["task_id"]:
         raise SystemExit("样本执行计划task_id与合同绑定不一致")
+    if runtime_capabilities.get("task_id") != bindings_file["task_id"] or runtime_capabilities.get("mode") != bindings_file["mode"]:
+        raise SystemExit("Runtime能力矩阵的task_id或mode与合同绑定不一致")
+    if runtime_capabilities.get("rtp_group") != 1 or runtime_capabilities.get("frozen_before_candidate") is not True:
+        raise SystemExit("Runtime能力矩阵必须在候选前冻结且rtp_group=1")
+    capability_errors = validate_matrix(runtime_capabilities, args.runtime_capabilities)
+    if capability_errors:
+        raise SystemExit("Runtime能力覆盖未通过，禁止编译候选合同: " + "; ".join(capability_errors))
     bindings = profile["metric_bindings"]
     profile_schema = load_json(ROOT / "assets/schemas/game-profile-metric-bindings.schema.json")
     Draft202012Validator(profile_schema).validate(profile)
@@ -335,6 +346,7 @@ def main():
     } for item in library["audits"]]
     hashes = {key: bindings_file[key] for key in ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256"]}
     hashes["sample_execution_plan_sha256"] = sha256_file(args.sample_plan)
+    hashes["runtime_capability_matrix_sha256"] = sha256_file(args.runtime_capabilities)
     hashes["contract_sha256"] = "0" * 64
     contract = {
         "schema_version": "slot-alignment.metric-contract.v5",
@@ -349,6 +361,7 @@ def main():
             "hard_gate_tolerance": {"id": hard_policy["policy_id"], "version": hard_policy["version"], "path": "assets/policies/hard_gate_tolerance_policy.json", "sha256": sha256_file(HARD_POLICY_PATH)},
             "alignment_evaluation": {"id": evaluation_policy["policy_id"], "version": evaluation_policy["version"], "path": "assets/policies/alignment_evaluation_policy.json", "sha256": sha256_file(EVALUATION_POLICY_PATH)},
             "sample_execution": {"id": sample_policy["policy_id"], "version": sample_policy["version"], "path": "assets/policies/sample_execution_policy.json", "sha256": sha256_file(SAMPLE_POLICY_PATH)},
+            "runtime_capability": {"id": "slot-alignment-runtime-capability-coverage-v1", "version": "1.0.0", "path": "assets/policies/runtime_capability_policy.json", "sha256": sha256_file(RUNTIME_CAPABILITY_POLICY_PATH)},
         },
         "cards": cards,
         "audits": audits,

@@ -24,6 +24,7 @@ from validate_sample_plan import POLICY_PATH as SAMPLE_POLICY_PATH, derived_form
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_CAPABILITY_POLICY_PATH = ROOT / "assets/policies/runtime_capability_policy.json"
 
 
 def write(path, value):
@@ -198,6 +199,89 @@ class EndToEndTests(unittest.TestCase):
         plan["formal"].update(derived_formal(plan))
         return plan
 
+    def runtime_capabilities(self, simulator_max=10, generator_status="supported"):
+        layer = lambda maximum=10, status="supported": {
+            "status": status,
+            "min_cardinality": 1,
+            "max_cardinality": maximum,
+            "evidence": ["测试证据"],
+        }
+        capability = {
+            "capability_id": "refill-profile-count",
+            "name_zh": "按Tumble深度补位档",
+            "category": "refill",
+            "certified_script": layer(),
+            "server_runtime": layer(),
+            "authorization": {
+                "status": "authorized",
+                "min_cardinality": 1,
+                "max_cardinality": 10,
+                "operations": ["change_profile_count", "change_symbol_weights"],
+                "evidence": ["用户授权"],
+            },
+            "candidate_generator": layer(10, generator_status),
+            "calibration_simulator": layer(simulator_max),
+            "formal_simulator": layer(simulator_max),
+            "optimizer": {
+                "status": "supported",
+                "min_cardinality": 1,
+                "max_cardinality": 10,
+                "exposed_parameters": ["refill_profile_count", "refill_symbol_weights"],
+                "sensitivity_plan_ids": ["refill-depth-escalation"],
+                "evidence": ["测试计划"],
+            },
+            "equivalence": {
+                "status": "passed",
+                "evidence_sha256": "9" * 64,
+                "evidence": ["逐局与RNG终态一致"],
+            },
+        }
+        required = [
+            ("state-reel-set-pool-cardinality", "routing"),
+            ("reel-set-selection-scope", "routing"),
+            ("reel-strip-symbol-count-and-order", "reel_generation"),
+            ("stop-weights", "reel_generation"),
+            ("refill-profile-count", "refill"),
+            ("refill-symbol-weights", "refill"),
+            ("height-weights", "height"),
+            ("feature-mechanic-weights", "feature_weight"),
+        ]
+        capabilities = []
+        for capability_id, category in required:
+            item = copy.deepcopy(capability)
+            item["capability_id"] = capability_id
+            item["name_zh"] = capability_id
+            item["category"] = category
+            if capability_id != "refill-profile-count":
+                item["candidate_generator"] = layer()
+                item["calibration_simulator"] = layer()
+                item["formal_simulator"] = layer()
+            capabilities.append(item)
+        covered = 7 + int(simulator_max >= 10 and generator_status == "supported")
+        return {
+            "schema_version": "slot-alignment.runtime-capability-matrix.v1",
+            "task_id": "test-task",
+            "mode": "normal",
+            "rtp_group": 1,
+            "frozen_before_candidate": True,
+            "policy": {
+                "id": "slot-alignment-runtime-capability-coverage-v1",
+                "version": "1.0.0",
+                "path": "assets/policies/runtime_capability_policy.json",
+                "sha256": sha256_file(RUNTIME_CAPABILITY_POLICY_PATH),
+            },
+            "runtime_bundle_sha256": "b" * 64,
+            "certified_script_sha256": "d" * 64,
+            "parameter_authority_sha256": "f" * 64,
+            "capabilities": capabilities,
+            "summary": {
+                "total_capabilities": 8,
+                "authorized_capabilities": 8,
+                "fully_covered_capabilities": covered,
+                "coverage_status": "通过" if covered == 8 else "不通过",
+            },
+        }
+
     def build_inputs(self):
         profile = self.profile()
         library = load(LIBRARY_PATH)
@@ -213,7 +297,7 @@ class EndToEndTests(unittest.TestCase):
                     targets[instance_id] = record
                     if card["kind"] == "alignment":
                         tolerances[instance_id] = 0.1
-        profile_path, targets_path, joint_path, bindings_path, sample_plan_path = [self.path(name) for name in ["profile.json", "targets.json", "joint.json", "bindings.json", "sample-plan.json"]]
+        profile_path, targets_path, joint_path, bindings_path, sample_plan_path, capabilities_path = [self.path(name) for name in ["profile.json", "targets.json", "joint.json", "bindings.json", "sample-plan.json", "runtime-capabilities.json"]]
         write(profile_path, profile)
         write(targets_path, {"targets": targets})
         write(joint_path, {"schema_version": "slot-alignment.joint-self-comparison.v5", "quantile": 0.99, "joint": True, "replicates": 100, "seed": 7, "evidence_sha256": "a" * 64, "joint_factor": 1.0, "tolerances": tolerances})
@@ -228,7 +312,19 @@ class EndToEndTests(unittest.TestCase):
             "parameter_authority_sha256": "f" * 64,
         })
         write(sample_plan_path, self.sample_plan({"P2.mechanic_result_state.wild-multiplier": 0.001}))
-        return profile_path, targets_path, joint_path, bindings_path, sample_plan_path
+        write(capabilities_path, self.runtime_capabilities())
+        return profile_path, targets_path, joint_path, bindings_path, sample_plan_path, capabilities_path
+
+    def test_runtime_capability_coverage_rejects_narrow_fast_layer(self):
+        valid = self.path("runtime-capabilities-valid.json")
+        write(valid, self.runtime_capabilities())
+        self.run_script("validate_runtime_capability_coverage.py", "--matrix", valid)
+        invalid = self.path("runtime-capabilities-invalid.json")
+        write(invalid, self.runtime_capabilities(simulator_max=1))
+        command = [sys.executable, str(ROOT / "scripts/validate_runtime_capability_coverage.py"), "--matrix", str(invalid)]
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("最大能力1小于授权上限10", result.stderr)
 
     def test_sample_execution_tiers_and_maximum_behavior(self):
         cases = [
@@ -267,12 +363,13 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(policy["calibration"]["independent_recheck"]["additional_paid_entries"], 2000000)
 
     def test_compile_evaluate_and_schema(self):
-        profile, targets, joint, bindings, sample_plan = self.build_inputs()
+        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
         contract_path = self.path("contract.json")
-        self.run_script("compile_metric_contract.py", "--profile", profile, "--targets", targets, "--joint-tolerances", joint, "--bindings", bindings, "--sample-plan", sample_plan, "--output", contract_path)
+        self.run_script("compile_metric_contract.py", "--profile", profile, "--targets", targets, "--joint-tolerances", joint, "--bindings", bindings, "--sample-plan", sample_plan, "--runtime-capabilities", capabilities, "--output", contract_path)
         contract = load(contract_path)
         self.assertEqual(contract["policies"]["sample_execution"]["version"], "1.1.0")
         self.assertEqual(contract["hashes"]["sample_execution_plan_sha256"], sha256_file(sample_plan))
+        self.assertEqual(contract["hashes"]["runtime_capability_matrix_sha256"], sha256_file(capabilities))
         n1 = next(item for card in contract["cards"] if card["card_id"] == "N1" for item in card["instances"])
         self.assertEqual(n1["target"], 0.96)
         self.assertEqual(n1["target_source"]["method"], "user_confirmed_exact_rtp")
@@ -337,12 +434,12 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(load(result_path)["summary"]["final_status"], "无法完整判定")
 
     def test_n1_rejects_missing_confirmation_and_interval(self):
-        profile, targets, joint, bindings, sample_plan = self.build_inputs()
+        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
         data = load(targets)
         n1 = data["targets"]["N1.total_rtp.overall"]
         n1["source"].pop("confirmation_evidence_sha256")
         write(targets, data)
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--output", str(self.path("invalid-contract-1.json"))]
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-contract-1.json"))]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("用户确认记录SHA-256", result.stderr)
@@ -356,8 +453,8 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("唯一数值", result.stderr)
 
     def test_board_symbol_partition_must_be_valid(self):
-        profile, targets, joint, bindings, sample_plan = self.build_inputs()
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--output", str(self.path("invalid-board-contract.json"))]
+        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-board-contract.json"))]
 
         data = load(profile)
         data["metric_bindings"]["boards"][0]["symbol_groups"].append({"group_id": "duplicate", "role": "regular_other", "symbols": ["a"]})
@@ -381,8 +478,8 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("component_id不在components中", result.stderr)
 
     def test_win_groups_and_primary_axis_must_be_valid(self):
-        profile, targets, joint, bindings, sample_plan = self.build_inputs()
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--output", str(self.path("invalid-j-contract.json"))]
+        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-j-contract.json"))]
 
         data = self.profile()
         data["metric_bindings"]["win_groups"][1]["elements"] = ["a", "wild"]

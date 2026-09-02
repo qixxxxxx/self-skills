@@ -30,6 +30,12 @@
       "version": "1.1.0",
       "path": "assets/policies/sample_execution_policy.json",
       "sha256": "<sha256>"
+    },
+    "runtime_capability": {
+      "id": "slot-alignment-runtime-capability-coverage-v1",
+      "version": "1.0.0",
+      "path": "assets/policies/runtime_capability_policy.json",
+      "sha256": "<sha256>"
     }
   },
   "cards": [],
@@ -41,6 +47,7 @@
     "game_profile_sha256": "<sha256>",
     "parameter_authority_sha256": "<sha256>",
     "sample_execution_plan_sha256": "<sha256>",
+    "runtime_capability_matrix_sha256": "<sha256>",
     "contract_sha256": "<sha256>"
   }
 }
