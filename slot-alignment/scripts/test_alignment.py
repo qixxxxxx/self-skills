@@ -11,18 +11,15 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from alignment import (
-    _j_card_score,
+    _hierarchical_card_score,
     absolute_probability_error,
     evaluate_contract,
-    grade_ratio,
     grade_score,
-    joint_q99_tolerances,
+    half_l1,
     sha256_file,
-    structural_wasserstein,
     total_variation,
-    wasserstein_1d,
 )
-from compile_metric_contract import EVALUATION_POLICY_PATH, HARD_POLICY_PATH, LIBRARY_PATH, j_c_tolerance, n_c_tolerance, safe_id, subitems
+from compile_metric_contract import EVALUATION_POLICY_PATH, HARD_POLICY_PATH, LIBRARY_PATH, b_c_tolerance, j_c_tolerance, n_c_tolerance, p_c_tolerance, safe_id, subitems
 from validate_sample_plan import POLICY_PATH as SAMPLE_POLICY_PATH, derived_formal, validate_plan
 
 
@@ -42,26 +39,7 @@ class DistanceTests(unittest.TestCase):
     def test_probability_and_total_variation(self):
         self.assertAlmostEqual(absolute_probability_error(0.2, 0.25), 0.05)
         self.assertAlmostEqual(total_variation({"a": 0.7, "b": 0.3}, {"a": 0.4, "b": 0.6}), 0.3)
-
-    def test_wasserstein_uses_real_positions(self):
-        self.assertAlmostEqual(wasserstein_1d([1, 0, 0], [0, 1, 0], [0, 1, 3], support_span=3), 1 / 3)
-        self.assertGreater(wasserstein_1d([1, 0], [0, 1], [0, 99], "log10_1p"), 1.9)
-
-    def test_structural_wasserstein(self):
-        target = {"board_shape": [2, 2], "states": [{"cells": [[0, 0]], "probability": 1.0}]}
-        same = copy.deepcopy(target)
-        shifted = {"board_shape": [2, 2], "states": [{"cells": [[1, 1]], "probability": 1.0}]}
-        self.assertEqual(structural_wasserstein(target, same, "symbol_position_density"), 0.0)
-        self.assertEqual(structural_wasserstein(target, shifted, "symbol_position_density"), 1.0)
-        shape = {"board_shape": [2, 2], "states": [{"cells": [[0, 0], [1, 0]], "probability": 1.0}]}
-        self.assertEqual(structural_wasserstein(shape, copy.deepcopy(shape), "board_shape"), 0.0)
-
-    def test_joint_q99_is_not_below_individual_q99(self):
-        values = {"a": [0.01] * 99 + [0.02], "b": [0.02] * 99 + [0.03]}
-        tolerances, factor = joint_q99_tolerances(values)
-        self.assertGreaterEqual(factor, 1.0)
-        self.assertGreaterEqual(tolerances["a"], 0.01)
-        self.assertGreaterEqual(tolerances["b"], 0.02)
+        self.assertAlmostEqual(half_l1({"high": 0.5, "low": 0.4}, {"high": 0.45, "low": 0.35}), 0.05)
 
     def test_formal_grade_boundaries(self):
         policy = load(ROOT / "assets/policies/alignment_evaluation_policy.json")
@@ -69,14 +47,7 @@ class DistanceTests(unittest.TestCase):
         self.assertEqual(grading["hard_gate_pass_limit"], 1.0)
         for score, grade in [(100, "S"), (90, "S"), (89.999, "A"), (80, "A"), (79.999, "B"), (70, "B"), (69.999, "C"), (0, "C")]:
             self.assertEqual(grade_score(score, policy), grade)
-        thresholds = grading["alignment_thresholds"]["P"]
-        self.assertEqual(thresholds, {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0})
-        self.assertEqual(grade_ratio(8.0, thresholds), "C")
-        self.assertEqual(grade_ratio(8.000000001, thresholds), "F")
-        thresholds = grading["alignment_thresholds"]["B"]
-        self.assertEqual(thresholds, {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0})
-        self.assertEqual(grade_ratio(10.0, thresholds), "C")
-        self.assertEqual(grade_ratio(10.000000001, thresholds), "F")
+        self.assertNotIn("alignment_thresholds", grading)
 
     def test_n_c_tolerance_rules(self):
         policy = load(HARD_POLICY_PATH)
@@ -143,13 +114,39 @@ class DistanceTests(unittest.TestCase):
             {"aggregation": {"dimension_id": "depth", "group_id": "base", "mode": "half_overall_half_items", "role": "bin"}},
             {"aggregation": {"dimension_id": "depth", "group_id": "base", "mode": "half_overall_half_items", "role": "bin"}},
         ]
-        self.assertAlmostEqual(_j_card_score({"instances": half_group}, [{"score": 60}, {"score": 100}, {"score": 80}]), 75.0)
+        self.assertAlmostEqual(_hierarchical_card_score({"instances": half_group}, [{"score": 60}, {"score": 100}, {"score": 80}]), 75.0)
         dimensions = [
             {"aggregation": {"dimension_id": "primary_structure", "group_id": "ways", "mode": "mean_items", "role": "item"}},
             {"aggregation": {"dimension_id": "simultaneous_win_count", "group_id": "base", "mode": "mean_items", "role": "item"}},
             {"aggregation": {"dimension_id": "visible_step_reward", "group_id": "base", "mode": "mean_items", "role": "item"}},
         ]
-        self.assertAlmostEqual(_j_card_score({"instances": dimensions}, [{"score": 80}, {"score": 60}, {"score": 100}]), 80.0)
+        self.assertAlmostEqual(_hierarchical_card_score({"instances": dimensions}, [{"score": 80}, {"score": 60}, {"score": 100}]), 80.0)
+        b1_dimensions = [
+            {"aggregation": {"dimension_id": "b1-1", "group_id": "group-composition", "mode": "mean_items", "role": "item"}},
+            {"aggregation": {"dimension_id": "b1-1", "group_id": "member-balance", "mode": "mean_items", "role": "item"}},
+            {"aggregation": {"dimension_id": "b1-2", "group_id": "key-count", "mode": "mean_items", "role": "item"}},
+            {"aggregation": {"dimension_id": "b1-3", "group_id": "aggregation", "mode": "mean_items", "role": "item"}},
+        ]
+        self.assertAlmostEqual(_hierarchical_card_score({"instances": b1_dimensions}, [{"score": 60}, {"score": 100}, {"score": 40}, {"score": 100}]), (80 + 40 + 100) / 3)
+
+    def test_p_c_tolerance_rules(self):
+        policy = load(EVALUATION_POLICY_PATH)
+        self.assertAlmostEqual(p_c_tolerance(0.003, {"budget_rule": "P1.entry_award.bin"}, policy), 0.003)
+        self.assertAlmostEqual(p_c_tolerance(0.1, {"budget_rule": "P1.entry_award.bin"}, policy), 0.02)
+        self.assertAlmostEqual(p_c_tolerance({}, {"budget_rule": "P1.entry_award.overall"}, policy), 0.04)
+        self.assertAlmostEqual(p_c_tolerance(10, {"budget_rule": "P1.duration.mean"}, policy), 1.2)
+        self.assertAlmostEqual(p_c_tolerance(3, {"budget_rule": "P1.duration.p50"}, policy), 1.0)
+        self.assertAlmostEqual(p_c_tolerance(5, {"budget_rule": "P1.duration.p90"}, policy), 2.0)
+        self.assertAlmostEqual(p_c_tolerance(0.1, {"budget_rule": "P2.result.bin"}, policy), 0.015)
+        self.assertAlmostEqual(p_c_tolerance({}, {"budget_rule": "P2.result.overall"}, policy), 0.04)
+
+    def test_b_c_tolerance_rules(self):
+        policy = load(EVALUATION_POLICY_PATH)
+        self.assertAlmostEqual(b_c_tolerance(0.2, {"budget_rule": "B1.symbol_group_composition.bin"}, policy), 0.03)
+        self.assertAlmostEqual(b_c_tolerance({}, {"budget_rule": "B1.symbol_group_composition.overall"}, policy), 0.05)
+        self.assertAlmostEqual(b_c_tolerance(0.1, {"budget_rule": "B1.key_symbol_count.bin"}, policy), 0.012)
+        self.assertAlmostEqual(b_c_tolerance(10, {"budget_rule": "B2.active_cell_count.mean"}, policy), 1.0)
+        self.assertAlmostEqual(b_c_tolerance(5, {"budget_rule": "B2.unevenness.p90"}, policy), 1.0)
 
 
 class EndToEndTests(unittest.TestCase):
@@ -177,7 +174,16 @@ class EndToEndTests(unittest.TestCase):
         return {
             "schema_version": "slot-alignment.game-profile.v5",
             "metric_bindings": {
-                "features": [{"feature_id": "free-spin", "feature_type": "free_spin", "endogenous_entry": True}],
+                "features": [{
+                    "feature_id": "free-spin",
+                    "feature_type": "free_spin",
+                    "endogenous_entry": True,
+                    "entry_award_evaluation_mode": "categorical_distribution",
+                    "entry_award_unit": "free-spin-count",
+                    "entry_award_bins": ["8", "12", "20"],
+                    "duration_evaluation_mode": "summary_triplet",
+                    "duration_unit": "spin",
+                }],
                 "settlements": [{
                     "settlement_id": "main-ways",
                     "component_id": "base",
@@ -193,18 +199,33 @@ class EndToEndTests(unittest.TestCase):
                     {"component_id": "base", "group_id": "special", "role": "special", "elements": ["wild"]},
                 ],
                 "continuous_settlements": [{"continuous_id": "cascade", "component_id": "base", "variable_depth": True}],
-                "special_mechanics": [{"mechanic_id": "wild-multiplier", "result_states": ["not-occurred", "not-effective", "2x", "3x"], "inactive_state_ids": ["not-occurred", "not-effective"]}],
+                "special_mechanics": [{
+                    "mechanic_id": "wild-multiplier",
+                    "mechanic_family": "multiplier_modifier",
+                    "opportunity_unit": "feature_spin",
+                    "result_evaluation_mode": "categorical_distribution",
+                    "guaranteed_resolution": False,
+                    "result_states": ["not-occurred", "not-effective", "2x", "3x"],
+                    "inactive_state_ids": ["not-occurred", "not-effective"],
+                }],
                 "boards": [{
                     "board_scope_id": "base-initial",
                     "component_id": "base",
                     "visual_phase": "initial",
-                    "rows": 2,
+                    "rows": 3,
                     "columns": 2,
-                    "variable_shape": True,
-                    "symbols": ["a", "wild"],
-                    "symbol_groups": [{"group_id": "regular", "role": "regular_other", "symbols": ["a"]}],
-                    "key_symbols": ["wild"],
-                    "spatial_symbols": ["wild"],
+                    "shape_mode": "variable_reel_height",
+                    "symbols": ["a", "b", "c", "wild"],
+                    "symbol_groups": [
+                        {"group_id": "regular-high", "role": "regular_high", "symbols": ["a", "b"]},
+                        {"group_id": "regular-low", "role": "regular_low", "symbols": ["c"]},
+                    ],
+                    "key_symbol_profiles": [{"symbol_id": "wild", "count_bins": ["0", "1"], "sample_filter": "all_stable_boards"}],
+                    "aggregation_profile": {"aggregation_type": "vertical_run", "symbol_ids": ["a", "b", "c"], "bins": ["none", "single", "two-plus"], "sample_filter": "all_stable_boards"},
+                    "reel_height_profiles": [
+                        {"reel_id": "r1", "bins": ["2", "3"]},
+                        {"reel_id": "r2", "bins": ["2", "3"]},
+                    ],
                 }],
                 "components": [
                     {"component_id": "base", "display_bet_basis": "total-bet", "variable_simultaneous_win_count": True, "simultaneous_win_count_bins": ["1", "2", "3", "4+"], "variable_visible_step_reward": True, "minimum_visible_reward_unit": 0.01},
@@ -227,25 +248,57 @@ class EndToEndTests(unittest.TestCase):
         elif method == "relative_error":
             record = {"value": 2.0, "source": source, "base_tolerance": 0.05}
         elif method == "absolute_probability_error":
-            record = {"value": 0.96 if card["card_id"] == "N1" else 0.2, "source": source, "base_tolerance": 0.01}
+            value = 0.96 if card["card_id"] == "N1" else 0.2
+            scope = extra.get("scope", {})
+            if card["card_id"] == "P1" and "bin" in scope:
+                value = {"8": 0.7, "12": 0.2, "20": 0.1}[scope["bin"]]
+            elif card["card_id"] == "P2" and "state" in scope:
+                value = {"not-occurred": 0.5, "not-effective": 0.2, "2x": 0.2, "3x": 0.1}[scope["state"]]
+            elif card["card_id"] == "B1" and "symbol_group" in scope and "symbol" not in scope:
+                value = {"regular-high": 0.6, "regular-low": 0.3}[scope["symbol_group"]]
+            elif card["card_id"] == "B1" and "symbol" in scope and "symbol_group" in scope:
+                value = 0.5
+            elif card["card_id"] == "B1" and "symbol" in scope and "bin" in scope:
+                value = {"0": 0.8, "1": 0.2}[scope["bin"]]
+            elif card["card_id"] == "B1" and "aggregation_type" in scope:
+                value = {"none": 0.2, "single": 0.5, "two-plus": 0.3}[scope["bin"]]
+            elif card["card_id"] == "B2" and "reel" in scope:
+                value = {"2": 0.4, "3": 0.6}[scope["bin"]]
+            record = {"value": value, "source": source, "base_tolerance": 0.01}
         elif method == "absolute_error":
-            record = {"value": 2.0, "source": source}
+            scope = extra.get("scope", {})
+            if card["card_id"] == "B2" and "statistic" in scope:
+                if facet["facet_id"].startswith("active_cell_count"):
+                    value = {"mean": 5.0, "p50": 5.0, "p90": 6.0}[scope["statistic"]]
+                else:
+                    value = {"mean": 0.8, "p90": 1.0}[scope["statistic"]]
+            else:
+                value = 2.0
+            record = {"value": value, "source": source}
+        elif method == "half_l1":
+            record = {"value": {"regular-high": 0.6, "regular-low": 0.3}, "source": source}
         elif method == "total_variation":
+            scope = extra.get("scope", {})
             if card["card_id"] == "J2":
                 value = {"1": 0.4, "2": 0.3, "3": 0.2, "4+": 0.1}
             elif card["card_id"] == "J3":
                 value = {"0": 0.4, "1": 0.25, "2": 0.15, "3": 0.08, "4": 0.05, "5": 0.04, "6+": 0.03}
+            elif card["card_id"] == "P1":
+                value = {"8": 0.7, "12": 0.2, "20": 0.1}
+            elif card["card_id"] == "B1" and "members" in scope:
+                value = {"a": 0.5, "b": 0.5}
+            elif card["card_id"] == "B1" and scope.get("symbol") == "wild":
+                value = {"0": 0.8, "1": 0.2}
+            elif card["card_id"] == "B1":
+                value = {"none": 0.2, "single": 0.5, "two-plus": 0.3}
+            elif card["card_id"] == "B2":
+                value = {"2": 0.4, "3": 0.6}
             else:
                 value = {"not-occurred": 0.5, "not-effective": 0.2, "2x": 0.2, "3x": 0.1}
             record = {"value": value, "source": source}
-        elif method == "wasserstein_1d":
-            transform = facet.get("position_transform", "identity")
-            record = {"value": {"0": 0.6, "1": 0.4}, "source": source, "distance": {"bin_positions": [0, 1], "position_transform": transform, **({"support_span": 1.0} if transform == "identity" else {})}}
         else:
-            state_kind = extra.get("state_kind", "symbol_position_density")
-            cells = [[0, 0]] if state_kind == "symbol_position_density" else [[0, 0], [0, 1], [1, 0], [1, 1]]
-            record = {"value": {"board_shape": extra["board_shape"], "states": [{"cells": cells, "probability": 1.0}]}, "source": source}
-        if card["category_id"] == "J":
+            raise AssertionError(f"测试未覆盖距离方法: {method}")
+        if card["category_id"] in {"J", "P", "B"}:
             record["sample_count"] = 1000
             if extra.get("requires_bin_count"):
                 record["bucket_count"] = 100
@@ -372,22 +425,19 @@ class EndToEndTests(unittest.TestCase):
     def build_inputs(self):
         profile = self.profile()
         library = load(LIBRARY_PATH)
-        targets, tolerances = {}, {}
+        targets = {}
         bindings = profile["metric_bindings"]
         for card in library["cards"]:
             for facet in card["facets"]:
-                for subitem, _scope, extra in subitems(card["card_id"], facet["facet_id"], bindings):
+                for subitem, scope, extra in subitems(card["card_id"], facet["facet_id"], bindings):
                     instance_id = f"{card['card_id']}.{facet['facet_id']}.{safe_id(subitem)}"
-                    record = self.target_for(card, facet, extra)
+                    record = self.target_for(card, facet, {**extra, "scope": scope})
                     if card["kind"] == "hard_gate" and "base_tolerance" not in record:
                         record["base_tolerance"] = 0.01
                     targets[instance_id] = record
-                    if card["category_id"] in {"P", "B"}:
-                        tolerances[instance_id] = 0.1
-        profile_path, targets_path, joint_path, bindings_path, sample_plan_path, capabilities_path = [self.path(name) for name in ["profile.json", "targets.json", "joint.json", "bindings.json", "sample-plan.json", "runtime-capabilities.json"]]
+        profile_path, targets_path, bindings_path, sample_plan_path, capabilities_path = [self.path(name) for name in ["profile.json", "targets.json", "bindings.json", "sample-plan.json", "runtime-capabilities.json"]]
         write(profile_path, profile)
         write(targets_path, {"targets": targets})
-        write(joint_path, {"schema_version": "slot-alignment.joint-self-comparison.v5", "quantile": 0.99, "joint": True, "replicates": 100, "seed": 7, "evidence_sha256": "a" * 64, "joint_factor": 1.0, "tolerances": tolerances})
         write(bindings_path, {
             "contract_version": "test-v5",
             "task_id": "test-task",
@@ -398,9 +448,9 @@ class EndToEndTests(unittest.TestCase):
             "game_profile_sha256": "e" * 64,
             "parameter_authority_sha256": "f" * 64,
         })
-        write(sample_plan_path, self.sample_plan({"P2.mechanic_result_state.wild-multiplier": 0.001}))
+        write(sample_plan_path, self.sample_plan({"P2.mechanic_result_distribution_shift.wild-multiplier": 0.001}))
         write(capabilities_path, self.runtime_capabilities())
-        return profile_path, targets_path, joint_path, bindings_path, sample_plan_path, capabilities_path
+        return profile_path, targets_path, bindings_path, sample_plan_path, capabilities_path
 
     def test_runtime_capability_coverage_rejects_narrow_fast_layer(self):
         valid = self.path("runtime-capabilities-valid.json")
@@ -450,9 +500,9 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(policy["calibration"]["independent_recheck"]["additional_paid_entries"], 2000000)
 
     def test_compile_evaluate_and_schema(self):
-        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
+        profile, targets, bindings, sample_plan, capabilities = self.build_inputs()
         contract_path = self.path("contract.json")
-        self.run_script("compile_metric_contract.py", "--profile", profile, "--targets", targets, "--joint-tolerances", joint, "--bindings", bindings, "--sample-plan", sample_plan, "--runtime-capabilities", capabilities, "--output", contract_path)
+        self.run_script("compile_metric_contract.py", "--profile", profile, "--targets", targets, "--bindings", bindings, "--sample-plan", sample_plan, "--runtime-capabilities", capabilities, "--output", contract_path)
         contract = load(contract_path)
         self.assertEqual(contract["policies"]["sample_execution"]["version"], "1.1.0")
         self.assertEqual(contract["hashes"]["sample_execution_plan_sha256"], sha256_file(sample_plan))
@@ -493,13 +543,59 @@ class EndToEndTests(unittest.TestCase):
         reward = next(item for card in contract["cards"] if card["card_id"] == "J2" for item in card["instances"] if item["facet_id"] == "visible_step_reward_mean")
         self.assertEqual(reward["scope"]["display_bet_basis"], "total-bet")
         self.assertEqual(reward["tolerance"]["source"], "j_player_visible_budget")
+        p1_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "P1" for item in card["instances"]]
+        self.assertEqual(p1_ids, [
+            "P1.entry_award_bin_rate.free-spin.8",
+            "P1.entry_award_bin_rate.free-spin.12",
+            "P1.entry_award_bin_rate.free-spin.20",
+            "P1.entry_award_distribution_shift.free-spin",
+            "P1.feature_duration_mean.free-spin",
+            "P1.feature_duration_p50.free-spin",
+            "P1.feature_duration_p90.free-spin",
+        ])
+        p2_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "P2" for item in card["instances"]]
+        self.assertEqual(p2_ids, [
+            "P2.mechanic_result_bin_rate.wild-multiplier.not-occurred",
+            "P2.mechanic_result_bin_rate.wild-multiplier.not-effective",
+            "P2.mechanic_result_bin_rate.wild-multiplier.2x",
+            "P2.mechanic_result_bin_rate.wild-multiplier.3x",
+            "P2.mechanic_result_distribution_shift.wild-multiplier",
+        ])
+        p_duration = next(item for card in contract["cards"] if card["card_id"] == "P1" for item in card["instances"] if item["facet_id"] == "feature_duration_mean")
+        self.assertEqual(p_duration["scope"]["duration_unit"], "spin")
+        self.assertEqual(p_duration["tolerance"]["source"], "p_player_visible_budget")
         b1_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "B1" for item in card["instances"]]
-        self.assertEqual(b1_ids, ["B1.symbol_group_density_per_board.base-initial.regular", "B1.key_symbol_count_per_board.base-initial.wild"])
-        density = next(item for card in contract["cards"] if card["card_id"] == "B1" for item in card["instances"] if item["facet_id"] == "symbol_group_density_per_board")
-        self.assertEqual(density["distance"]["support_span"], 1.0)
+        self.assertEqual(b1_ids, [
+            "B1.symbol_group_share_bin_rate.base-initial.regular-high",
+            "B1.symbol_group_share_bin_rate.base-initial.regular-low",
+            "B1.symbol_group_composition_shift.base-initial",
+            "B1.symbol_group_member_share_bin_rate.base-initial.regular-high.a",
+            "B1.symbol_group_member_share_bin_rate.base-initial.regular-high.b",
+            "B1.symbol_group_member_distribution_shift.base-initial.regular-high",
+            "B1.key_symbol_count_bin_rate.base-initial.wild.0",
+            "B1.key_symbol_count_bin_rate.base-initial.wild.1",
+            "B1.key_symbol_count_distribution_shift.base-initial.wild",
+            "B1.aggregation_bin_rate.base-initial.none",
+            "B1.aggregation_bin_rate.base-initial.single",
+            "B1.aggregation_bin_rate.base-initial.two-plus",
+            "B1.aggregation_distribution_shift.base-initial",
+        ])
+        self.assertTrue(all(item["tolerance"]["source"] == "b_player_visible_budget" for card in contract["cards"] if card["card_id"] == "B1" for item in card["instances"]))
         b2_ids = [item["instance_id"] for card in contract["cards"] if card["card_id"] == "B2" for item in card["instances"]]
-        self.assertEqual(b2_ids, ["B2.board_shape.base-initial", "B2.key_symbol_position_density.base-initial.wild"])
-        self.assertFalse(any("count-" in item for item in b2_ids))
+        self.assertEqual(b2_ids, [
+            "B2.reel_height_bin_rate.base-initial.r1.2",
+            "B2.reel_height_bin_rate.base-initial.r1.3",
+            "B2.reel_height_bin_rate.base-initial.r2.2",
+            "B2.reel_height_bin_rate.base-initial.r2.3",
+            "B2.reel_height_distribution_shift.base-initial.r1",
+            "B2.reel_height_distribution_shift.base-initial.r2",
+            "B2.active_cell_count_mean.base-initial",
+            "B2.active_cell_count_p50.base-initial",
+            "B2.active_cell_count_p90.base-initial",
+            "B2.board_unevenness_mean.base-initial",
+            "B2.board_unevenness_p90.base-initial",
+        ])
+        self.assertFalse(any("position" in item for item in b2_ids))
         contract_schema = load(ROOT / "assets/schemas/metric-contract.schema.json")
         Draft202012Validator(contract_schema).validate(contract)
         measurements = {}
@@ -517,6 +613,9 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(result["summary"]["composite_score"], 100.0)
         self.assertEqual(result["summary"]["score_scope"], ["N"])
         self.assertEqual(result["summary"]["planned_score_scope"], ["N", "J", "P", "B"])
+        self.assertEqual(result["summary"]["score_status"], "NJPB_READY_TOTAL_N_ONLY")
+        self.assertEqual(result["summary"]["category_scores"]["P"], 100.0)
+        self.assertEqual(result["summary"]["category_scores"]["B"], 100.0)
         self.assertTrue(all(item["formal_grade"] == "S" for card in result["card_results"] for item in card["instances"]))
         if result["summary"]["final_status"] != "通过":
             bad = [(item["instance_id"], item["status"], item.get("reason_zh")) for card in result["card_results"] for item in card["instances"] if item["status"] != "通过"]
@@ -551,12 +650,12 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(load(result_path)["summary"]["final_status"], "无法完整判定")
 
     def test_n1_rejects_missing_confirmation_and_interval(self):
-        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
+        profile, targets, bindings, sample_plan, capabilities = self.build_inputs()
         data = load(targets)
         n1 = data["targets"]["N1.total_rtp.overall"]
         n1["source"].pop("confirmation_evidence_sha256")
         write(targets, data)
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-contract-1.json"))]
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-contract-1.json"))]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("用户确认记录SHA-256", result.stderr)
@@ -570,8 +669,8 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("唯一数值", result.stderr)
 
     def test_board_symbol_partition_must_be_valid(self):
-        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-board-contract.json"))]
+        profile, targets, bindings, sample_plan, capabilities = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-board-contract.json"))]
 
         data = load(profile)
         data["metric_bindings"]["boards"][0]["symbol_groups"].append({"group_id": "duplicate", "role": "regular_other", "symbols": ["a"]})
@@ -585,7 +684,7 @@ class EndToEndTests(unittest.TestCase):
         write(profile, data)
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("可见符号域未被symbol_groups和key_symbols覆盖", result.stderr)
+        self.assertIn("可见符号域未被symbol_groups和key_symbol_profiles覆盖", result.stderr)
 
         data = self.profile()
         data["metric_bindings"]["boards"][0]["component_id"] = "unknown"
@@ -595,8 +694,8 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("component_id不在components中", result.stderr)
 
     def test_win_groups_and_primary_axis_must_be_valid(self):
-        profile, targets, joint, bindings, sample_plan, capabilities = self.build_inputs()
-        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--joint-tolerances", str(joint), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-j-contract.json"))]
+        profile, targets, bindings, sample_plan, capabilities = self.build_inputs()
+        command = [sys.executable, str(ROOT / "scripts/compile_metric_contract.py"), "--profile", str(profile), "--targets", str(targets), "--bindings", str(bindings), "--sample-plan", str(sample_plan), "--runtime-capabilities", str(capabilities), "--output", str(self.path("invalid-j-contract.json"))]
 
         data = self.profile()
         data["metric_bindings"]["win_groups"][1]["elements"] = ["a", "wild"]
@@ -638,6 +737,24 @@ class EndToEndTests(unittest.TestCase):
             ("J2", "visible_step_reward_p90"),
             ("J3", "total_depth_bin_rate"),
             ("J3", "total_depth_distribution_shift"),
+        ]:
+            self.assertEqual(subitems(card_id, facet_id, bindings), [])
+
+    def test_fixed_p_dimensions_do_not_generate_instances(self):
+        bindings = self.profile()["metric_bindings"]
+        bindings["features"][0]["entry_award_evaluation_mode"] = "fixed_rule"
+        bindings["features"][0].pop("entry_award_unit")
+        bindings["features"][0].pop("entry_award_bins")
+        bindings["features"][0]["duration_evaluation_mode"] = "fixed_rule"
+        bindings["special_mechanics"][0]["result_evaluation_mode"] = "fixed_rule"
+        for card_id, facet_id in [
+            ("P1", "entry_award_bin_rate"),
+            ("P1", "entry_award_distribution_shift"),
+            ("P1", "feature_duration_mean"),
+            ("P1", "feature_duration_p50"),
+            ("P1", "feature_duration_p90"),
+            ("P2", "mechanic_result_bin_rate"),
+            ("P2", "mechanic_result_distribution_shift"),
         ]:
             self.assertEqual(subitems(card_id, facet_id, bindings), [])
 

@@ -1,11 +1,11 @@
 {
   "schema_version": "slot-alignment.alignment-evaluation-policy.v5",
   "policy_id": "player-visible-alignment-evaluation-v5",
-  "version": "5.6.0",
+  "version": "5.8.0",
   "status": "已授权",
   "authority": "用户",
-  "authorized_at": "2026-09-02",
-  "applies_to_metric_library": "5.3.0",
+  "authorized_at": "2026-09-03",
+  "applies_to_metric_library": "5.5.0",
   "decision_model": {
     "score_scale_enabled": true,
     "weights_enabled": true,
@@ -23,13 +23,13 @@
     "instance_formula": "max(0, 100 * (1 - deviation_ratio))",
     "card_aggregation": "mean_active_instance_scores",
     "category_aggregation": "mean_active_card_scores_equal_card_weight",
-    "available_category_scores": ["N", "J"],
+    "available_category_scores": ["N", "J", "P", "B"],
     "score_scope": ["N"],
     "planned_score_scope": ["N", "J", "P", "B"],
-    "reserved_categories": ["P", "B"],
-    "complete_composite_status": "NJ_category_scores_ready_cross_category_weight_pending",
-    "future_total_aggregation": "pending_user_authorization_for_NJ_weight_and_PB_scoring",
-    "score_status": "NJ_READY_TOTAL_N_ONLY",
+    "reserved_categories": [],
+    "complete_composite_status": "NJPB_category_scores_ready_cross_category_weight_pending",
+    "future_total_aggregation": "pending_user_authorization_for_NJPB_cross_category_weights",
+    "score_status": "NJPB_READY_TOTAL_N_ONLY",
     "unscored_categories_must_still_pass": true,
     "grade_thresholds": {"S": 90.0, "A": 80.0, "B": 70.0, "C": 0.0}
   },
@@ -47,21 +47,10 @@
       "requires_normalized_distribution": true,
       "range": [0.0, 1.0]
     },
-    "wasserstein_1d": {
-      "requires_sealed_business_positions": true,
-      "natural_linear_transform": "identity",
-      "natural_linear_normalization": "sealed_support_span",
-      "long_tail_transform": "log10_1p",
-      "long_tail_normalization": "fixed_transform_unit"
-    },
-    "structural_wasserstein": {
-      "states": ["canonical_active_cell_mask", "canonical_symbol_cell"],
-      "symbol_position_condition": "symbol_present",
-      "symbol_position_board_mass": 1.0,
-      "symbol_position_occurrence_mass": "1/count_on_board",
-      "symbol_position_ground_cost": "normalized_grid_manhattan",
-      "board_shape_ground_cost": "normalized_active_cell_change",
-      "distribution_distance": "wasserstein_over_structural_states"
+    "half_l1": {
+      "formula": "0.5*sum(abs(candidate_i-target_i))",
+      "requires_normalized_distribution": false,
+      "range": [0.0, 1.0]
     }
   },
   "j_player_budget_rules": {
@@ -117,13 +106,98 @@
     "category_score": "mean_active_J1_J2_J3_card_scores_equal_card_weight",
     "cross_category_weight": "pending_user_authorization"
   },
+  "p_player_budget_rules": {
+    "minimum_categorical_bin_count": 30,
+    "instance_score_formula": "max(0, 100 * (1 - distance/C_budget))",
+    "P1": {
+      "minimum_original_feature_cycles": 500,
+      "entry_award": {
+        "bin": {"relative": 0.2, "ordinary_floor": 0.005, "maximum": 0.03},
+        "rare_bin_floor_rule": "min(target, ordinary_floor)",
+        "overall": 0.04,
+        "feature_dimension_score": "overall_50_percent_plus_mean_bins_50_percent"
+      },
+      "duration": {
+        "mean": {"relative": 0.12, "minimum_actions": 1.0},
+        "p50": {"relative": 0.15, "minimum_actions": 1.0},
+        "p90": {"relative": 0.2, "minimum_actions": 2.0},
+        "feature_dimension_score": "mean_mean_p50_p90_scores"
+      },
+      "card_score": "mean_features_after_mean_active_dimensions_per_feature"
+    },
+    "P2": {
+      "mechanic_families": ["multiplier_modifier", "collection_upgrade", "transform_replace", "expand_persist", "respin_special_result", "random_modifier_selection", "pick_wheel_path", "other"],
+      "minimum_original_sample_by_opportunity_unit": {
+        "feature_spin": 1000,
+        "positive_settlement_step": 1000,
+        "feature_entry": 500,
+        "complete_feature": 500,
+        "pick": 1000,
+        "respin_step": 1000,
+        "visible_action": 1000,
+        "other": 1000
+      },
+      "result_bin": {"relative": 0.15, "ordinary_floor": 0.005, "maximum": 0.03},
+      "rare_bin_floor_rule": "min(target, ordinary_floor)",
+      "overall": 0.04,
+      "mechanic_score": "overall_50_percent_plus_mean_bins_50_percent",
+      "card_score": "mean_mechanic_scores"
+    },
+    "category_score": "mean_active_P1_P2_card_scores_equal_card_weight",
+    "cross_category_weight": "pending_user_authorization"
+  },
+  "b_player_budget_rules": {
+    "minimum_original_sample": 1000,
+    "minimum_categorical_bin_count": 30,
+    "instance_score_formula": "max(0, 100 * (1 - distance/C_budget))",
+    "B1": {
+      "symbol_group_composition": {
+        "bin": {"relative": 0.15, "ordinary_floor": 0.01, "maximum": 0.04},
+        "rare_bin_floor_rule": "min(target, ordinary_floor)",
+        "overall": 0.05
+      },
+      "symbol_group_member_balance": {
+        "bin": {"relative": 0.2, "ordinary_floor": 0.01, "maximum": 0.05},
+        "rare_bin_floor_rule": "min(target, ordinary_floor)",
+        "overall": 0.06
+      },
+      "key_symbol_count": {
+        "bin": {"relative": 0.12, "ordinary_floor": 0.005, "maximum": 0.025},
+        "rare_bin_floor_rule": "min(target, ordinary_floor)",
+        "overall": 0.04
+      },
+      "aggregation": {
+        "bin": {"relative": 0.15, "ordinary_floor": 0.005, "maximum": 0.03},
+        "rare_bin_floor_rule": "min(target, ordinary_floor)",
+        "overall": 0.04
+      },
+      "card_score": "mean_active_B1_dimensions_equal_dimension_weight"
+    },
+    "B2": {
+      "reel_height": {
+        "bin": {"relative": 0.15, "ordinary_floor": 0.008, "maximum": 0.04},
+        "rare_bin_floor_rule": "min(target, ordinary_floor)",
+        "overall": 0.05
+      },
+      "active_cell_count": {
+        "mean": {"relative": 0.08, "minimum_cells": 1.0},
+        "p50": {"relative": 0.1, "minimum_cells": 1.0},
+        "p90": {"relative": 0.12, "minimum_cells": 2.0}
+      },
+      "unevenness": {
+        "mean": {"relative": 0.15, "minimum_levels": 1.0},
+        "p90": {"relative": 0.2, "minimum_levels": 1.0}
+      },
+      "card_score": "mean_active_B2_dimensions_equal_dimension_weight"
+    },
+    "category_score": "mean_active_B1_B2_card_scores_equal_card_weight",
+    "cross_category_weight": "pending_user_authorization"
+  },
   "tolerance": {
     "J_source": "frozen_player_visible_C_budget",
-    "P_B_source": "sealed_original_joint_self_comparison",
-    "joint_confidence_quantile": 0.99,
-    "joint_statistic": "worst_standardized_active_subitem",
+    "P_source": "frozen_player_visible_C_budget",
+    "B_source": "frozen_player_visible_C_budget",
     "factor": 1.0,
-    "maximum_perceptual_cap": null,
     "deterministic_rule_tolerance": 0.0,
     "freeze_before_candidate": true,
     "candidate_result_may_change_tolerance": false
@@ -142,10 +216,6 @@
     },
     "aggregation": "all_required_pass_then_scoped_composite_score",
     "hard_gate_pass_limit": 1.0,
-    "alignment_thresholds": {
-      "P": {"S": 1.0, "A": 2.5, "B": 5.0, "C": 8.0},
-      "B": {"S": 1.0, "A": 3.0, "B": 6.0, "C": 10.0}
-    },
     "deterministic_exact": {
       "pass_grade": "S",
       "fail_grade": "F"

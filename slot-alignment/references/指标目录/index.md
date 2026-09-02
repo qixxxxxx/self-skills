@@ -1,6 +1,6 @@
 # Slot Alignment v5指标目录
 
-版本：`5.3.0`
+版本：`5.5.0`
 
 本目录只包含新任务使用的四类十三张指标卡；中奖组、组件、结算模型、Feature、符号和盘面作用域只按框架规则扩展卡内子项，不增加权重。
 
@@ -33,17 +33,17 @@
 
 | 卡 | 名称 | 类型 | 玩家问题 | Facet |
 |---|---|---|---|---|
-| P1 | 周期节奏 | alignment | Feature开始时给多少免费旋转，完整Feature会持续多久？ | 初始免费旋转次数（wasserstein_1d）；完整Feature持续长度（wasserstein_1d） |
-| P2 | 机制结果状态 | alignment | 每次特色机制机会最终落入什么可感知结果状态？ | 逐机制结果状态分布（total_variation） |
+| P1 | 玩法入场与长度 | alignment | 进入玩法时拿到哪档起始资源，一整轮实际会经历多少个主要动作？ | 入场奖励档位占比（absolute_probability_error）；入场奖励档位整体移动量（total_variation）；平均完整玩法长度（absolute_error）；常见完整玩法长度（absolute_error）；较长完整玩法长度（absolute_error） |
+| P2 | 特色机制结果 | alignment | 每次特色机制机会最终落入什么可感知结果状态？ | 逐机制结果档位占比（absolute_probability_error）；逐机制结果整体移动量（total_variation） |
 
 ## B：盘面呈现
 
-稳定可见盘面的视觉符号组密度、关键符号数量、位置和空间形态。
+稳定可见盘面的普通符号构成、关键元素数量、主要聚集形态和整体盘面轮廓。
 
 | 卡 | 名称 | 类型 | 玩家问题 | Facet |
 |---|---|---|---|---|
-| B1 | 可见符号构成 | alignment | 每个正式稳定盘面中，主题/普通符号组占比和关键特殊符号数量如何？ | 逐视觉符号组单盘密度分布（wasserstein_1d）；逐关键符号单盘数量分布（wasserstein_1d） |
-| B2 | 盘面空间结构 | alignment | 盘面形状如何变化，玩家关注的关键符号通常出现在哪里？ | 可变盘面形态（structural_wasserstein）；关键符号空间位置密度（structural_wasserstein） |
+| B1 | 元素组成与聚集 | alignment | 盘面整体由哪些普通符号组成，关键元素出现多少，相同元素通常怎样聚集？ | 全盘普通符号组占比（absolute_probability_error）；普通符号组整体移动量（half_l1）；多符号组内部成员占比（absolute_probability_error）；多符号组内部整体移动量（total_variation）；关键元素数量档位占比（absolute_probability_error）；关键元素数量整体移动量（total_variation）；主要堆叠或聚集档位占比（absolute_probability_error）；主要堆叠或聚集整体移动量（total_variation） |
+| B2 | 盘面形态 | alignment | 卷轴高矮、有效格数量和盘面参差程度是否接近原版？ | 逐卷轴高度档位占比（absolute_probability_error）；逐卷轴高度整体移动量（total_variation）；平均有效格数（absolute_error）；常见有效格数（absolute_error）；较大有效格数（absolute_error）；平均盘面参差程度（absolute_error）；较明显盘面参差程度（absolute_error） |
 
 ## 审计
 
@@ -53,4 +53,4 @@
 | A4 | 玩法过程派生统计 | P1, P2 | retrigger_count, extension_events, mechanic_occurrence_rate, mechanic_effective_rate, incremental_rtp |
 | A5 | 盘面派生统计 | B1, B2 | visual_symbol_group_coverage, key_symbol_presence_rate, terminal_board_diagnostics, fixed_board_rule_consistency |
 
-全部N/J/P/B必需项先过C级线，任一失败不得用分数补偿。当前已落定N/J卡分和分类分；N/J跨分类权重及P/B评分留待后续授权。
+全部N/J/P/B必需项先过C级线，任一失败不得用分数补偿。当前已落定N/J/P/B单项分、卡分和分类分；跨分类综合权重留待后续授权。

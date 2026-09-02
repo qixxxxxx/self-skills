@@ -1,7 +1,7 @@
 {
   "schema_version": "slot-alignment.metric-library.v5",
   "library_id": "slot-alignment-player-experience-metrics",
-  "version": "5.3.0",
+  "version": "5.5.0",
   "status": "active",
   "principles": {
     "top_level_categories_are_mutually_exclusive": true,
@@ -35,7 +35,7 @@
       "category_id": "B",
       "name_zh": "盘面呈现",
       "display_order": 40,
-      "owner_boundary_zh": "稳定可见盘面的视觉符号组密度、关键符号数量、位置和空间形态。"
+      "owner_boundary_zh": "稳定可见盘面的普通符号构成、关键元素数量、主要聚集形态和整体盘面轮廓。"
     }
   ],
   "cards": [
@@ -313,39 +313,63 @@
     },
     {
       "card_id": "P1",
-      "name_zh": "周期节奏",
+      "name_zh": "玩法入场与长度",
       "category_id": "P",
       "display_order": 10,
       "kind": "alignment",
-      "player_question_zh": "Feature开始时给多少免费旋转，完整Feature会持续多久？",
+      "player_question_zh": "进入玩法时拿到哪档起始资源，一整轮实际会经历多少个主要动作？",
       "applies_when": {"profile_has_any": ["feature"]},
       "facets": [
         {
-          "facet_id": "initial_free_spin_count",
-          "name_zh": "初始免费旋转次数",
-          "sample_unit": "free_spin_feature_start",
-          "measurement": "initial_awarded_free_spins",
+          "facet_id": "entry_award_bin_rate",
+          "name_zh": "入场奖励档位占比",
+          "sample_unit": "feature_entry",
+          "measurement": "P(frozen_entry_award_bin | feature_entry)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "natural_linear",
-          "subitem_source": "free_spin_features",
-          "applies_when": {"feature_type": "free_spin"}
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "features_with_categorical_entry_award"
         },
         {
-          "facet_id": "feature_duration",
-          "name_zh": "完整Feature持续长度",
-          "sample_unit": "feature_cycle",
-          "measurement": "count(primary_actions_in_complete_feature)",
+          "facet_id": "entry_award_distribution_shift",
+          "name_zh": "入场奖励档位整体移动量",
+          "sample_unit": "feature_entry",
+          "measurement": "distribution(frozen_entry_award_bins)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "natural_linear",
-          "subitem_source": "feature_cycles"
+          "distance_method": "total_variation",
+          "subitem_source": "features_with_categorical_entry_award"
+        },
+        {
+          "facet_id": "feature_duration_mean",
+          "name_zh": "平均完整玩法长度",
+          "sample_unit": "complete_feature_cycle",
+          "measurement": "mean(count(player_visible_primary_actions))",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "features_with_variable_duration"
+        },
+        {
+          "facet_id": "feature_duration_p50",
+          "name_zh": "常见完整玩法长度",
+          "sample_unit": "complete_feature_cycle",
+          "measurement": "P50(count(player_visible_primary_actions))",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "features_with_variable_duration"
+        },
+        {
+          "facet_id": "feature_duration_p90",
+          "name_zh": "较长完整玩法长度",
+          "sample_unit": "feature_cycle",
+          "measurement": "P90(count(player_visible_primary_actions))",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "features_with_variable_duration"
         }
       ]
     },
     {
       "card_id": "P2",
-      "name_zh": "机制结果状态",
+      "name_zh": "特色机制结果",
       "category_id": "P",
       "display_order": 20,
       "kind": "alignment",
@@ -353,78 +377,179 @@
       "applies_when": {"profile_has_any": ["mechanic"]},
       "facets": [
         {
-          "facet_id": "mechanic_result_state",
-          "name_zh": "逐机制结果状态分布",
+          "facet_id": "mechanic_result_bin_rate",
+          "name_zh": "逐机制结果档位占比",
           "sample_unit": "eligible_mechanic_opportunity",
-          "measurement": "exclusive_complete_result_state",
+          "measurement": "P(frozen_player_visible_result_state | eligible_mechanic_opportunity)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "mechanics_with_categorical_result_states"
+        },
+        {
+          "facet_id": "mechanic_result_distribution_shift",
+          "name_zh": "逐机制结果整体移动量",
+          "sample_unit": "eligible_mechanic_opportunity",
+          "measurement": "distribution(frozen_player_visible_result_states)",
           "target_source": "sealed_original_evidence",
           "distance_method": "total_variation",
-          "subitem_source": "active_special_mechanics",
-          "required_states": ["not_occurred_or_not_effective"]
+          "subitem_source": "mechanics_with_categorical_result_states"
         }
       ]
     },
     {
       "card_id": "B1",
-      "name_zh": "可见符号构成",
+      "name_zh": "元素组成与聚集",
       "category_id": "B",
       "display_order": 10,
       "kind": "alignment",
-      "player_question_zh": "每个正式稳定盘面中，主题/普通符号组占比和关键特殊符号数量如何？",
+      "player_question_zh": "盘面整体由哪些普通符号组成，关键元素出现多少，相同元素通常怎样聚集？",
       "applies_when": {"profile_has_any": ["board"]},
       "facets": [
         {
-          "facet_id": "symbol_group_density_per_board",
-          "name_zh": "逐视觉符号组单盘密度分布",
+          "facet_id": "symbol_group_share_bin_rate",
+          "name_zh": "全盘普通符号组占比",
           "sample_unit": "stable_visible_board",
-          "measurement": "count(group_symbols_on_board)/count(active_visible_cells)",
+          "measurement": "long_run_count(group_symbols)/long_run_count(active_visible_cells)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "natural_linear",
-          "support_span": 1.0,
-          "subitem_source": "profile_visual_symbol_groups_and_formal_board_scopes",
-          "visible_cell_normalized": true
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "profile_symbol_groups_and_formal_board_scopes"
         },
         {
-          "facet_id": "key_symbol_count_per_board",
-          "name_zh": "逐关键符号单盘数量分布",
+          "facet_id": "symbol_group_composition_shift",
+          "name_zh": "普通符号组整体移动量",
           "sample_unit": "stable_visible_board",
-          "measurement": "count(key_symbol_on_board), including_zero",
+          "measurement": "0.5*sum(abs(candidate_group_share-target_group_share))",
           "target_source": "sealed_original_evidence",
-          "distance_method": "wasserstein_1d",
-          "axis_semantics": "natural_linear",
-          "subitem_source": "profile_key_symbols_and_formal_board_scopes",
-          "zero_bucket_required": true
+          "distance_method": "half_l1",
+          "subitem_source": "formal_board_scopes"
+        },
+        {
+          "facet_id": "symbol_group_member_share_bin_rate",
+          "name_zh": "多符号组内部成员占比",
+          "sample_unit": "stable_visible_board_group_symbol",
+          "measurement": "long_run_count(member_symbol)/long_run_count(all_symbols_in_group)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "multi_symbol_groups_and_formal_board_scopes"
+        },
+        {
+          "facet_id": "symbol_group_member_distribution_shift",
+          "name_zh": "多符号组内部整体移动量",
+          "sample_unit": "stable_visible_board_group_symbol",
+          "measurement": "distribution(group_member_shares)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "total_variation",
+          "subitem_source": "multi_symbol_groups_and_formal_board_scopes"
+        },
+        {
+          "facet_id": "key_symbol_count_bin_rate",
+          "name_zh": "关键元素数量档位占比",
+          "sample_unit": "eligible_stable_visible_board",
+          "measurement": "P(frozen_key_symbol_count_bin | eligible_board)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "profile_key_symbol_count_bins_and_formal_board_scopes"
+        },
+        {
+          "facet_id": "key_symbol_count_distribution_shift",
+          "name_zh": "关键元素数量整体移动量",
+          "sample_unit": "eligible_stable_visible_board",
+          "measurement": "distribution(frozen_key_symbol_count_bins)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "total_variation",
+          "subitem_source": "profile_key_symbol_count_bins_and_formal_board_scopes"
+        },
+        {
+          "facet_id": "aggregation_bin_rate",
+          "name_zh": "主要堆叠或聚集档位占比",
+          "sample_unit": "eligible_stable_visible_board",
+          "measurement": "P(frozen_primary_aggregation_bin | eligible_board)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "profile_primary_aggregation_and_formal_board_scopes"
+        },
+        {
+          "facet_id": "aggregation_distribution_shift",
+          "name_zh": "主要堆叠或聚集整体移动量",
+          "sample_unit": "eligible_stable_visible_board",
+          "measurement": "distribution(frozen_primary_aggregation_bins)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "total_variation",
+          "subitem_source": "profile_primary_aggregation_and_formal_board_scopes"
         }
       ]
     },
     {
       "card_id": "B2",
-      "name_zh": "盘面空间结构",
+      "name_zh": "盘面形态",
       "category_id": "B",
       "display_order": 20,
       "kind": "alignment",
-      "player_question_zh": "盘面形状如何变化，玩家关注的关键符号通常出现在哪里？",
+      "player_question_zh": "卷轴高矮、有效格数量和盘面参差程度是否接近原版？",
       "applies_when": {"profile_has_any": ["board"]},
       "facets": [
         {
-          "facet_id": "board_shape",
-          "name_zh": "可变盘面形态",
+          "facet_id": "reel_height_bin_rate",
+          "name_zh": "逐卷轴高度档位占比",
           "sample_unit": "stable_visible_board",
-          "measurement": "active_cell_mask_or_equivalent_visible_shape",
+          "measurement": "P(frozen_reel_height_bin)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "structural_wasserstein",
-          "subitem_source": "variable_formal_board_scopes",
-          "fixed_board_policy": "audit_only"
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "variable_reel_height_profiles_and_formal_board_scopes"
         },
         {
-          "facet_id": "key_symbol_position_density",
-          "name_zh": "关键符号空间位置密度",
-          "sample_unit": "stable_visible_board_with_symbol",
-          "measurement": "board_equalized_symbol_cell_density_conditioned_on_presence",
+          "facet_id": "reel_height_distribution_shift",
+          "name_zh": "逐卷轴高度整体移动量",
+          "sample_unit": "stable_visible_board",
+          "measurement": "distribution(frozen_reel_height_bins)",
           "target_source": "sealed_original_evidence",
-          "distance_method": "structural_wasserstein",
-          "subitem_source": "profile_selected_spatial_symbols_and_formal_board_scopes"
+          "distance_method": "total_variation",
+          "subitem_source": "variable_reel_height_profiles_and_formal_board_scopes"
+        },
+        {
+          "facet_id": "active_cell_count_mean",
+          "name_zh": "平均有效格数",
+          "sample_unit": "stable_visible_board",
+          "measurement": "mean(active_visible_cell_count)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "variable_reel_height_formal_board_scopes"
+        },
+        {
+          "facet_id": "active_cell_count_p50",
+          "name_zh": "常见有效格数",
+          "sample_unit": "stable_visible_board",
+          "measurement": "P50(active_visible_cell_count)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "variable_reel_height_formal_board_scopes"
+        },
+        {
+          "facet_id": "active_cell_count_p90",
+          "name_zh": "较大有效格数",
+          "sample_unit": "stable_visible_board",
+          "measurement": "P90(active_visible_cell_count)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "variable_reel_height_formal_board_scopes"
+        },
+        {
+          "facet_id": "board_unevenness_mean",
+          "name_zh": "平均盘面参差程度",
+          "sample_unit": "stable_visible_board",
+          "measurement": "mean(max_reel_height-min_reel_height)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "variable_reel_height_formal_board_scopes"
+        },
+        {
+          "facet_id": "board_unevenness_p90",
+          "name_zh": "较明显盘面参差程度",
+          "sample_unit": "stable_visible_board",
+          "measurement": "P90(max_reel_height-min_reel_height)",
+          "target_source": "sealed_original_evidence",
+          "distance_method": "absolute_error",
+          "subitem_source": "variable_reel_height_formal_board_scopes"
         }
       ]
     }

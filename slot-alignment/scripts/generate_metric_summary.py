@@ -28,7 +28,7 @@ def render(library):
     lines += ["## 审计", "", "| ID | 名称 | 来源卡 | 内容 |", "|---|---|---|---|"]
     for audit in library["audits"]:
         lines.append(f"| {audit['audit_id']} | {audit['name_zh']} | {', '.join(audit['source_cards'])} | {', '.join(audit['includes'])} |")
-    lines += ["", "全部N/J/P/B必需项先过C级线，任一失败不得用分数补偿。当前已落定N/J卡分和分类分；N/J跨分类权重及P/B评分留待后续授权。", ""]
+    lines += ["", "全部N/J/P/B必需项先过C级线，任一失败不得用分数补偿。当前已落定N/J/P/B单项分、卡分和分类分；跨分类综合权重留待后续授权。", ""]
     return "\n".join(lines)
 
 

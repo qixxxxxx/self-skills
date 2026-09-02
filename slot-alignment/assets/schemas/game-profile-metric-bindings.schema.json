@@ -27,11 +27,16 @@
     "feature": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["feature_id", "feature_type", "endogenous_entry"],
+      "required": ["feature_id", "feature_type", "endogenous_entry", "entry_award_evaluation_mode", "duration_evaluation_mode", "duration_unit"],
       "properties": {
         "feature_id": {"$ref": "#/$defs/id"},
         "feature_type": {"enum": ["free_spin", "respin", "hold_and_spin", "award_draw", "bonus_sequence", "other"]},
-        "endogenous_entry": {"type": "boolean"}
+        "endogenous_entry": {"type": "boolean"},
+        "entry_award_evaluation_mode": {"enum": ["not_applicable", "fixed_rule", "categorical_distribution"]},
+        "entry_award_unit": {"$ref": "#/$defs/id"},
+        "entry_award_bins": {"type": "array", "minItems": 2, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "duration_evaluation_mode": {"enum": ["fixed_rule", "summary_triplet"]},
+        "duration_unit": {"enum": ["spin", "respin_step", "pick", "stage", "visible_action"]}
       }
     },
     "settlement": {
@@ -87,34 +92,60 @@
     "mechanic": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mechanic_id", "result_states", "inactive_state_ids"],
+      "required": ["mechanic_id", "mechanic_family", "opportunity_unit", "result_evaluation_mode", "guaranteed_resolution", "result_states", "inactive_state_ids"],
       "properties": {
         "mechanic_id": {"$ref": "#/$defs/id"},
-        "result_states": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
-        "inactive_state_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
+        "mechanic_family": {"enum": ["multiplier_modifier", "collection_upgrade", "transform_replace", "expand_persist", "respin_special_result", "random_modifier_selection", "pick_wheel_path", "other"]},
+        "opportunity_unit": {"enum": ["feature_spin", "positive_settlement_step", "feature_entry", "complete_feature", "pick", "respin_step", "visible_action", "other"]},
+        "result_evaluation_mode": {"enum": ["fixed_rule", "categorical_distribution"]},
+        "guaranteed_resolution": {"type": "boolean"},
+        "result_states": {"type": "array", "minItems": 1, "maxItems": 6, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "inactive_state_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
       }
     },
     "board": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["board_scope_id", "component_id", "visual_phase", "rows", "columns", "variable_shape", "symbols", "symbol_groups", "key_symbols", "spatial_symbols"],
+      "required": ["board_scope_id", "component_id", "visual_phase", "rows", "columns", "shape_mode", "symbols", "symbol_groups", "key_symbol_profiles", "aggregation_profile", "reel_height_profiles"],
       "properties": {
         "board_scope_id": {"$ref": "#/$defs/id"},
         "component_id": {"$ref": "#/$defs/id"},
         "visual_phase": {"enum": ["initial", "cascade_visible"]},
         "rows": {"type": "integer", "minimum": 1},
         "columns": {"type": "integer", "minimum": 1},
-        "variable_shape": {"type": "boolean"},
+        "shape_mode": {"enum": ["fixed", "variable_reel_height"]},
         "symbols": {"$ref": "#/$defs/string_list"},
         "symbol_groups": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 5,
+          "minItems": 2,
+          "maxItems": 4,
           "items": {"$ref": "#/$defs/symbol_group"}
         },
-        "key_symbols": {"$ref": "#/$defs/string_list"},
-        "spatial_symbols": {"$ref": "#/$defs/string_list"}
-      }
+        "key_symbol_profiles": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/key_symbol_profile"}
+        },
+        "aggregation_profile": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/aggregation_profile"}
+          ]
+        },
+        "reel_height_profiles": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/reel_height_profile"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"shape_mode": {"const": "fixed"}}},
+          "then": {"properties": {"reel_height_profiles": {"maxItems": 0}}}
+        },
+        {
+          "if": {"properties": {"shape_mode": {"const": "variable_reel_height"}}},
+          "then": {"properties": {"reel_height_profiles": {"minItems": 1}}}
+        }
+      ]
     },
     "symbol_group": {
       "type": "object",
@@ -124,6 +155,36 @@
         "group_id": {"$ref": "#/$defs/id"},
         "role": {"enum": ["signature", "regular_high", "regular_low", "regular_other"]},
         "symbols": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
+      }
+    },
+    "key_symbol_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symbol_id", "count_bins", "sample_filter"],
+      "properties": {
+        "symbol_id": {"$ref": "#/$defs/id"},
+        "count_bins": {"type": "array", "minItems": 2, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "sample_filter": {"enum": ["all_stable_boards", "untriggered_only"]}
+      }
+    },
+    "aggregation_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aggregation_type", "symbol_ids", "bins", "sample_filter"],
+      "properties": {
+        "aggregation_type": {"enum": ["vertical_run", "max_connected_cluster", "max_concentrated_symbol_count", "custom"]},
+        "symbol_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "bins": {"type": "array", "minItems": 2, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "sample_filter": {"enum": ["all_stable_boards", "non_winning_only"]}
+      }
+    },
+    "reel_height_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reel_id", "bins"],
+      "properties": {
+        "reel_id": {"$ref": "#/$defs/id"},
+        "bins": {"type": "array", "minItems": 2, "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
       }
     }
   }

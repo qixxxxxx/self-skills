@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-import bisect
 import hashlib
 import json
 import math
 from pathlib import Path
 
 import numpy as np
-from scipy.optimize import linprog
-from scipy.sparse import lil_matrix
 
 
 FORMAL_STATUSES = {"通过", "不通过", "样本不足", "不适用", "计算异常"}
@@ -109,91 +106,15 @@ def total_variation(target, candidate):
     return float(0.5 * np.abs(p - q).sum())
 
 
-def wasserstein_1d(target, candidate, positions, transform="identity", support_span=None):
-    x = np.asarray([float(item) for item in positions], dtype=float)
-    if len(x) < 2 or not np.all(np.isfinite(x)) or np.any(np.diff(x) <= 0):
-        raise ValueError("有序位置必须有限且严格递增")
-    if transform == "log10_1p":
-        if np.any(x < 0):
-            raise ValueError("log10_1p业务位置不能为负")
-        x = np.log10(1.0 + x)
-        scale = 1.0
-    elif transform == "identity":
-        scale = float(support_span if support_span is not None else x[-1] - x[0])
-        if scale <= 0:
-            raise ValueError("线性支持跨度必须大于0")
-    else:
-        raise ValueError(f"未知位置变换: {transform}")
-    p, q = _probabilities(target, positions), _probabilities(candidate, positions)
-    if len(p) != len(x) or len(q) != len(x):
-        raise ValueError("概率桶与业务位置数量不一致")
-    return float(np.sum(np.abs(np.cumsum(p - q)[:-1]) * np.diff(x)) / scale)
-
-
-def _cells(state):
-    raw = state.get("cells") if isinstance(state, dict) else state
-    cells = [tuple(map(int, cell)) for cell in raw]
-    if len(set(cells)) != len(cells):
-        raise ValueError("占位图存在重复格")
-    return cells
-
-
-def _symbol_position_ground_cost(left, right, board_shape):
-    left, right = _cells(left), _cells(right)
-    if len(left) != 1 or len(right) != 1:
-        raise ValueError("关键符号位置状态必须且只能包含一个格")
-    rows, cols = map(int, board_shape)
-    diameter = max(1, rows + cols - 2)
-    return (abs(left[0][0] - right[0][0]) + abs(left[0][1] - right[0][1])) / diameter
-
-
-def _board_shape_ground_cost(left, right, _board_shape):
-    left, right = set(_cells(left)), set(_cells(right))
-    union = left | right
-    return 0.0 if not union else len(left ^ right) / len(union)
-
-
-def _state_distribution(value):
-    if not isinstance(value, dict) or not isinstance(value.get("states"), list):
-        raise ValueError("结构分布必须包含states数组")
-    states, probs = [], []
-    for item in value["states"]:
-        states.append(item)
-        probs.append(float(item.get("probability", 0.0)))
-    probs = _probabilities(probs)
-    return states, probs
-
-
-def structural_wasserstein(target, candidate, state_kind="symbol_position_density", board_shape=None):
-    target_states, p = _state_distribution(target)
-    candidate_states, q = _state_distribution(candidate)
-    shape = board_shape or target.get("board_shape") or candidate.get("board_shape")
-    if not shape or len(shape) != 2:
-        raise ValueError("结构距离缺少board_shape")
-    grounds = {
-        "symbol_position_density": _symbol_position_ground_cost,
-        "board_shape": _board_shape_ground_cost,
-    }
-    if state_kind not in grounds:
-        raise ValueError(f"未知结构状态类型: {state_kind}")
-    ground = grounds[state_kind]
-    costs = np.asarray([[ground(a, b, shape) for b in candidate_states] for a in target_states], dtype=float)
-    rows, cols = len(p), len(q)
-    constraints = lil_matrix((rows + cols, rows * cols), dtype=float)
-    for i in range(rows):
-        constraints[i, i * cols : (i + 1) * cols] = 1.0
-    for j in range(cols):
-        constraints[rows + j, j::cols] = 1.0
-    result = linprog(
-        costs.ravel(),
-        A_eq=constraints.tocsr(),
-        b_eq=np.concatenate([p, q]),
-        bounds=(0.0, None),
-        method="highs",
-    )
-    if not result.success:
-        raise ValueError(f"结构Wasserstein求解失败: {result.message}")
-    return float(result.fun)
+def half_l1(target, candidate):
+    if not isinstance(target, dict) or not isinstance(candidate, dict):
+        raise ValueError("半L1双方必须是对象")
+    keys = sorted(set(target) | set(candidate), key=str)
+    p = np.asarray([float(target.get(key, 0.0)) for key in keys], dtype=float)
+    q = np.asarray([float(candidate.get(key, 0.0)) for key in keys], dtype=float)
+    if not np.all(np.isfinite(p)) or not np.all(np.isfinite(q)) or np.any(p < 0) or np.any(q < 0) or np.any(p > 1) or np.any(q > 1):
+        raise ValueError("半L1占比必须位于[0,1]")
+    return float(0.5 * np.abs(p - q).sum())
 
 
 def calculate_distance(contract, target, candidate):
@@ -208,50 +129,9 @@ def calculate_distance(contract, target, candidate):
         return range_error(target, candidate)
     if method == "total_variation":
         return total_variation(target, candidate)
-    if method == "wasserstein_1d":
-        return wasserstein_1d(
-            target,
-            candidate,
-            contract["bin_positions"],
-            contract.get("position_transform", "identity"),
-            contract.get("support_span"),
-        )
-    if method == "structural_wasserstein":
-        return structural_wasserstein(
-            target,
-            candidate,
-            contract.get("state_kind", "symbol_position_density"),
-            contract.get("board_shape"),
-        )
+    if method == "half_l1":
+        return half_l1(target, candidate)
     raise ValueError(f"不支持的距离方法: {method}")
-
-
-def _higher_quantile(values, quantile):
-    ordered = sorted(float(value) for value in values)
-    if not ordered:
-        raise ValueError("分位数输入为空")
-    index = max(0, min(len(ordered) - 1, math.ceil(quantile * len(ordered)) - 1))
-    return ordered[index]
-
-
-def joint_q99_tolerances(distances_by_instance):
-    if not distances_by_instance:
-        raise ValueError("缺少自对照距离")
-    lengths = {len(values) for values in distances_by_instance.values()}
-    if len(lengths) != 1 or 0 in lengths:
-        raise ValueError("全部实例必须具有相同且非零的自对照轮数")
-    base = {key: _higher_quantile(values, 0.99) for key, values in distances_by_instance.items()}
-    scales = {key: value if value > 0 else max(map(float, distances_by_instance[key]), default=0.0) for key, value in base.items()}
-    maxima = []
-    for index in range(next(iter(lengths))):
-        ratios = []
-        for key, values in distances_by_instance.items():
-            scale = scales[key]
-            value = float(values[index])
-            ratios.append(0.0 if scale == 0 and value == 0 else value / scale)
-        maxima.append(max(ratios))
-    factor = max(1.0, _higher_quantile(maxima, 0.99))
-    return {key: value * factor for key, value in base.items()}, factor
 
 
 def _sample_evidence(value):
@@ -266,10 +146,7 @@ def _sample_evidence(value):
 
 
 def grade_thresholds(card, evaluation_policy):
-    grading = evaluation_policy["formal_grading"]
-    if card["category_id"] in {"N", "J"}:
-        return {"C": float(grading["hard_gate_pass_limit"])}
-    return grading["alignment_thresholds"][card["category_id"]]
+    return {"C": float(evaluation_policy["formal_grading"]["hard_gate_pass_limit"])}
 
 
 def grade_ratio(ratio, thresholds):
@@ -348,17 +225,12 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
         passed = distance == 0
         ratio = 0.0 if passed else None
         grade = evaluation_policy["formal_grading"]["deterministic_exact"]["pass_grade" if passed else "fail_grade"]
-        score = 100.0 if card["category_id"] in {"N", "J"} and passed else (0.0 if card["category_id"] in {"N", "J"} else None)
+        score = 100.0 if passed else 0.0
     else:
         ratio = distance / tolerance
-        if card["category_id"] in {"N", "J"}:
-            score = max(0.0, 100.0 * (1.0 - ratio))
-            passed = ratio <= pass_limit
-            grade = grade_score(score, evaluation_policy) if passed else "F"
-        else:
-            score = None
-            grade = grade_ratio(ratio, thresholds)
-            passed = grade in evaluation_policy["formal_grading"]["pass_grades"]
+        score = max(0.0, 100.0 * (1.0 - ratio))
+        passed = ratio <= pass_limit
+        grade = grade_score(score, evaluation_policy) if passed else "F"
     return {
         "instance_id": instance["instance_id"],
         "facet_id": instance["facet_id"],
@@ -378,7 +250,7 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
     }
 
 
-def _j_card_score(card, instance_results):
+def _hierarchical_card_score(card, instance_results):
     grouped = {}
     for instance, result in zip(card["instances"], instance_results):
         aggregation = instance.get("aggregation")
@@ -422,8 +294,8 @@ def aggregate_card(card, instance_results, evaluation_policy):
         scores = [item["score"] for item in instance_results if finite_number(item.get("score"))]
         score = sum(scores) / len(scores) if scores else None
         grade = grade_score(score, evaluation_policy) if score is not None else "U"
-    elif card["category_id"] == "J" and status == "通过":
-        score = _j_card_score(card, instance_results)
+    elif card["category_id"] in {"J", "P", "B"} and status == "通过":
+        score = _hierarchical_card_score(card, instance_results)
         grade = grade_score(score, evaluation_policy) if score is not None else "U"
     return {
         "card_id": card["card_id"],
@@ -482,6 +354,12 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
     j_cards = [card for card in card_results if card["category_id"] == "J" and card["status"] != "不适用"]
     if j_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in j_cards):
         category_scores["J"] = sum(card["score"] for card in j_cards) / len(j_cards)
+    p_cards = [card for card in card_results if card["category_id"] == "P" and card["status"] != "不适用"]
+    if p_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in p_cards):
+        category_scores["P"] = sum(card["score"] for card in p_cards) / len(p_cards)
+    b_cards = [card for card in card_results if card["category_id"] == "B" and card["status"] != "不适用"]
+    if b_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in b_cards):
+        category_scores["B"] = sum(card["score"] for card in b_cards) / len(b_cards)
     scoped_scores = [category_scores[category] for category in evaluation_policy["composite_scoring"]["score_scope"]]
     composite_score = sum(scoped_scores) / len(scoped_scores) if scoped_scores and all(finite_number(item) for item in scoped_scores) else None
     final_grade = "U" if unknown else ("F" if hard_failures or alignment_failures else grade_score(composite_score, evaluation_policy))

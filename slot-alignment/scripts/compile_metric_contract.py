@@ -140,49 +140,180 @@ def subitems(card_id, facet_id, bindings):
                     "aggregation": {**aggregation, "role": "overall"},
                 }))
         return result
-    if (card_id, facet_id) == ("P1", "initial_free_spin_count"):
-        return [(item["feature_id"], {"feature": item["feature_id"]}, {}) for item in features if item["feature_type"] == "free_spin"]
-    if (card_id, facet_id) == ("P1", "feature_duration"):
-        return [(item["feature_id"], {"feature": item["feature_id"], "feature_type": item["feature_type"]}, {}) for item in features]
-    if (card_id, facet_id) == ("P2", "mechanic_result_state"):
-        return [(item["mechanic_id"], {"mechanic": item["mechanic_id"]}, {"sealed_states": item["result_states"]}) for item in mechanics]
-    if (card_id, facet_id) == ("B1", "symbol_group_density_per_board"):
-        return [(f"{board['board_scope_id']}.{group['group_id']}", {
-            "board": board["board_scope_id"],
-            "component": board["component_id"],
-            "visual_phase": board["visual_phase"],
-            "symbol_group": group["group_id"],
-            "symbols": group["symbols"],
-        }, {}) for board in boards for group in board["symbol_groups"]]
-    if (card_id, facet_id) == ("B1", "key_symbol_count_per_board"):
-        return [(f"{board['board_scope_id']}.{symbol}", {
-            "board": board["board_scope_id"],
-            "component": board["component_id"],
-            "visual_phase": board["visual_phase"],
-            "symbol": symbol,
-        }, {}) for board in boards for symbol in board["key_symbols"]]
-    if (card_id, facet_id) == ("B2", "board_shape"):
-        return [(board["board_scope_id"], {"board": board["board_scope_id"]}, {"state_kind": "board_shape", "board_shape": [board["rows"], board["columns"]]}) for board in boards if board["variable_shape"]]
-    if (card_id, facet_id) == ("B2", "key_symbol_position_density"):
-        return [(f"{board['board_scope_id']}.{symbol}", {"board": board["board_scope_id"], "symbol": symbol}, {"state_kind": "symbol_position_density", "board_shape": [board["rows"], board["columns"]]}) for board in boards for symbol in board["spatial_symbols"]]
+    if card_id == "P1" and facet_id in {"entry_award_bin_rate", "entry_award_distribution_shift"}:
+        result = []
+        for item in features:
+            if item["entry_award_evaluation_mode"] != "categorical_distribution":
+                continue
+            aggregation = {"dimension_id": item["feature_id"], "group_id": "entry_award", "mode": "half_overall_half_items"}
+            base_scope = {"feature": item["feature_id"], "feature_type": item["feature_type"], "entry_award_unit": item["entry_award_unit"]}
+            if facet_id == "entry_award_bin_rate":
+                for bin_id in item["entry_award_bins"]:
+                    result.append((f"{item['feature_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
+                        "budget_rule": "P1.entry_award.bin",
+                        "requires_bin_count": True,
+                        "aggregation": {**aggregation, "role": "bin"},
+                    }))
+            else:
+                result.append((item["feature_id"], {**base_scope, "bins": item["entry_award_bins"]}, {
+                    "budget_rule": "P1.entry_award.overall",
+                    "aggregation": {**aggregation, "role": "overall"},
+                }))
+        return result
+    if card_id == "P1" and facet_id in {"feature_duration_mean", "feature_duration_p50", "feature_duration_p90"}:
+        statistic = facet_id.rsplit("_", 1)[-1]
+        return [(item["feature_id"], {
+            "feature": item["feature_id"],
+            "feature_type": item["feature_type"],
+            "duration_unit": item["duration_unit"],
+            "statistic": statistic,
+        }, {
+            "budget_rule": f"P1.duration.{statistic}",
+            "aggregation": {"dimension_id": item["feature_id"], "group_id": "duration", "mode": "mean_items", "role": "item"},
+        }) for item in features if item["duration_evaluation_mode"] == "summary_triplet"]
+    if card_id == "P2" and facet_id in {"mechanic_result_bin_rate", "mechanic_result_distribution_shift"}:
+        result = []
+        for item in mechanics:
+            if item["result_evaluation_mode"] != "categorical_distribution":
+                continue
+            aggregation = {"dimension_id": item["mechanic_id"], "group_id": "result", "mode": "half_overall_half_items"}
+            base_scope = {
+                "mechanic": item["mechanic_id"],
+                "mechanic_family": item["mechanic_family"],
+                "opportunity_unit": item["opportunity_unit"],
+            }
+            if facet_id == "mechanic_result_bin_rate":
+                for state in item["result_states"]:
+                    result.append((f"{item['mechanic_id']}.{state}", {**base_scope, "state": state}, {
+                        "budget_rule": "P2.result.bin",
+                        "requires_bin_count": True,
+                        "aggregation": {**aggregation, "role": "bin"},
+                    }))
+            else:
+                result.append((item["mechanic_id"], {**base_scope, "states": item["result_states"]}, {
+                    "budget_rule": "P2.result.overall",
+                    "aggregation": {**aggregation, "role": "overall"},
+                }))
+        return result
+    if card_id == "B1" and facet_id in {"symbol_group_share_bin_rate", "symbol_group_composition_shift"}:
+        result = []
+        for board in boards:
+            groups = board["symbol_groups"]
+            aggregation = {"dimension_id": "b1-1", "group_id": f"{board['board_scope_id']}.group-composition", "mode": "half_overall_half_items"}
+            base_scope = {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"]}
+            if facet_id == "symbol_group_share_bin_rate":
+                for group in groups:
+                    result.append((f"{board['board_scope_id']}.{group['group_id']}", {**base_scope, "symbol_group": group["group_id"], "symbols": group["symbols"]}, {
+                        "budget_rule": "B1.symbol_group_composition.bin",
+                        "requires_bin_count": True,
+                        "aggregation": {**aggregation, "role": "bin"},
+                    }))
+            else:
+                result.append((board["board_scope_id"], {**base_scope, "groups": [item["group_id"] for item in groups]}, {
+                    "budget_rule": "B1.symbol_group_composition.overall",
+                    "aggregation": {**aggregation, "role": "overall"},
+                }))
+        return result
+    if card_id == "B1" and facet_id in {"symbol_group_member_share_bin_rate", "symbol_group_member_distribution_shift"}:
+        result = []
+        for board in boards:
+            base_scope = {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"]}
+            for group in board["symbol_groups"]:
+                if len(group["symbols"]) < 2:
+                    continue
+                aggregation = {"dimension_id": "b1-1", "group_id": f"{board['board_scope_id']}.member-balance.{group['group_id']}", "mode": "half_overall_half_items"}
+                if facet_id == "symbol_group_member_share_bin_rate":
+                    for symbol in group["symbols"]:
+                        result.append((f"{board['board_scope_id']}.{group['group_id']}.{symbol}", {**base_scope, "symbol_group": group["group_id"], "symbol": symbol}, {
+                            "budget_rule": "B1.symbol_group_member_balance.bin",
+                            "requires_bin_count": True,
+                            "aggregation": {**aggregation, "role": "bin"},
+                        }))
+                else:
+                    result.append((f"{board['board_scope_id']}.{group['group_id']}", {**base_scope, "symbol_group": group["group_id"], "members": group["symbols"]}, {
+                        "budget_rule": "B1.symbol_group_member_balance.overall",
+                        "aggregation": {**aggregation, "role": "overall"},
+                    }))
+        return result
+    if card_id == "B1" and facet_id in {"key_symbol_count_bin_rate", "key_symbol_count_distribution_shift"}:
+        result = []
+        for board in boards:
+            for profile in board["key_symbol_profiles"]:
+                aggregation = {"dimension_id": "b1-2", "group_id": f"{board['board_scope_id']}.{profile['symbol_id']}", "mode": "half_overall_half_items"}
+                base_scope = {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"], "symbol": profile["symbol_id"], "sample_filter": profile["sample_filter"]}
+                if facet_id == "key_symbol_count_bin_rate":
+                    for bin_id in profile["count_bins"]:
+                        result.append((f"{board['board_scope_id']}.{profile['symbol_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
+                            "budget_rule": "B1.key_symbol_count.bin",
+                            "requires_bin_count": True,
+                            "aggregation": {**aggregation, "role": "bin"},
+                        }))
+                else:
+                    result.append((f"{board['board_scope_id']}.{profile['symbol_id']}", {**base_scope, "bins": profile["count_bins"]}, {
+                        "budget_rule": "B1.key_symbol_count.overall",
+                        "aggregation": {**aggregation, "role": "overall"},
+                    }))
+        return result
+    if card_id == "B1" and facet_id in {"aggregation_bin_rate", "aggregation_distribution_shift"}:
+        result = []
+        for board in boards:
+            profile = board["aggregation_profile"]
+            if profile is None:
+                continue
+            aggregation = {"dimension_id": "b1-3", "group_id": board["board_scope_id"], "mode": "half_overall_half_items"}
+            base_scope = {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"], "aggregation_type": profile["aggregation_type"], "symbols": profile["symbol_ids"], "sample_filter": profile["sample_filter"]}
+            if facet_id == "aggregation_bin_rate":
+                for bin_id in profile["bins"]:
+                    result.append((f"{board['board_scope_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
+                        "budget_rule": "B1.aggregation.bin",
+                        "requires_bin_count": True,
+                        "aggregation": {**aggregation, "role": "bin"},
+                    }))
+            else:
+                result.append((board["board_scope_id"], {**base_scope, "bins": profile["bins"]}, {
+                    "budget_rule": "B1.aggregation.overall",
+                    "aggregation": {**aggregation, "role": "overall"},
+                }))
+        return result
+    if card_id == "B2" and facet_id in {"reel_height_bin_rate", "reel_height_distribution_shift"}:
+        result = []
+        for board in boards:
+            if board["shape_mode"] != "variable_reel_height":
+                continue
+            for reel in board["reel_height_profiles"]:
+                aggregation = {"dimension_id": "reel_height", "group_id": f"{board['board_scope_id']}.{reel['reel_id']}", "mode": "half_overall_half_items"}
+                base_scope = {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"], "reel": reel["reel_id"]}
+                if facet_id == "reel_height_bin_rate":
+                    for bin_id in reel["bins"]:
+                        result.append((f"{board['board_scope_id']}.{reel['reel_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
+                            "budget_rule": "B2.reel_height.bin",
+                            "requires_bin_count": True,
+                            "aggregation": {**aggregation, "role": "bin"},
+                        }))
+                else:
+                    result.append((f"{board['board_scope_id']}.{reel['reel_id']}", {**base_scope, "bins": reel["bins"]}, {
+                        "budget_rule": "B2.reel_height.overall",
+                        "aggregation": {**aggregation, "role": "overall"},
+                    }))
+        return result
+    if card_id == "B2" and facet_id in {"active_cell_count_mean", "active_cell_count_p50", "active_cell_count_p90"}:
+        statistic = facet_id.rsplit("_", 1)[-1]
+        return [(board["board_scope_id"], {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"], "statistic": statistic}, {
+            "budget_rule": f"B2.active_cell_count.{statistic}",
+            "aggregation": {"dimension_id": "active_cell_count", "group_id": board["board_scope_id"], "mode": "mean_items", "role": "item"},
+        }) for board in boards if board["shape_mode"] == "variable_reel_height"]
+    if card_id == "B2" and facet_id in {"board_unevenness_mean", "board_unevenness_p90"}:
+        statistic = facet_id.rsplit("_", 1)[-1]
+        return [(board["board_scope_id"], {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"], "statistic": statistic}, {
+            "budget_rule": f"B2.unevenness.{statistic}",
+            "aggregation": {"dimension_id": "unevenness", "group_id": board["board_scope_id"], "mode": "mean_items", "role": "item"},
+        }) for board in boards if board["shape_mode"] == "variable_reel_height"]
     return []
 
 
 def distance_contract(facet, target_record, extra):
     result = {"method": facet["distance_method"]}
-    if facet.get("axis_semantics") is not None:
-        result["axis_semantics"] = facet["axis_semantics"]
-    if facet.get("position_transform"):
-        result["position_transform"] = facet["position_transform"]
-    if facet.get("support_span"):
-        result["support_span"] = float(facet["support_span"])
     result.update(target_record.get("distance", {}))
-    if result["method"] == "structural_wasserstein":
-        result.update(extra)
-        result["ground_cost"] = {
-            "symbol_position_density": "normalized_grid_manhattan",
-            "board_shape": "normalized_active_cell_change",
-        }[extra["state_kind"]]
     return result
 
 
@@ -245,6 +376,50 @@ def j_c_tolerance(target, scope, extra, bindings, policy):
     raise ValueError(f"J类不支持的C级玩家预算规则: {rule_id}")
 
 
+def p_c_tolerance(target, extra, policy):
+    rules = policy["p_player_budget_rules"]
+    rule_id = extra["budget_rule"]
+    if rule_id == "P1.entry_award.bin":
+        rule = rules["P1"]["entry_award"]["bin"]
+        target = abs(float(target))
+        floor = min(target, float(rule["ordinary_floor"]))
+        return min(max(target * float(rule["relative"]), floor), float(rule["maximum"]))
+    if rule_id == "P1.entry_award.overall":
+        return float(rules["P1"]["entry_award"]["overall"])
+    if rule_id.startswith("P1.duration."):
+        statistic = rule_id.rsplit(".", 1)[-1]
+        rule = rules["P1"]["duration"][statistic]
+        return max(abs(float(target)) * float(rule["relative"]), float(rule["minimum_actions"]))
+    if rule_id == "P2.result.bin":
+        rule = rules["P2"]["result_bin"]
+        target = abs(float(target))
+        floor = min(target, float(rule["ordinary_floor"]))
+        return min(max(target * float(rule["relative"]), floor), float(rule["maximum"]))
+    if rule_id == "P2.result.overall":
+        return float(rules["P2"]["overall"])
+    raise ValueError(f"P类不支持的C级玩家预算规则: {rule_id}")
+
+
+def _rare_clamped_relative(target, rule):
+    target = abs(float(target))
+    floor = min(target, float(rule["ordinary_floor"]))
+    return min(max(target * float(rule["relative"]), floor), float(rule["maximum"]))
+
+
+def b_c_tolerance(target, extra, policy):
+    rules = policy["b_player_budget_rules"]
+    rule_id = extra["budget_rule"]
+    parts = rule_id.split(".")
+    if parts[-1] == "overall":
+        return float(rules[parts[0]][parts[1]]["overall"])
+    if parts[-1] == "bin":
+        return _rare_clamped_relative(target, rules[parts[0]][parts[1]]["bin"])
+    statistic = parts[-1]
+    rule = rules[parts[0]][parts[1]][statistic]
+    minimum_key = "minimum_cells" if parts[1] == "active_cell_count" else "minimum_levels"
+    return max(abs(float(target)) * float(rule["relative"]), float(rule[minimum_key]))
+
+
 def contract_digest(contract):
     clone = deepcopy(contract)
     clone["hashes"]["contract_sha256"] = "0" * 64
@@ -253,10 +428,9 @@ def contract_digest(contract):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="编译slot-alignment v5.3指标合同")
+    parser = argparse.ArgumentParser(description="编译slot-alignment v5.9指标合同")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--targets", required=True)
-    parser.add_argument("--joint-tolerances", required=True)
     parser.add_argument("--bindings", required=True)
     parser.add_argument("--sample-plan", required=True)
     parser.add_argument("--runtime-capabilities", required=True)
@@ -264,7 +438,6 @@ def main():
     args = parser.parse_args()
     profile = load_json(args.profile)
     targets = load_json(args.targets).get("targets", {})
-    joint = load_json(args.joint_tolerances)
     bindings_file = load_json(args.bindings)
     sample_plan = load_json(args.sample_plan)
     runtime_capabilities = load_json(args.runtime_capabilities)
@@ -288,12 +461,20 @@ def main():
     bindings = profile["metric_bindings"]
     profile_schema = load_json(ROOT / "assets/schemas/game-profile-metric-bindings.schema.json")
     Draft202012Validator(profile_schema).validate(profile)
-    joint_schema = load_json(ROOT / "assets/schemas/joint-self-comparison.schema.json")
-    Draft202012Validator(joint_schema).validate(joint)
     component_ids = [item["component_id"] for item in bindings["components"]]
     component_set = set(component_ids)
     if len(component_ids) != len(component_set):
         raise SystemExit("components.component_id重复")
+    feature_ids = [item["feature_id"] for item in bindings["features"]]
+    if len(feature_ids) != len(set(feature_ids)):
+        raise SystemExit("features.feature_id重复")
+    for feature in bindings["features"]:
+        entry_mode = feature["entry_award_evaluation_mode"]
+        if entry_mode == "categorical_distribution":
+            if not feature.get("entry_award_unit") or not feature.get("entry_award_bins"):
+                raise SystemExit(f"{feature['feature_id']}可变入场奖励必须冻结单位和档位")
+        elif feature.get("entry_award_bins"):
+            raise SystemExit(f"{feature['feature_id']}固定或不适用的入场奖励不得配置分布档位")
     settlement_ids = [item["settlement_id"] for item in bindings["settlements"]]
     if len(settlement_ids) != len(set(settlement_ids)):
         raise SystemExit("settlements.settlement_id重复")
@@ -372,6 +553,11 @@ def main():
         unknown = set(mechanic["inactive_state_ids"]) - set(mechanic["result_states"])
         if unknown:
             raise SystemExit(f"{mechanic['mechanic_id']} inactive_state_ids不在result_states中: {sorted(unknown)}")
+        if mechanic["result_evaluation_mode"] == "categorical_distribution":
+            if len(mechanic["result_states"]) < 2:
+                raise SystemExit(f"{mechanic['mechanic_id']}可变机制结果至少需要两个玩家可见状态")
+            if not mechanic["guaranteed_resolution"] and not mechanic["inactive_state_ids"]:
+                raise SystemExit(f"{mechanic['mechanic_id']}非必然机制必须包含没发生或没生效状态")
     board_keys = [(item["component_id"], item["visual_phase"]) for item in bindings["boards"]]
     if len(board_keys) != len(set(board_keys)):
         raise SystemExit("每个组件的initial/cascade_visible正式盘面只能各有一个")
@@ -379,26 +565,37 @@ def main():
         if board["component_id"] not in component_set:
             raise SystemExit(f"{board['board_scope_id']} component_id不在components中")
         symbols = set(board["symbols"])
-        key_symbols = set(board["key_symbols"])
-        spatial_symbols = set(board["spatial_symbols"])
+        key_profiles = board["key_symbol_profiles"]
+        key_symbols = {item["symbol_id"] for item in key_profiles}
+        if len(key_symbols) != len(key_profiles):
+            raise SystemExit(f"{board['board_scope_id']} key_symbol_profiles.symbol_id重复")
         group_ids = [item["group_id"] for item in board["symbol_groups"]]
         grouped = [symbol for item in board["symbol_groups"] for symbol in item["symbols"]]
         if len(group_ids) != len(set(group_ids)):
             raise SystemExit(f"{board['board_scope_id']} symbol_groups.group_id重复")
         if len(grouped) != len(set(grouped)):
             raise SystemExit(f"{board['board_scope_id']}视觉符号组之间存在重复符号")
-        unknown = (set(grouped) | key_symbols | spatial_symbols) - symbols
+        unknown = (set(grouped) | key_symbols) - symbols
         if unknown:
             raise SystemExit(f"{board['board_scope_id']}画像符号不在symbols中: {sorted(unknown)}")
         if set(grouped) & key_symbols:
-            raise SystemExit(f"{board['board_scope_id']}视觉符号组不得与key_symbols重叠")
-        if spatial_symbols - key_symbols:
-            raise SystemExit(f"{board['board_scope_id']} spatial_symbols必须来自key_symbols")
+            raise SystemExit(f"{board['board_scope_id']}普通符号组不得与关键符号重叠")
         uncovered = symbols - set(grouped) - key_symbols
         if uncovered:
-            raise SystemExit(f"{board['board_scope_id']}可见符号域未被symbol_groups和key_symbols覆盖: {sorted(uncovered)}")
+            raise SystemExit(f"{board['board_scope_id']}可见符号域未被symbol_groups和key_symbol_profiles覆盖: {sorted(uncovered)}")
+        aggregation = board["aggregation_profile"]
+        if aggregation is not None:
+            aggregation_symbols = set(aggregation["symbol_ids"])
+            if not aggregation_symbols <= set(grouped):
+                raise SystemExit(f"{board['board_scope_id']}聚集指标只能使用普通符号组成员")
+        reel_profiles = board["reel_height_profiles"]
+        reel_ids = [item["reel_id"] for item in reel_profiles]
+        if len(reel_ids) != len(set(reel_ids)):
+            raise SystemExit(f"{board['board_scope_id']} reel_height_profiles.reel_id重复")
+        if board["shape_mode"] == "variable_reel_height" and len(reel_profiles) != board["columns"]:
+            raise SystemExit(f"{board['board_scope_id']}可变卷轴高度必须逐列冻结高度档位")
     cards, missing = [], []
-    used_targets, used_tolerances = set(), set()
+    used_targets = set()
     for card in library["cards"]:
         instances = []
         for facet in card["facets"]:
@@ -435,33 +632,53 @@ def main():
                             raise SystemExit(f"{instance_id}原版档位计数必须至少{minimum_bin}，否则应先合并尾部")
                     if card["card_id"] == "J1" and (not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1):
                         raise SystemExit(f"{instance_id} J1参与率必须在(0,1)内；0或100%不生成实例")
+                if card["category_id"] == "P":
+                    p_rules = evaluation_policy["p_player_budget_rules"]
+                    if card["card_id"] == "P1":
+                        minimum_sample = int(p_rules["P1"]["minimum_original_feature_cycles"])
+                    else:
+                        minimum_sample = int(p_rules["P2"]["minimum_original_sample_by_opportunity_unit"][scope["opportunity_unit"]])
+                    sample_count = target_record.get("sample_count")
+                    if not isinstance(sample_count, int) or isinstance(sample_count, bool) or sample_count < minimum_sample:
+                        raise SystemExit(f"{instance_id}原版有效样本必须至少{minimum_sample}")
+                    if extra.get("requires_bin_count"):
+                        minimum_bin = int(p_rules["minimum_categorical_bin_count"])
+                        bucket_count = target_record.get("bucket_count")
+                        if not isinstance(bucket_count, int) or isinstance(bucket_count, bool) or bucket_count < minimum_bin:
+                            raise SystemExit(f"{instance_id}原版档位计数必须至少{minimum_bin}，否则应先合并玩家结果档位")
+                        if not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1:
+                            raise SystemExit(f"{instance_id}档位占比必须在(0,1)内；0或100%不生成分布实例")
+                    if facet["facet_id"].startswith("feature_duration_") and (not finite_number(target_record.get("value")) or float(target_record["value"]) <= 0):
+                        raise SystemExit(f"{instance_id}玩法长度目标必须大于0")
+                if card["category_id"] == "B":
+                    b_rules = evaluation_policy["b_player_budget_rules"]
+                    minimum_sample = int(b_rules["minimum_original_sample"])
+                    sample_count = target_record.get("sample_count")
+                    if not isinstance(sample_count, int) or isinstance(sample_count, bool) or sample_count < minimum_sample:
+                        raise SystemExit(f"{instance_id}原版有效盘面必须至少{minimum_sample}")
+                    if extra.get("requires_bin_count"):
+                        minimum_bin = int(b_rules["minimum_categorical_bin_count"])
+                        bucket_count = target_record.get("bucket_count")
+                        if not isinstance(bucket_count, int) or isinstance(bucket_count, bool) or bucket_count < minimum_bin:
+                            raise SystemExit(f"{instance_id}原版档位计数必须至少{minimum_bin}，否则应先合并相邻尾部")
+                        if not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1:
+                            raise SystemExit(f"{instance_id}档位占比必须在(0,1)内")
                 if card["kind"] == "hard_gate":
                     budget = n_c_tolerance(card["card_id"], target_record["value"], scope, bindings, hard_policy)
                     tolerance = {"source": "hard_gate_player_budget", "base": budget, "factor": 1.0, "effective": budget}
                 elif card["category_id"] == "J":
                     budget = j_c_tolerance(target_record["value"], scope, extra, bindings, evaluation_policy)
                     tolerance = {"source": "j_player_visible_budget", "base": budget, "factor": 1.0, "effective": budget}
+                elif card["category_id"] == "P":
+                    budget = p_c_tolerance(target_record["value"], extra, evaluation_policy)
+                    tolerance = {"source": "p_player_visible_budget", "base": budget, "factor": 1.0, "effective": budget}
+                elif card["category_id"] == "B":
+                    budget = b_c_tolerance(target_record["value"], extra, evaluation_policy)
+                    tolerance = {"source": "b_player_visible_budget", "base": budget, "factor": 1.0, "effective": budget}
                 elif target_record.get("deterministic_exact"):
                     tolerance = {"source": "deterministic_exact", "base": 0.0, "factor": 1.0, "effective": 0.0}
                 else:
-                    value = joint["tolerances"].get(instance_id)
-                    if value is None:
-                        missing.append(f"{instance_id}:joint_tolerance")
-                        continue
-                    used_tolerances.add(instance_id)
-                    tolerance = {
-                        "source": "sealed_original_joint_self_comparison",
-                        "base": float(value),
-                        "factor": 1.0,
-                        "effective": float(value),
-                        "self_comparison": {
-                            "quantile": 0.99,
-                            "joint": True,
-                            "replicates": int(joint["replicates"]),
-                            "seed": int(joint["seed"]),
-                            "evidence_sha256": joint["evidence_sha256"],
-                        },
-                    }
+                    raise SystemExit(f"{instance_id}没有可用的C级预算规则")
                 instance = {
                     "instance_id": instance_id,
                     "facet_id": facet["facet_id"],
@@ -487,11 +704,10 @@ def main():
             "instances": instances,
         })
     if missing:
-        raise SystemExit("缺少目标或联合容差: " + ", ".join(sorted(missing)))
+        raise SystemExit("缺少目标: " + ", ".join(sorted(missing)))
     extra_targets = set(targets) - used_targets
-    extra_tolerances = set(joint.get("tolerances", {})) - used_tolerances
-    if extra_targets or extra_tolerances:
-        raise SystemExit(f"存在未绑定的目标或容差: targets={sorted(extra_targets)}, tolerances={sorted(extra_tolerances)}")
+    if extra_targets:
+        raise SystemExit(f"存在未绑定的目标: {sorted(extra_targets)}")
     audits = [{
         "audit_id": item["audit_id"],
         "name_zh": item["name_zh"],

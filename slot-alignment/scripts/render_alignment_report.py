@@ -16,7 +16,7 @@ def display(value):
 def render(contract, result):
     by_card = {item["card_id"]: item for item in result["card_results"]}
     lines = [
-        "# Slot Alignment v5.7指标判定报告",
+        "# Slot Alignment v5.9指标判定报告",
         "",
         "## 1. 冻结输入与Hash",
         "",
@@ -64,6 +64,8 @@ def render(contract, result):
         f"- 当前阶段等级：**{summary['final_grade']}**",
         f"- N类阶段分（当前等级使用）：{display(summary['category_scores']['N'])}",
         f"- J类分（已计算，跨分类权重待授权）：{display(summary['category_scores']['J'])}",
+        f"- P类分（已计算，跨分类权重待授权）：{display(summary['category_scores']['P'])}",
+        f"- B类分（已计算，跨分类权重待授权）：{display(summary['category_scores']['B'])}",
         f"- 当前评分范围：{', '.join(summary['score_scope'])}",
         f"- 完整框架预留：{', '.join(summary['planned_score_scope'])}",
         f"- 硬门禁失败实例：{summary['hard_gate_failures']}",
@@ -72,7 +74,7 @@ def render(contract, result):
         f"- 最大偏差倍数：{display(summary['maximum_deviation_ratio'])}",
         f"- 最差实例：{display(summary['worst_instance_id'])}",
         "",
-        "> 当前N卡分、J卡分和J类分已落定；N/J跨分类权重与P/B分数尚未授权，所以当前等级仍只使用N类阶段分。通过状态仍要求所有N/J/P/B必需项通过。",
+        "> 当前N/J/P/B单项分、卡分和分类分已落定；跨分类综合权重尚未授权，所以当前等级仍只使用N类阶段分。通过状态仍要求所有N/J/P/B必需项通过。",
         "",
     ]
     return "\n".join(lines)

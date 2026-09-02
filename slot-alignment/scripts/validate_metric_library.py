@@ -51,11 +51,11 @@ def main():
     errors += schema_errors(root / "assets/schemas/hard-gate-tolerance-policy.schema.json", hard_path)
     errors += schema_errors(root / "assets/schemas/sample-execution-policy.schema.json", sample_path)
     errors += schema_errors(root / "assets/schemas/runtime-capability-policy.schema.json", capability_policy_path)
-    for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "joint-self-comparison.schema.json", "sample-execution-plan.schema.json", "runtime-capability-matrix.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
+    for schema_name in ["metric-contract.schema.json", "alignment-result.schema.json", "game-profile-metric-bindings.schema.json", "sample-execution-plan.schema.json", "runtime-capability-matrix.schema.json", "stage3-gate.schema.json", "delivery-manifest.schema.json"]:
         Draft202012Validator.check_schema(load(root / "assets/schemas" / schema_name))
     library, evaluation, hard, sample, capability_policy = load(library_path), load(evaluation_path), load(hard_path), load(sample_path), load(capability_policy_path)
-    if library.get("version") != "5.3.0" or evaluation.get("version") != "5.6.0" or evaluation.get("applies_to_metric_library") != "5.3.0":
-        errors.append("指标库必须为5.3.0，评价政策必须为5.6.0且绑定指标库5.3.0")
+    if library.get("version") != "5.5.0" or evaluation.get("version") != "5.8.0" or evaluation.get("applies_to_metric_library") != "5.5.0":
+        errors.append("指标库必须为5.5.0，评价政策必须为5.8.0且绑定指标库5.5.0")
     category_ids = [item["category_id"] for item in library["categories"]]
     if category_ids != ["N", "J", "P", "B"]:
         errors.append(f"顶层分类必须按N/J/P/B唯一排列，实际={category_ids}")
@@ -132,50 +132,72 @@ def main():
     for marker in ["chain_" + "reward", "variable_" + "chain_" + "reward"]:
         if marker in machine_j_surface:
             errors.append(f"新版J3机器规则不得保留旧整链奖励字段: {marker}")
+    expected_p_facets = {
+        "P1": ["entry_award_bin_rate", "entry_award_distribution_shift", "feature_duration_mean", "feature_duration_p50", "feature_duration_p90"],
+        "P2": ["mechanic_result_bin_rate", "mechanic_result_distribution_shift"],
+    }
+    for card_id, expected in expected_p_facets.items():
+        actual = [item["facet_id"] for item in next(item for item in cards if item["card_id"] == card_id)["facets"]]
+        if actual != expected:
+            errors.append(f"{card_id}玩家直观Facet必须为{expected}，实际={actual}")
     calculation = hard["calculation"]
     if calculation.get("N1_interval_forbidden") is not True or calculation.get("N1_distance") != "abs(candidate-target)":
         errors.append("N1必须禁止区间目标并使用绝对RTP差")
     n4 = next(item for item in cards if item["card_id"] == "N4")["facets"][0]
     if n4.get("boundary") != "inclusive" or n4.get("feature_buy_cost_rule") != "use_actual_purchase_cost":
         errors.append("N4必须包含>=1x边界并按Feature Buy实际成本")
-    p2 = next(item for item in cards if item["card_id"] == "P2")["facets"][0]
-    if "not_occurred_or_not_effective" not in p2.get("required_states", []):
-        errors.append("P2必须包含未发生或未生效状态")
-    b1_facets = {item["facet_id"]: item for item in next(item for item in cards if item["card_id"] == "B1")["facets"]}
-    density = b1_facets.get("symbol_group_density_per_board", {})
-    key_count = b1_facets.get("key_symbol_count_per_board", {})
-    if density.get("measurement") != "count(group_symbols_on_board)/count(active_visible_cells)" or density.get("support_span") != 1.0 or density.get("visible_cell_normalized") is not True:
-        errors.append("B1普通符号组必须按有效格密度评价并固定support_span=1")
-    if key_count.get("zero_bucket_required") is not True:
-        errors.append("B1关键符号数量必须包含0桶")
-    b2 = next(item for item in cards if item["card_id"] == "B2")["facets"][1]
-    if b2.get("measurement") != "board_equalized_symbol_cell_density_conditioned_on_presence":
-        errors.append("B2关键符号位置必须按出现盘面等权归一化")
-    if b2.get("subitem_source") != "profile_selected_spatial_symbols_and_formal_board_scopes" or "condition_on" in b2:
-        errors.append("B2只能按画像选定关键空间符号逐作用域展开，不得按数量展开")
-    structural = evaluation["distance_methods"]["structural_wasserstein"]
-    if structural.get("symbol_position_occurrence_mass") != "1/count_on_board":
-        errors.append("B2关键符号位置必须消除单盘符号数量影响")
+    expected_b_facets = {
+        "B1": [
+            "symbol_group_share_bin_rate", "symbol_group_composition_shift",
+            "symbol_group_member_share_bin_rate", "symbol_group_member_distribution_shift",
+            "key_symbol_count_bin_rate", "key_symbol_count_distribution_shift",
+            "aggregation_bin_rate", "aggregation_distribution_shift",
+        ],
+        "B2": [
+            "reel_height_bin_rate", "reel_height_distribution_shift",
+            "active_cell_count_mean", "active_cell_count_p50", "active_cell_count_p90",
+            "board_unevenness_mean", "board_unevenness_p90",
+        ],
+    }
+    for card_id, expected in expected_b_facets.items():
+        actual = [item["facet_id"] for item in next(item for item in cards if item["card_id"] == card_id)["facets"]]
+        if actual != expected:
+            errors.append(f"{card_id}新版玩家直观Facet必须为{expected}，实际={actual}")
+    machine_b_surface = "\n".join(json.dumps(value, ensure_ascii=False) for value in [library, evaluation, load(root / "assets/schemas/game-profile-metric-bindings.schema.json")])
+    for marker in ["key_symbol_position_density", "spatial_symbols", "sealed_original_joint_self_comparison"]:
+        if marker in machine_b_surface:
+            errors.append(f"新版B机器规则不得保留旧位置或联合自对照字段: {marker}")
     decision = evaluation["decision_model"]
     if not all(decision[key] for key in ["score_scale_enabled", "weights_enabled", "composite_score_enabled"]):
-        errors.append("v5.6评价政策必须启用N/J类100分框架")
+        errors.append("v5.8评价政策必须启用N/J/P/B类100分框架")
     if decision["metric_compensation_enabled"] or decision["formal_metric_waiver_enabled"]:
         errors.append("综合分不得补偿失败项，正式指标不得豁免")
     scoring = evaluation.get("composite_scoring", {})
-    if scoring.get("available_category_scores") != ["N", "J"] or scoring.get("score_scope") != ["N"] or scoring.get("planned_score_scope") != ["N", "J", "P", "B"] or scoring.get("reserved_categories") != ["P", "B"] or scoring.get("score_status") != "NJ_READY_TOTAL_N_ONLY":
-        errors.append("必须计算N/J分类分、仅用N评级，并为P/B及完整综合分预留位置")
+    if scoring.get("available_category_scores") != ["N", "J", "P", "B"] or scoring.get("score_scope") != ["N"] or scoring.get("planned_score_scope") != ["N", "J", "P", "B"] or scoring.get("reserved_categories") != [] or scoring.get("score_status") != "NJPB_READY_TOTAL_N_ONLY":
+        errors.append("必须计算N/J/P/B分类分、仅用N评级，并等待跨分类权重授权")
     if scoring.get("grade_thresholds") != {"S": 90.0, "A": 80.0, "B": 70.0, "C": 0.0}:
         errors.append("综合等级线必须为S90/A80/B70/C0")
     tolerance = evaluation["tolerance"]
     if tolerance.get("J_source") != "frozen_player_visible_C_budget":
         errors.append("J1～J3必须使用候选前冻结的直接C级玩家预算")
-    if tolerance.get("P_B_source") != "sealed_original_joint_self_comparison" or tolerance.get("joint_confidence_quantile") != 0.99 or tolerance.get("maximum_perceptual_cap") is not None:
-        errors.append("P/B必须使用无额外上限的联合99%自对照")
+    if tolerance.get("P_source") != "frozen_player_visible_C_budget":
+        errors.append("P1～P2必须使用候选前冻结的直接C级玩家预算")
+    if tolerance.get("B_source") != "frozen_player_visible_C_budget":
+        errors.append("B1～B2必须使用候选前冻结的直接C级玩家预算")
     j_rules = evaluation.get("j_player_budget_rules", {})
     if j_rules.get("minimum_original_sample") != 500 or j_rules.get("minimum_categorical_bin_count") != 30:
         errors.append("J类原版有效样本下限必须为500，J2分布单档计数下限必须为30")
     if j_rules.get("J3", {}).get("depth_bins") != ["0", "1", "2", "3", "4", "5", "6+"]:
         errors.append("J3深度档位必须固定为0、1、2、3、4、5、6+")
+    p_rules = evaluation.get("p_player_budget_rules", {})
+    if p_rules.get("minimum_categorical_bin_count") != 30 or p_rules.get("P1", {}).get("minimum_original_feature_cycles") != 500:
+        errors.append("P1原版完整玩法样本必须至少500，P类单档计数下限必须为30")
+    expected_families = ["multiplier_modifier", "collection_upgrade", "transform_replace", "expand_persist", "respin_special_result", "random_modifier_selection", "pick_wheel_path", "other"]
+    if p_rules.get("P2", {}).get("mechanic_families") != expected_families:
+        errors.append("P2必须覆盖七类主流特色机制和other兜底")
+    b_rules = evaluation.get("b_player_budget_rules", {})
+    if b_rules.get("minimum_original_sample") != 1000 or b_rules.get("minimum_categorical_bin_count") != 30:
+        errors.append("B类原版有效盘面下限必须为1000，分布单档计数下限必须为30")
     if sample.get("version") != "1.1.0":
         errors.append("样本执行策略版本必须为1.1.0")
     if capability_policy.get("version") != "1.0.0" or capability_policy.get("rules", {}).get("implementation_must_not_narrow_authorized_cardinality") is not True:
@@ -295,7 +317,7 @@ def main():
     if errors:
         print("\n".join(f"ERROR: {item}" for item in errors), file=sys.stderr)
         raise SystemExit(1)
-    print(f"OK: v5.3指标库校验通过，4类13卡{sum(len(item['facets']) for item in cards)}个Facet")
+    print(f"OK: v5.5指标库校验通过，4类13卡{sum(len(item['facets']) for item in cards)}个Facet")
 
 
 if __name__ == "__main__":

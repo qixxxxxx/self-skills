@@ -3,7 +3,7 @@ name: slot-alignment
 description: 基于Slot原版采集证据、规则/规格、Runtime和用户认证的Python模拟脚本，冻结玩家感官导向的N数值门禁、J中奖结算、P玩法过程、B盘面呈现指标合同，审计认证脚本、服务端、候选生成器、快速模拟器、FORMAL和优化器的Runtime能力覆盖，并完成基线诊断、自动调参、独立FORMAL验收和中文交付。用于老虎机原版数值或体验对齐、盘面与中奖诊断、指标规划、候选验收及Runtime交付；所有画像命中的正式指标必须逐项通过且不得豁免，候选生成必须单次抽取生效，禁止重抽、拒绝采样、回溯规划及缩窄已授权原生调参能力。
 ---
 
-# Slot 原版体验对齐 5.7.0
+# Slot 原版体验对齐 5.9.0
 
 ## 目标与边界
 
@@ -48,7 +48,7 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 | N 数值指标 | N1～N6 | 跨完整付费入口或组件的全局数值红线 |
 | J 中奖结算 | J1～J3 | 完整结算链中的实际派奖结果 |
 | P 玩法过程 | P1～P2 | 跨结算步骤的Feature周期与机制结果状态 |
-| B 盘面呈现 | B1～B2 | 稳定可见盘面的视觉符号组、关键符号数量与空间结构 |
+| B 盘面呈现 | B1～B2 | 稳定可见盘面的普通符号构成、关键元素数量、主要聚集形态和整体盘面轮廓 |
 
 归属冲突时使用：结果归J、过程归P、静态画面归B、全局红线归N。Cascade连续消除归J3。固定、条件必然或可由其他正式指标确定性派生的J细项不生成实例，也不得转为J审计。
 
@@ -56,20 +56,25 @@ description: 基于Slot原版采集证据、规则/规格、Runtime和用户认�
 
 - 每个正式实例先计算`偏差倍数 = 实际距离 / C级最大允许距离`。N类偏差倍数`<=1`才通过；样本不足或计算异常为U。
 - N类C级玩家预算固定为：N1绝对差`0.003`；N2 `min(max(目标×6%, 0.008), 0.02)`；N3普通Feature为目标的`12%`，目标低于`0.0005`时为`20%`；N4 `min(max(目标×8%, 0.005), 0.015)`；N5总体`8%`、非Feature作用域`8%`、各Feature作用域`12%`；N6 `min(max(目标×8%, 0.003), 0.015)`。
-- J1～J3直接使用玩家可感知的C级预算，偏差倍数`<=1`才通过；原版自对照波动只用来判断是否需要增加样本，不得放宽J类预算。P玩法过程仍使用S/A/B/C=`1/2.5/5/8`，B盘面呈现仍使用`1/3/6/10`。
-- J类全部必需项通过后才计算J1、J2、J3卡分和J类分；不同J卡等权。J类分已落定，但N与J的跨分类合并权重尚未授权，当前总等级仍明示`score_scope=["N"]`。
+- J1～J3、P1～P2和B1～B2直接使用玩家可感知的C级预算，偏差倍数`<=1`才通过；原版自对照波动只用来判断是否需要增加样本，不得放宽预算。
+- J/P/B类全部必需项通过后才计算单项分、卡分和分类分；同类卡等权。N/J/P/B的跨分类合并权重尚未授权，当前总等级仍明示`score_scope=["N"]`。
 - 所有画像命中的N/J/P/B必需实例都必须先达到C级最低通过线；任一必需项失败，整体直接为F，其他高分不能补救。
 - N类通过后计算`单项分 = max(0, 100 × (1 - 偏差倍数))`；卡内子项等权平均得到卡分，活动N卡等权平均得到N类阶段分。
-- 全部必需项通过后，当前按N类阶段分评级：S `>=90`、A `>=80`、B `>=70`、C `<70`。J卡分和J类分已经落定，P/B仍保留评分槽位；N/J跨分类权重尚未授权。报告必须明示`score_scope=["N"]`，不得把N类阶段分说成完整N/J/P/B总分。
+- 全部必需项通过后，当前按N类阶段分评级：S `>=90`、A `>=80`、B `>=70`、C `<70`。N/J/P/B卡分和分类分已经落定；跨分类权重尚未授权。报告必须明示`score_scope=["N"]`，不得把N类阶段分说成完整N/J/P/B总分。
 - J1按组件冻结2～5个玩家看得懂的中奖内容组；每个派奖元素只属于一组，但同一有奖结算可同时计入多组，所以参与率不要求合计为100%。只有一个派奖元素的组件不生成J1。
 - J2保留三个玩家维度：主要中奖结构规模、同时中奖数量、单次结算奖励。主要结构只选一个主轴；少量自然档位比较各档占比和整体移动量，Ways、Cluster等大范围数值比较平均值、P50和P90。同时中奖数量默认使用`1、2、3、4+`；单次结算奖励比较平均值、P50和P90。
 - J3只保留连续结算深度，统一使用`0、1、2、3、4、5、6+`七档；深度是同一入口内实际发生的正奖励结算步数。整链奖励彻底删除，不通过、不评分、不保留辅助观察。
 - J1/J2/J3按Base、各Feature和其他玩家可区分组件拆分，不得合并平均。J2奖励使用玩家界面展示投注基准，不使用Feature Buy购买成本；购买成本仍只进入N类经济口径。
+- P1只评价可变的玩家入场奖励档位和完整玩法实际动作长度。入场档位比较各档占比与整体移动量；完整长度按玩法原生动作单位比较平均、P50和P90。触发入口旋转、Cascade、动画、收集元素数量及Reset事件本身不增加长度；新增动作只在实际执行时计数。固定入场奖励或固定长度属于规则，不生成分布实例。
+- P2按每种特色机制冻结机会单位、七类主流机制家族、2～6个互斥完备的玩家可见结果状态及没发生/没生效边界。倍数、收集升阶、变换替换、扩展持续、Respin特殊结果、随机Modifier、Pick/转盘/路径及other按同一结果分布框架评价；固定结果不生成分布实例。
+- P1/P2不重复评价N3触发率、J2奖励大小、J3连续结算深度或B类特殊符号数量与位置。嵌套Feature分别按自身原生动作统计，不把子Feature动作重复加进父Feature长度。
 - B类正式盘面作用域按组件拆分为`initial`和存在连续结算时的`cascade_visible`；无中奖初始盘不得以terminal重复计分，独立terminal只作审计。
-- B1普通符号按候选出现前冻结的视觉符号组评价有效格密度；关键特殊符号保留含0的绝对数量分布。Base与Feature、initial与cascade_visible不得合并平均。
-- 输出目标、候选、距离、生效容差、偏差倍数、C级通过上限、N类单项/卡/分类分、评分范围、FORMAL等级、状态和样本证据。
-- 普通概率使用绝对概率差；无序状态分布使用总变差；数量、密度和其他有序分布使用一维Wasserstein；可变盘面形态和关键符号位置使用结构Wasserstein。
-- J类使用新版直接C级玩家预算；P/B仍使用候选出现前密封的原版联合99%自对照容差，容差系数固定1.0。
+- B1-1只评价全盘普通符号组构成和多符号组内部平衡，不按卷轴、行或区域拆分普通符号比例。B1-2按关键元素自然数量档位评价；触发型符号只看未触发盘面的`0～阈值-1`。B1-3每个盘面只冻结一种主要堆叠或聚集口径；与J2重复时改看未中奖盘面，仍重复则不生成。
+- B2只保留可变卷轴高度、全盘有效格数和最高轴减最低轴的参差程度；固定盘面只作规则审计。关键符号精确位置与旧B2-2彻底删除，不生成正式指标或辅助观察。
+- B1组间、组内、关键数量和聚集分布，以及B2卷轴高度分布，都同时检查各档占比与整体移动量；B2有效格数比较mean/P50/P90，参差程度比较mean/P90。Base与Feature、initial与cascade_visible不得合并平均。
+- 输出目标、候选、距离、生效容差、偏差倍数、C级通过上限、N/J/P/B单项/卡/分类分、评分范围、FORMAL等级、状态和样本证据。
+- 普通概率使用绝对概率差；互斥完备分布使用总变差；普通符号组整体构成使用不强制归一化的半L1；直观数值使用绝对数值差。
+- J/P/B类均使用候选出现前冻结的直接C级玩家预算；原版自对照只用于判断样本是否需要增加，不参与放宽C级预算。
 - N4固定为`P(return >= actual_entry_cost)`，Feature Buy使用实际购买成本，C级预算按`min(max(目标×8%, 0.005), 0.015)`计算。
 - 原付费入口倍率分布只作A1审计。
 
@@ -113,8 +118,8 @@ target_rtp_confirmation_evidence
 1. 只读列举配置仓库、服务端缓存和资料目录的完整Runtime候选及bundle hash。
 2. 汇总全部原版样本根目录、来源数和完整付费入口数。
 3. 解析唯一原始Python脚本路径与SHA-256，并取得用户直接认证。
-4. 建立包含结算、Feature、特色机制、盘面、组件和Sigma作用域的玩法画像；逐组件冻结界面展示投注基准、2～5个完整覆盖派奖元素的中奖内容组、每种结算模型唯一主要结构轴及其评价模式、冻结档位、自然单位、同时中奖数量档位、最小可见派奖单位、连续结算作用域，以及`initial`与适用的`cascade_visible`盘面、视觉符号组、关键计数符号、B2关键空间符号及原版证据。只有一个派奖元素的组件不得创建常量中奖组。
-5. 视觉符号组必须互斥并与关键计数符号共同覆盖正式盘面的可见符号域；默认优先使用主题标志组、其他高价值组、低价值组，只有证据要求时才增加组。列出观测缺口、未知玩法和参数权限；默认授权reel-strip数值权重调整，只有超出其结构边界时才询问新增权限。正式指标缺口必须在候选出现前补齐。
+4. 建立包含结算、Feature、特色机制、盘面、组件和Sigma作用域的玩法画像；逐组件冻结界面展示投注基准、2～5个完整覆盖派奖元素的中奖内容组、每种结算模型唯一主要结构轴及其评价模式、冻结档位、自然单位、同时中奖数量档位、最小可见派奖单位、连续结算作用域，以及`initial`与适用的`cascade_visible`盘面、2～4个普通符号组、组内成员、关键元素数量档位、主要聚集口径、盘面形态模式和可变卷轴高度档位。只有一个派奖元素的组件不得创建常量中奖组。
+5. 普通符号组必须互斥并与关键元素共同覆盖正式盘面的可见符号域；不生成逐卷轴普通符号构成或关键元素精确位置指标。列出观测缺口、未知玩法和参数权限；默认授权reel-strip数值权重调整，只有超出其结构边界时才询问新增权限。正式指标缺口必须在候选出现前补齐。
 6. 取得用户直接提供或明确确认的唯一目标RTP及确认记录hash；若用户只提供区间，必须继续询问唯一数值。随后确认Runtime基线、样本范围、是否重算和参数权限。
 
 原始认证脚本保持只读。派生观测脚本必须证明RTP、RNG、逐局投注/派奖和状态语义等价。从认证脚本和服务端实际读取逻辑枚举Runtime原生能力，不得仅按基线当前启用的A/B、`refill_1/final`或其他实例数量推断能力上限；能力矩阵必须记录数量范围、抽取作用域、证据位置、授权操作、优化器参数和敏感性计划。
@@ -138,7 +143,7 @@ target_rtp_confirmation_evidence
 ## 五阶段工作流
 
 1. 资料与画像：密封输入、脚本、玩法画像和参数权限；生成Runtime能力矩阵并通过六层覆盖门禁。
-2. 指标合同：编译全部适用N/J/P/B实例，冻结N/J直接C级玩家预算，只对P/B校准联合99%容差。
+2. 指标合同：编译全部适用N/J/P/B实例，并冻结四类直接C级玩家预算；原版自对照只用于样本充分性判断。
 3. 基线判定：逐硬门禁、逐卡、逐子项输出距离和偏差倍数。
 4. 自动对齐：CALIBRATION按`10万 -> 累计50万 -> 累计200万 -> 前2名另跑200万独立复核`逐级淘汰；若失败结构或最大偏差没有实质改善，必须按能力矩阵中的升级计划逐层开放更多原生维度，不能长期停留在少量全局旋钮；冻结候选后使用独立`chunk_seeded`样本执行FORMAL，并按条件实例整体分母自动选择`1000万/2000万/5000万`档位。
 5. 交付：验证机器产物、确定性中文报告、FORMAL Runtime和manifest；把`game_core.json.meta.version`与manifest中的`runtime_version`固定为`task_id`。
@@ -149,14 +154,13 @@ target_rtp_confirmation_evidence
 
 ```text
 metric_library.schema_version = slot-alignment.metric-library.v5
-metric_library.version = 5.3.0
-alignment_evaluation_policy.version = 5.6.0
+metric_library.version = 5.5.0
+alignment_evaluation_policy.version = 5.8.0
 hard_gate_tolerance_policy.version = 5.1.0
 sample_execution_policy.version = 1.1.0
 runtime_capability_policy.version = 1.0.0
 runtime_capability_matrix.schema_version = slot-alignment.runtime-capability-matrix.v1
 game_profile.schema_version = slot-alignment.game-profile.v5
-joint_self_comparison.schema_version = slot-alignment.joint-self-comparison.v5
 sample_execution_plan.schema_version = slot-alignment.sample-execution-plan.v1
 metric_contract.schema_version = slot-alignment.metric-contract.v5
 alignment_result.schema_version = slot-alignment.alignment-result.v5
@@ -165,7 +169,7 @@ delivery_manifest.schema_version = slot-alignment.delivery-manifest.v5
 report_contract_version = slot-alignment.report.v5
 ```
 
-5.7.0正式落定J1～J3的玩家直观通过框架。J1改为“每100次中奖出现什么”；J2保留主要结构、同时中奖数和单次奖励三个维度；J3固定为`0～6+`深度分布并删除整链奖励。J类不再使用`1/2/4/6`自对照倍数门槛，改用候选出现前冻结的直接C级预算；J卡分和J类分已可计算，但N/J跨分类权重仍待用户后续确认。评价政策、指标库或容差政策hash变化后，旧合同、基线、候选和FORMAL全部失效。
+5.9.0正式落定B1～B2的玩家直观通过框架。B1改为“全盘普通符号组构成与组内平衡、关键元素数量、主要聚集形态”；B2只保留卷轴高度、有效格数和盘面参差程度。旧关键符号精确位置、结构Wasserstein门槛、联合99%自对照和`1/3/6/10`分级退出新合同。N/J/P/B卡分和分类分均可计算，但跨分类权重仍待用户后续确认。评价政策、指标库或容差政策hash变化后，旧合同、基线、候选和FORMAL全部失效。
 
 政策只使用：
 
@@ -179,10 +183,9 @@ report_contract_version = slot-alignment.report.v5
 ```bash
 <python_bin> scripts/validate_metric_library.py
 <python_bin> scripts/generate_metric_summary.py --check
-<python_bin> scripts/calibrate_joint_tolerances.py --input <self-distance.json> --output <joint-tolerance.json>
 <python_bin> scripts/validate_sample_plan.py --plan <sample-execution-plan.json>
 <python_bin> scripts/validate_runtime_capability_coverage.py --matrix <runtime-capability-matrix.json> --phase PRE_CALIBRATION
-<python_bin> scripts/compile_metric_contract.py --profile <game-profile.json> --targets <targets.json> --joint-tolerances <joint-tolerance.json> --bindings <bindings.json> --sample-plan <sample-execution-plan.json> --runtime-capabilities <runtime-capability-matrix.json> --output <metric-contract.json>
+<python_bin> scripts/compile_metric_contract.py --profile <game-profile.json> --targets <targets.json> --bindings <bindings.json> --sample-plan <sample-execution-plan.json> --runtime-capabilities <runtime-capability-matrix.json> --output <metric-contract.json>
 <python_bin> scripts/evaluate_alignment.py --contract <metric-contract.json> --measurements <measurements.json> --phase BASELINE --output <alignment-result.json>
 <python_bin> scripts/generate_stage3_gate.py --result <alignment-result.json> --output <stage3-gate.json>
 <python_bin> scripts/validate_artifacts.py --contract <metric-contract.json> --result <alignment-result.json> --stage3-gate <stage3-gate.json>

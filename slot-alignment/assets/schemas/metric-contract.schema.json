@@ -48,34 +48,9 @@
       "type": "object",
       "required": ["method"],
       "properties": {
-        "method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "absolute_error", "total_variation", "wasserstein_1d", "structural_wasserstein"]},
-        "bin_positions": {"type": "array", "minItems": 2, "items": {"type": "number"}},
+        "method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "absolute_error", "total_variation", "half_l1"]},
         "axis_semantics": {"enum": ["natural_linear", "nonnegative_multiplicative"]},
-        "position_transform": {"enum": ["identity", "log10_1p"]},
-        "support_span": {"type": "number", "exclusiveMinimum": 0},
-        "ground_cost": {"type": "string", "minLength": 1},
-        "state_kind": {"enum": ["symbol_position_density", "board_shape"]},
-        "board_shape": {
-          "type": "array",
-          "prefixItems": [
-            {"type": "integer", "minimum": 1},
-            {"type": "integer", "minimum": 1}
-          ],
-          "minItems": 2,
-          "maxItems": 2
-        }
-      }
-    },
-    "self_comparison": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["quantile", "joint", "replicates", "seed", "evidence_sha256"],
-      "properties": {
-        "quantile": {"const": 0.99},
-        "joint": {"const": true},
-        "replicates": {"type": "integer", "minimum": 1},
-        "seed": {"type": "integer", "minimum": 0},
-        "evidence_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        "zero_floor": {"type": "number", "exclusiveMinimum": 0}
       }
     },
     "tolerance": {
@@ -83,11 +58,10 @@
       "additionalProperties": false,
       "required": ["source", "base", "factor", "effective"],
       "properties": {
-        "source": {"enum": ["hard_gate_player_budget", "j_player_visible_budget", "sealed_original_joint_self_comparison", "deterministic_exact"]},
+        "source": {"enum": ["hard_gate_player_budget", "j_player_visible_budget", "p_player_visible_budget", "b_player_visible_budget", "deterministic_exact"]},
         "base": {"type": "number", "minimum": 0},
         "factor": {"type": "number", "exclusiveMinimum": 0},
-        "effective": {"type": "number", "minimum": 0},
-        "self_comparison": {"$ref": "#/$defs/self_comparison"}
+        "effective": {"type": "number", "minimum": 0}
       }
     },
     "instance": {
