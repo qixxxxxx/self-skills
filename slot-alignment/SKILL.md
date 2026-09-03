@@ -27,7 +27,7 @@ description: 基于Slot原版采集证据、规则规格、Runtime和用户认�
 
 - 全部说明、状态和报告使用中文；代码字段和固定枚举保留机器定义。
 - 原版资料、密封输入、认证脚本和FORMAL证据只读，不得覆盖。
-- 只调整`parameter_authority.json`明确授权的数值参数。`reel-strip`默认属于数值权重，可调整现有符号重复次数、排列和对应stop weights；轴数、盘面几何、符号域、特殊符号限制和玩法语义保持不变。
+- 只调整`parameter_authority.json`明确授权的数值参数。不得把当前配置数量当作Runtime能力上限；服务端与认证脚本原生支持的多ReelSet池及权重、reel-strip符号重复次数与stop weights、按状态路由、按连续消除深度切换的逐轴补符权重和特色机制权重，均可在原生边界内作为配置能力释放并用于调参；轴数、盘面几何、符号域、特殊符号限制和玩法语义保持不变。
 - 禁止修改玩法、状态机、触发与结算语义、RNG调用顺序、投注口径、封顶或未授权结构。
 - 原版Capture只用于冻结目标、估计参数、诊断和验收。禁止把原版盘面、单轴pattern、局部组合、Tumble后续盘面或Feature链直接作为候选或FORMAL的出盘数据。
 - 候选与FORMAL必须使用交付Runtime原生支持并完成等价认证的随机源。禁止`initial_board_weights`、Capture查表出盘、经验盘面采样器和仅在派生Python中生效的隐藏字段。
