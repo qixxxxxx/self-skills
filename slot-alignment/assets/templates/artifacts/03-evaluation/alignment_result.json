@@ -1,5 +1,5 @@
 {
-  "schema_version": "slot-alignment.alignment-result.v5",
+  "schema_version": "slot-alignment.alignment-result.v6",
   "task_id": "<task-id>",
   "phase": "BASELINE",
   "metric_contract_sha256": "<sha256>",
@@ -7,6 +7,8 @@
   "audits": [],
   "summary": {
     "final_status": "无法完整判定",
+    "conclusion": "无法完整判定",
+    "coverage_status": "完整",
     "final_grade": "U",
     "composite_score": null,
     "category_scores": {"N": null, "J": null, "P": null, "B": null},
@@ -16,6 +18,9 @@
     "hard_gate_failures": 0,
     "alignment_failures": 0,
     "insufficient_or_error_instances": 1,
+    "active_instance_count": 1,
+    "observational_instance_count": 0,
+    "active_low_sample_instance_count": 0,
     "maximum_deviation_ratio": null,
     "worst_instance_id": null
   }

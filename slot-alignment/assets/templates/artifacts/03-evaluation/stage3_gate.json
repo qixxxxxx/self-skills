@@ -1,9 +1,11 @@
 {
-  "schema_version": "slot-alignment.stage3-gate.v5",
+  "schema_version": "slot-alignment.stage3-gate.v6",
   "task_id": "<task-id>",
   "alignment_result_sha256": "<sha256>",
   "status": "通过",
   "stage4_allowed": true,
   "baseline_final_status": "无法完整判定",
+  "baseline_conclusion": "无法完整判定",
+  "coverage_status": "完整",
   "reason_zh": "固定产物与合同一致，可继续CALIBRATION；未判定实例必须持续保留。"
 }

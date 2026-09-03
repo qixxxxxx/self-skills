@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Metric Measurements v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "phase", "metric_contract_sha256", "measurements", "audits"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.metric-measurements.v6"},
+    "task_id": {"type": "string", "minLength": 1},
+    "phase": {"enum": ["BASELINE", "CALIBRATION", "INDEPENDENT_RECHECK", "FORMAL"]},
+    "metric_contract_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "measurements": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[NJPB][1-9][0-9]*\\.[a-z0-9_.:-]+$"},
+      "additionalProperties": {"$ref": "#/$defs/measurement"}
+    },
+    "audits": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/audit_measurement"}
+    }
+  },
+  "$defs": {
+    "sample_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_count", "candidate_count"],
+      "properties": {
+        "target_count": {"type": "integer", "minimum": 0},
+        "candidate_count": {"type": "integer", "minimum": 0},
+        "required_target_count": {"type": ["integer", "null"], "minimum": 0},
+        "required_candidate_count": {"type": ["integer", "null"], "minimum": 0},
+        "gap_zh": {"type": ["string", "null"]}
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_evidence"],
+      "properties": {
+        "candidate": {},
+        "status": {"enum": ["样本不足", "计算异常"]},
+        "reason_zh": {"type": "string", "minLength": 1},
+        "sample_evidence": {"$ref": "#/$defs/sample_evidence"}
+      },
+      "oneOf": [
+        {"required": ["candidate"], "not": {"required": ["status"]}},
+        {"required": ["status", "reason_zh"]}
+      ]
+    },
+    "audit_measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audit_id", "status", "details"],
+      "properties": {
+        "audit_id": {"pattern": "^A[1-9][0-9]*$"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "status": {"enum": ["符合", "不符合", "样本不足", "缺失", "仅展示"]},
+        "details": {}
+      }
+    }
+  }
+}

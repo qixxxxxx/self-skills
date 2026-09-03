@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v5 Metric Contract",
+  "title": "Slot Alignment v6 Metric Contract",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "contract_version", "report_contract_version", "task_id", "mode", "rtp_group", "frozen_before_candidate", "metric_library", "policies", "cards", "audits", "hashes"],
+  "required": ["schema_version", "contract_version", "report_contract_version", "task_id", "mode", "rtp_group", "frozen_before_candidate", "metric_library", "policies", "coverage", "cards", "audits", "hashes"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.metric-contract.v5"},
+    "schema_version": {"const": "slot-alignment.metric-contract.v6"},
     "contract_version": {"type": "string", "minLength": 1},
-    "report_contract_version": {"const": "slot-alignment.report.v5"},
+    "report_contract_version": {"const": "slot-alignment.report.v6"},
     "task_id": {"type": "string", "minLength": 1},
     "mode": {"type": "string", "minLength": 1},
     "rtp_group": {"const": 1},
@@ -16,19 +16,21 @@
     "policies": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["hard_gate_tolerance", "alignment_evaluation", "sample_execution", "runtime_capability"],
+      "required": ["hard_gate_budget", "alignment_evaluation", "target_evidence", "sample_execution", "runtime_capability"],
       "properties": {
-        "hard_gate_tolerance": {"$ref": "#/$defs/binding"},
+        "hard_gate_budget": {"$ref": "#/$defs/binding"},
         "alignment_evaluation": {"$ref": "#/$defs/binding"},
+        "target_evidence": {"$ref": "#/$defs/binding"},
         "sample_execution": {"$ref": "#/$defs/binding"},
         "runtime_capability": {"$ref": "#/$defs/binding"}
       }
     },
+    "coverage": {"$ref": "#/$defs/coverage"},
     "cards": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/card"}},
     "audits": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/audit"}},
     "hashes": {
       "type": "object",
-      "required": ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256", "sample_execution_plan_sha256", "runtime_capability_matrix_sha256", "contract_sha256"],
+      "required": ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256", "sample_execution_plan_sha256", "runtime_capability_matrix_sha256", "targets_sha256", "contract_bindings_sha256", "contract_sha256"],
       "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
     }
   },
@@ -53,21 +55,36 @@
         "zero_floor": {"type": "number", "exclusiveMinimum": 0}
       }
     },
-    "tolerance": {
+    "c_budget": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "base", "factor", "effective"],
+      "required": ["source", "value"],
       "properties": {
         "source": {"enum": ["hard_gate_player_budget", "j_player_visible_budget", "p_player_visible_budget", "b_player_visible_budget", "deterministic_exact"]},
-        "base": {"type": "number", "minimum": 0},
-        "factor": {"type": "number", "exclusiveMinimum": 0},
-        "effective": {"type": "number", "minimum": 0}
+        "value": {"type": "number", "minimum": 0}
+      }
+    },
+    "target_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "sample_count", "minimum_usable_count", "recommended_count", "event_count", "minimum_event_count", "recommended_event_count", "bucket_count", "minimum_bucket_count", "recommended_bucket_count"],
+      "properties": {
+        "classification": {"enum": ["exact", "normal", "low"]},
+        "sample_count": {"type": ["integer", "null"], "minimum": 0},
+        "minimum_usable_count": {"type": ["integer", "null"], "minimum": 0},
+        "recommended_count": {"type": ["integer", "null"], "minimum": 0},
+        "event_count": {"type": ["integer", "null"], "minimum": 0},
+        "minimum_event_count": {"type": ["integer", "null"], "minimum": 0},
+        "recommended_event_count": {"type": ["integer", "null"], "minimum": 0},
+        "bucket_count": {"type": ["integer", "null"], "minimum": 0},
+        "minimum_bucket_count": {"type": ["integer", "null"], "minimum": 0},
+        "recommended_bucket_count": {"type": ["integer", "null"], "minimum": 0}
       }
     },
     "instance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["instance_id", "facet_id", "subitem_id", "scope", "sample_unit", "measurement", "target_source", "target", "distance", "tolerance", "status"],
+      "required": ["instance_id", "facet_id", "subitem_id", "scope", "sample_unit", "measurement", "target_source", "target", "target_evidence", "distance", "c_budget", "status"],
       "properties": {
         "instance_id": {"type": "string", "pattern": "^[NJPB][1-9][0-9]*\\.[a-z0-9_.:-]+$"},
         "facet_id": {"type": "string", "minLength": 1},
@@ -77,8 +94,9 @@
         "measurement": {"type": "string", "minLength": 1},
         "target_source": {"type": "object", "minProperties": 1},
         "target": {},
+        "target_evidence": {"$ref": "#/$defs/target_evidence"},
         "distance": {"$ref": "#/$defs/distance"},
-        "tolerance": {"$ref": "#/$defs/tolerance"},
+        "c_budget": {"$ref": "#/$defs/c_budget"},
         "aggregation": {
           "type": "object",
           "additionalProperties": false,
@@ -90,8 +108,39 @@
             "role": {"enum": ["item", "bin", "overall"]}
           }
         },
-        "status": {"enum": ["active", "不适用"]},
+        "status": {"const": "active"},
         "inapplicability_reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "observational_instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instance_id", "card_id", "facet_id", "subitem_id", "scope", "sample_unit", "target_source", "target", "decision", "target_evidence", "reason_zh"],
+      "properties": {
+        "instance_id": {"type": "string", "pattern": "^[NJPB][1-9][0-9]*\\.[a-z0-9_.:-]+$"},
+        "card_id": {"pattern": "^[NJPB][1-9][0-9]*$"},
+        "facet_id": {"type": "string", "minLength": 1},
+        "subitem_id": {"type": "string", "minLength": 1},
+        "scope": {"type": "object"},
+        "sample_unit": {"type": "string", "minLength": 1},
+        "target_source": {"type": "object", "minProperties": 1},
+        "target": {},
+        "decision": {"enum": ["observe_no_evidence", "observe_low_sample", "observe_distribution_group"]},
+        "target_evidence": {"$ref": "#/$defs/target_evidence"},
+        "reason_zh": {"type": "string", "minLength": 1}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "expected_instance_count", "active_instance_count", "observational_instance_count", "active_low_sample_instance_count", "observational_instances"],
+      "properties": {
+        "status": {"enum": ["完整", "有限"]},
+        "expected_instance_count": {"type": "integer", "minimum": 1},
+        "active_instance_count": {"type": "integer", "minimum": 1},
+        "observational_instance_count": {"type": "integer", "minimum": 0},
+        "active_low_sample_instance_count": {"type": "integer", "minimum": 0},
+        "observational_instances": {"type": "array", "items": {"$ref": "#/$defs/observational_instance"}}
       }
     },
     "card": {
@@ -103,7 +152,7 @@
         "name_zh": {"type": "string", "minLength": 1},
         "category_id": {"enum": ["N", "J", "P", "B"]},
         "kind": {"enum": ["hard_gate", "alignment"]},
-        "status": {"enum": ["active", "不适用"]},
+        "status": {"enum": ["active", "观察", "不适用"]},
         "instances": {"type": "array", "items": {"$ref": "#/$defs/instance"}}
       }
     },

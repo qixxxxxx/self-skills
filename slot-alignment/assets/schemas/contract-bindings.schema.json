@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Contract Bindings v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_version",
+    "task_id",
+    "mode",
+    "rtp_group",
+    "frozen_before_candidate",
+    "runtime_bundle_sha256",
+    "original_evidence_sha256",
+    "script_sha256",
+    "game_profile_sha256",
+    "parameter_authority_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.contract-bindings.v6"},
+    "contract_version": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "mode": {"type": "string", "minLength": 1},
+    "rtp_group": {"const": 1},
+    "frozen_before_candidate": {"const": true},
+    "runtime_bundle_sha256": {"$ref": "#/$defs/sha256"},
+    "original_evidence_sha256": {"$ref": "#/$defs/sha256"},
+    "script_sha256": {"$ref": "#/$defs/sha256"},
+    "game_profile_sha256": {"$ref": "#/$defs/sha256"},
+    "parameter_authority_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

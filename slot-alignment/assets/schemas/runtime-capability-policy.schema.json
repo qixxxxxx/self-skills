@@ -1,14 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment Runtime Capability Policy v1",
+  "title": "Slot Alignment Runtime Capability Policy v6",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "version", "status", "source_path", "required_layers", "required_capability_ids", "rules", "allowed_exemptions"],
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "required_layers", "required_capability_ids", "rules", "allowed_exemptions"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.runtime-capability-policy.v1"},
-    "policy_id": {"const": "slot-alignment-runtime-capability-coverage-v1"},
-    "version": {"const": "1.0.0"},
+    "schema_version": {"const": "slot-alignment.runtime-capability-policy.v6"},
+    "policy_id": {"const": "slot-alignment-runtime-capability-coverage-v6"},
+    "version": {"const": "6.0.0"},
     "status": {"const": "已授权"},
+    "authority": {"const": "用户"},
+    "authorized_at": {"type": "string", "format": "date"},
     "source_path": {"const": "assets/policies/runtime_capability_policy.json"},
     "required_layers": {
       "const": ["certified_script", "server_runtime", "candidate_generator", "calibration_simulator", "formal_simulator", "optimizer"]

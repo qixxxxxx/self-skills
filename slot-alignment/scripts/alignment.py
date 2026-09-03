@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 
 
-FORMAL_STATUSES = {"通过", "不通过", "样本不足", "不适用", "计算异常"}
 UNKNOWN_STATUSES = {"样本不足", "计算异常"}
 GRADE_SEVERITY = {"NA": -1, "S": 0, "A": 1, "B": 2, "C": 3, "F": 4, "U": 5}
 
@@ -22,6 +21,13 @@ def dump_json(path, value):
 
 def sha256_file(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def canonical_json_sha256(value, excluded_keys=()):
+    excluded = set(excluded_keys)
+    payload = {key: item for key, item in value.items() if key not in excluded}
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def finite_number(value):
@@ -145,17 +151,6 @@ def _sample_evidence(value):
     }
 
 
-def grade_thresholds(card, evaluation_policy):
-    return {"C": float(evaluation_policy["formal_grading"]["hard_gate_pass_limit"])}
-
-
-def grade_ratio(ratio, thresholds):
-    for grade in ("S", "A", "B", "C"):
-        if ratio <= float(thresholds[grade]):
-            return grade
-    return "F"
-
-
 def grade_score(score, evaluation_policy):
     thresholds = evaluation_policy["composite_scoring"]["grade_thresholds"]
     for grade in ("S", "A", "B", "C"):
@@ -171,34 +166,41 @@ def worst_grade(grades):
 
 def _worst_instance(instance_results):
     def key(item):
-        ratio, limit = item.get("deviation_ratio"), item.get("pass_limit")
-        normalized = ratio / limit if finite_number(ratio) and finite_number(limit) and limit > 0 else -1.0
-        return GRADE_SEVERITY[item["formal_grade"]], normalized
+        ratio = item.get("deviation_ratio")
+        return GRADE_SEVERITY[item["formal_grade"]], ratio if finite_number(ratio) else -1.0
 
     return max(instance_results, key=key, default=None)
 
 
 def evaluate_instance(card, instance, measurement, evaluation_policy):
-    thresholds = grade_thresholds(card, evaluation_policy)
-    pass_limit = float(thresholds["C"])
+    sample_evidence = _sample_evidence(measurement.get("sample_evidence"))
+    c_budget = float(instance["c_budget"]["value"])
     status = measurement.get("status")
+    sample_gaps = []
+    for side in ("candidate",):
+        actual = sample_evidence[f"{side}_count"]
+        required = sample_evidence[f"required_{side}_count"]
+        if required is not None and actual < required:
+            sample_gaps.append(f"{side}样本{actual}<{required}")
+    if sample_gaps and status not in UNKNOWN_STATUSES:
+        status = "样本不足"
     if status in {"样本不足", "计算异常"}:
         return {
             "instance_id": instance["instance_id"],
             "facet_id": instance["facet_id"],
             "subitem_id": instance["subitem_id"],
             "target": instance.get("target"),
+            "target_evidence": instance["target_evidence"],
             "candidate": measurement.get("candidate"),
             "distance_method": instance["distance"]["method"],
             "distance": None,
-            "tolerance": instance["tolerance"]["effective"],
+            "c_budget": c_budget,
             "deviation_ratio": None,
-            "pass_limit": pass_limit,
             "score": None,
             "formal_grade": "U",
             "status": status,
-            "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
-            "reason_zh": measurement.get("reason_zh"),
+            "sample_evidence": sample_evidence,
+            "reason_zh": measurement.get("reason_zh") or "；".join(sample_gaps) or sample_evidence.get("gap_zh"),
         }
     if instance.get("status") == "不适用":
         return {
@@ -206,46 +208,45 @@ def evaluate_instance(card, instance, measurement, evaluation_policy):
             "facet_id": instance["facet_id"],
             "subitem_id": instance["subitem_id"],
             "target": instance.get("target"),
+            "target_evidence": instance["target_evidence"],
             "candidate": None,
             "distance_method": instance["distance"]["method"],
             "distance": None,
-            "tolerance": instance["tolerance"]["effective"],
+            "c_budget": c_budget,
             "deviation_ratio": None,
-            "pass_limit": pass_limit,
             "score": None,
             "formal_grade": "NA",
             "status": "不适用",
-            "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
+            "sample_evidence": sample_evidence,
             "reason_zh": instance.get("inapplicability_reason"),
         }
     candidate = measurement["candidate"]
     distance = calculate_distance(instance["distance"], instance["target"], candidate)
-    tolerance = float(instance["tolerance"]["effective"])
-    if tolerance == 0:
+    if c_budget == 0:
         passed = distance == 0
         ratio = 0.0 if passed else None
         grade = evaluation_policy["formal_grading"]["deterministic_exact"]["pass_grade" if passed else "fail_grade"]
         score = 100.0 if passed else 0.0
     else:
-        ratio = distance / tolerance
+        ratio = distance / c_budget
         score = max(0.0, 100.0 * (1.0 - ratio))
-        passed = ratio <= pass_limit
+        passed = distance <= c_budget
         grade = grade_score(score, evaluation_policy) if passed else "F"
     return {
         "instance_id": instance["instance_id"],
         "facet_id": instance["facet_id"],
         "subitem_id": instance["subitem_id"],
         "target": instance["target"],
+        "target_evidence": instance["target_evidence"],
         "candidate": candidate,
         "distance_method": instance["distance"]["method"],
         "distance": distance,
-        "tolerance": tolerance,
+        "c_budget": c_budget,
         "deviation_ratio": ratio,
-        "pass_limit": pass_limit,
         "score": score,
         "formal_grade": grade,
         "status": "通过" if passed else "不通过",
-        "sample_evidence": _sample_evidence(measurement.get("sample_evidence")),
+        "sample_evidence": sample_evidence,
         "reason_zh": None,
     }
 
@@ -273,7 +274,7 @@ def _hierarchical_card_score(card, instance_results):
     return sum(scores) / len(scores) if scores else None
 
 
-def aggregate_card(card, instance_results, evaluation_policy):
+def aggregate_card(card, instance_results, evaluation_policy, coverage_status="完整"):
     statuses = [item["status"] for item in instance_results]
     if "计算异常" in statuses:
         status = "计算异常"
@@ -302,6 +303,7 @@ def aggregate_card(card, instance_results, evaluation_policy):
         "name_zh": card["name_zh"],
         "category_id": card["category_id"],
         "kind": card["kind"],
+        "coverage_status": coverage_status,
         "status": status,
         "score": score,
         "formal_grade": grade,
@@ -313,6 +315,9 @@ def aggregate_card(card, instance_results, evaluation_policy):
 
 def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation_policy):
     by_id = measurements.get("measurements", {})
+    observational_by_card = {}
+    for item in contract.get("coverage", {}).get("observational_instances", []):
+        observational_by_card.setdefault(item["card_id"], []).append(item)
     card_results = []
     for card in contract["cards"]:
         results = []
@@ -324,13 +329,15 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
                 results.append(evaluate_instance(card, instance, measurement, evaluation_policy))
             except Exception as exc:
                 results.append(evaluate_instance(card, instance, {"status": "计算异常", "reason_zh": str(exc)}, evaluation_policy))
-        if not results and card.get("status") == "不适用":
+        if not results and card.get("status") in {"不适用", "观察"}:
+            status = card["status"]
             card_results.append({
                 "card_id": card["card_id"],
                 "name_zh": card["name_zh"],
                 "category_id": card["category_id"],
                 "kind": card["kind"],
-                "status": "不适用",
+                "coverage_status": "不适用" if status == "不适用" else "有限",
+                "status": status,
                 "score": None,
                 "formal_grade": "NA",
                 "maximum_deviation_ratio": None,
@@ -338,7 +345,7 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
                 "instances": [],
             })
         else:
-            card_results.append(aggregate_card(card, results, evaluation_policy))
+            card_results.append(aggregate_card(card, results, evaluation_policy, "有限" if observational_by_card.get(card["card_id"]) else "完整"))
     all_instances = [item for card in card_results for item in card["instances"]]
     unknown = sum(item["status"] in UNKNOWN_STATUSES for item in all_instances)
     hard_failures = sum(item["status"] == "不通过" for card in card_results if card["kind"] == "hard_gate" for item in card["instances"])
@@ -348,16 +355,16 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
     worst = _worst_instance(all_instances)
     final_status = "无法完整判定" if unknown else ("不通过" if hard_failures or alignment_failures else "通过")
     category_scores = {category: None for category in ("N", "J", "P", "B")}
-    n_cards = [card for card in card_results if card["category_id"] == "N" and card["status"] != "不适用"]
+    n_cards = [card for card in card_results if card["category_id"] == "N" and card["status"] not in {"不适用", "观察"}]
     if n_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in n_cards):
         category_scores["N"] = sum(card["score"] for card in n_cards) / len(n_cards)
-    j_cards = [card for card in card_results if card["category_id"] == "J" and card["status"] != "不适用"]
+    j_cards = [card for card in card_results if card["category_id"] == "J" and card["status"] not in {"不适用", "观察"}]
     if j_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in j_cards):
         category_scores["J"] = sum(card["score"] for card in j_cards) / len(j_cards)
-    p_cards = [card for card in card_results if card["category_id"] == "P" and card["status"] != "不适用"]
+    p_cards = [card for card in card_results if card["category_id"] == "P" and card["status"] not in {"不适用", "观察"}]
     if p_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in p_cards):
         category_scores["P"] = sum(card["score"] for card in p_cards) / len(p_cards)
-    b_cards = [card for card in card_results if card["category_id"] == "B" and card["status"] != "不适用"]
+    b_cards = [card for card in card_results if card["category_id"] == "B" and card["status"] not in {"不适用", "观察"}]
     if b_cards and all(card["status"] == "通过" and finite_number(card.get("score")) for card in b_cards):
         category_scores["B"] = sum(card["score"] for card in b_cards) / len(b_cards)
     scoped_scores = [category_scores[category] for category in evaluation_policy["composite_scoring"]["score_scope"]]
@@ -367,14 +374,16 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
     audit_results = []
     for audit in contract.get("audits", []):
         measured = audit_measurements.get(audit["audit_id"])
-        audit_results.append(measured or {
+        audit_results.append({
             "audit_id": audit["audit_id"],
             "name_zh": audit["name_zh"],
-            "status": "缺失",
-            "details": {"reason_zh": "测量文件未提供该审计结果"},
+            "status": measured["status"] if measured else "缺失",
+            "details": measured["details"] if measured else {"reason_zh": "测量文件未提供该审计结果"},
         })
+    coverage_status = contract.get("coverage", {}).get("status", "完整")
+    conclusion = final_status if final_status != "通过" else ("完整范围通过" if coverage_status == "完整" else "有限范围通过")
     return {
-        "schema_version": "slot-alignment.alignment-result.v5",
+        "schema_version": "slot-alignment.alignment-result.v6",
         "task_id": contract["task_id"],
         "phase": phase,
         "metric_contract_sha256": contract_sha256,
@@ -382,6 +391,8 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
         "audits": audit_results,
         "summary": {
             "final_status": final_status,
+            "conclusion": conclusion,
+            "coverage_status": coverage_status,
             "final_grade": final_grade,
             "composite_score": composite_score,
             "category_scores": category_scores,
@@ -391,6 +402,9 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
             "hard_gate_failures": hard_failures,
             "alignment_failures": alignment_failures,
             "insufficient_or_error_instances": unknown,
+            "active_instance_count": contract.get("coverage", {}).get("active_instance_count", len(all_instances)),
+            "observational_instance_count": contract.get("coverage", {}).get("observational_instance_count", 0),
+            "active_low_sample_instance_count": contract.get("coverage", {}).get("active_low_sample_instance_count", 0),
             "maximum_deviation_ratio": maximum.get("deviation_ratio") if maximum else None,
             "worst_instance_id": worst.get("instance_id") if worst else None,
         },

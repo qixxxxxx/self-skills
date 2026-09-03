@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment Runtime Capability Matrix v1",
+  "title": "Slot Alignment Runtime Capability Matrix v6",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,7 +17,7 @@
     "summary"
   ],
   "properties": {
-    "schema_version": {"const": "slot-alignment.runtime-capability-matrix.v1"},
+    "schema_version": {"const": "slot-alignment.runtime-capability-matrix.v6"},
     "task_id": {"type": "string", "minLength": 1},
     "mode": {"type": "string", "minLength": 1},
     "rtp_group": {"const": 1},
@@ -51,8 +51,8 @@
       "additionalProperties": false,
       "required": ["id", "version", "path", "sha256"],
       "properties": {
-        "id": {"const": "slot-alignment-runtime-capability-coverage-v1"},
-        "version": {"const": "1.0.0"},
+        "id": {"const": "slot-alignment-runtime-capability-coverage-v6"},
+        "version": {"const": "6.0.0"},
         "path": {"const": "assets/policies/runtime_capability_policy.json"},
         "sha256": {"$ref": "#/$defs/sha256"}
       }

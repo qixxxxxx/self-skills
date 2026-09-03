@@ -1,15 +1,29 @@
 {
-  "schema_version": "slot-alignment.delivery-manifest.v5",
-  "report_contract_version": "slot-alignment.report.v5",
+  "schema_version": "slot-alignment.delivery-manifest.v6",
+  "report_contract_version": "slot-alignment.report.v6",
   "task_id": "<task-id>",
   "runtime_version": "<task-id>",
   "rtp_group": 1,
+  "source_formal_result": {
+    "batch_id": "fv0001",
+    "path": "work/formal/fv0001/alignment_result.json",
+    "sha256": "<sha256>"
+  },
   "formal_result_sha256": "<sha256>",
+  "alignment_manifest_sha256": "<sha256>",
+  "aligned_parameters_sha256": "<sha256>",
   "runtime_files": [
-    {"name": "game_core.json", "path": "交付物/runtime/game_core.json", "sha256": "<sha256>"},
-    {"name": "payout_config.json", "path": "交付物/runtime/payout_config.json", "sha256": "<sha256>"},
-    {"name": "reel_config.json", "path": "交付物/runtime/reel_config.json", "sha256": "<sha256>"},
-    {"name": "symbol_catalog.json", "path": "交付物/runtime/symbol_catalog.json", "sha256": "<sha256>"}
+    {"name": "game_core.json", "source_path": "work/formal/fv0001/runtime/game_core.json", "path": "交付物/runtime/game_core.json", "sha256": "<sha256>"},
+    {"name": "payout_config.json", "source_path": "work/formal/fv0001/runtime/payout_config.json", "path": "交付物/runtime/payout_config.json", "sha256": "<sha256>"},
+    {"name": "reel_config.json", "source_path": "work/formal/fv0001/runtime/reel_config.json", "path": "交付物/runtime/reel_config.json", "sha256": "<sha256>"},
+    {"name": "symbol_catalog.json", "source_path": "work/formal/fv0001/runtime/symbol_catalog.json", "path": "交付物/runtime/symbol_catalog.json", "sha256": "<sha256>"}
   ],
+  "checks": {
+    "formal_source_matches_artifact": true,
+    "formal_runtime_matches_delivery": true,
+    "runtime_version_matches_task": true,
+    "rtp_group_is_one": true,
+    "aligned_parameters_match_freeze": true
+  },
   "generated_at": "<ISO-8601>"
 }

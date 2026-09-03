@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment Sample Execution Policy v1",
+  "title": "Slot Alignment Sample Execution Policy v6",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "sample_unit", "rng_protocol", "calibration", "formal", "forbidden_sample_constraints", "execution"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.sample-execution-policy.v1"},
-    "policy_id": {"const": "slot-alignment-fixed-sample-execution-v1"},
-    "version": {"const": "1.1.0"},
+    "schema_version": {"const": "slot-alignment.sample-execution-policy.v6"},
+    "policy_id": {"const": "slot-alignment-fixed-sample-execution-v6"},
+    "version": {"const": "6.0.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
@@ -67,10 +67,12 @@
     "execution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["default_shard_size", "shard_semantics", "internal_micro_batches_allowed", "internal_micro_batch_must_preserve_rng_stream", "benchmark_required", "benchmark_is_blocking_gate", "benchmark_profiles", "worker_runtime_must_be_persistent", "worker_static_context_loads_once", "candidate_context_builds_once_per_worker", "core_loop_implementation", "accumulator_cardinality", "parallelism_layer_count", "nested_parallelism_forbidden", "checkpoint_payload", "single_multi_worker_and_resume_must_be_equivalent", "hot_path_forbidden", "hot_path_preferred"],
+      "required": ["default_shard_size", "shard_semantics", "short_final_shard_allowed", "stage_smaller_than_shard_uses_single_short_shard", "internal_micro_batches_allowed", "internal_micro_batch_must_preserve_rng_stream", "benchmark_required", "benchmark_is_blocking_gate", "benchmark_profiles", "worker_runtime_must_be_persistent", "worker_static_context_loads_once", "candidate_context_builds_once_per_worker", "core_loop_implementation", "accumulator_cardinality", "parallelism_layer_count", "nested_parallelism_forbidden", "checkpoint_payload", "single_multi_worker_and_resume_must_be_equivalent", "hot_path_forbidden", "hot_path_preferred"],
       "properties": {
         "default_shard_size": {"const": 250000},
         "shard_semantics": {"const": "logical_checkpoint_and_rng_partition"},
+        "short_final_shard_allowed": {"const": true},
+        "stage_smaller_than_shard_uses_single_short_shard": {"const": true},
         "internal_micro_batches_allowed": {"const": true},
         "internal_micro_batch_must_preserve_rng_stream": {"const": true},
         "benchmark_required": {"const": true},

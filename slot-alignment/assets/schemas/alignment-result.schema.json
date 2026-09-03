@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v5 Result",
+  "title": "Slot Alignment v6 Result",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "task_id", "phase", "metric_contract_sha256", "card_results", "audits", "summary"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.alignment-result.v5"},
+    "schema_version": {"const": "slot-alignment.alignment-result.v6"},
     "task_id": {"type": "string", "minLength": 1},
-    "phase": {"enum": ["BASELINE", "CALIBRATION", "FORMAL"]},
+    "phase": {"enum": ["BASELINE", "CALIBRATION", "INDEPENDENT_RECHECK", "FORMAL"]},
     "metric_contract_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "card_results": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/card_result"}},
     "audits": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/audit_result"}},
@@ -28,21 +28,38 @@
         "gap_zh": {"type": ["string", "null"]}
       }
     },
+    "target_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "sample_count", "minimum_usable_count", "recommended_count", "event_count", "minimum_event_count", "recommended_event_count", "bucket_count", "minimum_bucket_count", "recommended_bucket_count"],
+      "properties": {
+        "classification": {"enum": ["exact", "normal", "low"]},
+        "sample_count": {"type": ["integer", "null"], "minimum": 0},
+        "minimum_usable_count": {"type": ["integer", "null"], "minimum": 0},
+        "recommended_count": {"type": ["integer", "null"], "minimum": 0},
+        "event_count": {"type": ["integer", "null"], "minimum": 0},
+        "minimum_event_count": {"type": ["integer", "null"], "minimum": 0},
+        "recommended_event_count": {"type": ["integer", "null"], "minimum": 0},
+        "bucket_count": {"type": ["integer", "null"], "minimum": 0},
+        "minimum_bucket_count": {"type": ["integer", "null"], "minimum": 0},
+        "recommended_bucket_count": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
     "instance_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["instance_id", "facet_id", "subitem_id", "target", "candidate", "distance_method", "distance", "tolerance", "deviation_ratio", "pass_limit", "score", "formal_grade", "status", "sample_evidence"],
+      "required": ["instance_id", "facet_id", "subitem_id", "target", "target_evidence", "candidate", "distance_method", "distance", "c_budget", "deviation_ratio", "score", "formal_grade", "status", "sample_evidence"],
       "properties": {
         "instance_id": {"type": "string", "minLength": 1},
         "facet_id": {"type": "string", "minLength": 1},
         "subitem_id": {"type": "string", "minLength": 1},
         "target": {},
+        "target_evidence": {"$ref": "#/$defs/target_evidence"},
         "candidate": {},
         "distance_method": {"enum": ["range_error", "relative_error", "absolute_probability_error", "absolute_error", "total_variation", "half_l1"]},
         "distance": {"type": ["number", "null"], "minimum": 0},
-        "tolerance": {"type": "number", "minimum": 0},
+        "c_budget": {"type": "number", "minimum": 0},
         "deviation_ratio": {"type": ["number", "null"], "minimum": 0},
-        "pass_limit": {"type": "number", "minimum": 0},
         "score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
         "formal_grade": {"$ref": "#/$defs/formal_grade"},
         "status": {"$ref": "#/$defs/status"},
@@ -53,13 +70,14 @@
     "card_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["card_id", "name_zh", "category_id", "kind", "status", "score", "formal_grade", "maximum_deviation_ratio", "worst_instance_id", "instances"],
+      "required": ["card_id", "name_zh", "category_id", "kind", "coverage_status", "status", "score", "formal_grade", "maximum_deviation_ratio", "worst_instance_id", "instances"],
       "properties": {
         "card_id": {"pattern": "^[NJPB][1-9][0-9]*$"},
         "name_zh": {"type": "string", "minLength": 1},
         "category_id": {"enum": ["N", "J", "P", "B"]},
         "kind": {"enum": ["hard_gate", "alignment"]},
-        "status": {"$ref": "#/$defs/status"},
+        "coverage_status": {"enum": ["完整", "有限", "不适用"]},
+        "status": {"oneOf": [{"$ref": "#/$defs/status"}, {"const": "观察"}]},
         "score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
         "formal_grade": {"$ref": "#/$defs/formal_grade"},
         "maximum_deviation_ratio": {"type": ["number", "null"], "minimum": 0},
@@ -81,9 +99,11 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["final_status", "final_grade", "composite_score", "category_scores", "score_scope", "planned_score_scope", "score_status", "hard_gate_failures", "alignment_failures", "insufficient_or_error_instances", "maximum_deviation_ratio", "worst_instance_id"],
+      "required": ["final_status", "conclusion", "coverage_status", "final_grade", "composite_score", "category_scores", "score_scope", "planned_score_scope", "score_status", "hard_gate_failures", "alignment_failures", "insufficient_or_error_instances", "active_instance_count", "observational_instance_count", "active_low_sample_instance_count", "maximum_deviation_ratio", "worst_instance_id"],
       "properties": {
         "final_status": {"enum": ["通过", "不通过", "无法完整判定"]},
+        "conclusion": {"enum": ["完整范围通过", "有限范围通过", "不通过", "无法完整判定"]},
+        "coverage_status": {"enum": ["完整", "有限"]},
         "final_grade": {"enum": ["S", "A", "B", "C", "F", "U"]},
         "composite_score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
         "category_scores": {
@@ -103,6 +123,9 @@
         "hard_gate_failures": {"type": "integer", "minimum": 0},
         "alignment_failures": {"type": "integer", "minimum": 0},
         "insufficient_or_error_instances": {"type": "integer", "minimum": 0},
+        "active_instance_count": {"type": "integer", "minimum": 1},
+        "observational_instance_count": {"type": "integer", "minimum": 0},
+        "active_low_sample_instance_count": {"type": "integer", "minimum": 0},
         "maximum_deviation_ratio": {"type": ["number", "null"], "minimum": 0},
         "worst_instance_id": {"type": ["string", "null"]}
       }

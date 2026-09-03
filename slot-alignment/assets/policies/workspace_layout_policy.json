@@ -1,0 +1,66 @@
+{
+  "schema_version": "slot-alignment.workspace-layout-policy.v6",
+  "policy_id": "slot-alignment-workspace-layout-v6",
+  "version": "6.0.0",
+  "status": "已授权",
+  "authority": "用户",
+  "authorized_at": "2026-09-03",
+  "task_root": "slot-math-workbench:<game_code>/alignments/<mode>/<task_id>/",
+  "runtime_files": ["game_core.json", "payout_config.json", "reel_config.json", "symbol_catalog.json"],
+  "authoritative_artifacts": [
+    {"stage": 1, "path": "artifacts/01-input-profile/input_manifest.json", "schema": "assets/schemas/input-manifest.schema.json", "template": "assets/templates/artifacts/01-input-profile/input_manifest.json"},
+    {"stage": 1, "path": "artifacts/01-input-profile/game_profile.json", "schema": "assets/schemas/game-profile-metric-bindings.schema.json", "template": "assets/templates/artifacts/01-input-profile/game_profile.json"},
+    {"stage": 1, "path": "artifacts/01-input-profile/parameter_authority.json", "schema": "assets/schemas/parameter-authority.schema.json", "template": "assets/templates/artifacts/01-input-profile/parameter_authority.json"},
+    {"stage": 1, "path": "artifacts/01-input-profile/runtime_capability_matrix.json", "schema": "assets/schemas/runtime-capability-matrix.schema.json", "template": "assets/templates/artifacts/01-input-profile/runtime_capability_matrix.json"},
+    {"stage": 1, "path": "artifacts/01-input-profile/script_equivalence.json", "schema": "assets/schemas/script-equivalence.schema.json", "template": "assets/templates/artifacts/01-input-profile/script_equivalence.json"},
+    {"stage": 2, "path": "artifacts/02-metric-matching/targets.json", "schema": "assets/schemas/metric-targets.schema.json", "template": "assets/templates/artifacts/02-metric-matching/targets.json"},
+    {"stage": 2, "path": "artifacts/02-metric-matching/contract_bindings.json", "schema": "assets/schemas/contract-bindings.schema.json", "template": "assets/templates/artifacts/02-metric-matching/contract_bindings.json"},
+    {"stage": 2, "path": "artifacts/02-metric-matching/sample_execution_plan.json", "schema": "assets/schemas/sample-execution-plan.schema.json", "template": "assets/templates/artifacts/02-metric-matching/sample_execution_plan.json"},
+    {"stage": 2, "path": "artifacts/02-metric-matching/metric_contract.json", "schema": "assets/schemas/metric-contract.schema.json", "template": "assets/templates/artifacts/02-metric-matching/metric_contract.json"},
+    {"stage": 3, "path": "artifacts/03-evaluation/baseline_measurements.json", "schema": "assets/schemas/metric-measurements.schema.json", "template": "assets/templates/artifacts/03-evaluation/baseline_measurements.json"},
+    {"stage": 3, "path": "artifacts/03-evaluation/alignment_result.json", "schema": "assets/schemas/alignment-result.schema.json", "template": "assets/templates/artifacts/03-evaluation/alignment_result.json"},
+    {"stage": 3, "path": "artifacts/03-evaluation/stage3_gate.json", "schema": "assets/schemas/stage3-gate.schema.json", "template": "assets/templates/artifacts/03-evaluation/stage3_gate.json"},
+    {"stage": 4, "path": "artifacts/04-alignment/alignment_manifest.json", "schema": "assets/schemas/alignment-manifest.schema.json", "template": "assets/templates/artifacts/04-alignment/alignment_manifest.json"},
+    {"stage": 4, "path": "artifacts/04-alignment/aligned_parameters.json", "schema": "assets/schemas/aligned-parameters.schema.json", "template": "assets/templates/artifacts/04-alignment/aligned_parameters.json"},
+    {"stage": 4, "path": "artifacts/04-alignment/formal_result.json", "schema": "assets/schemas/alignment-result.schema.json", "template": "assets/templates/artifacts/04-alignment/formal_result.json"},
+    {"stage": 5, "path": "artifacts/05-delivery/delivery_manifest.json", "schema": "assets/schemas/delivery-manifest.schema.json", "template": "assets/templates/artifacts/05-delivery/delivery_manifest.json"}
+  ],
+  "work_records": [
+    {"path_pattern": "work/baseline/shards/shard-######.json", "schema": "assets/schemas/execution-shard.schema.json", "template": "assets/templates/work/baseline/execution_shard.json"},
+    {"path_pattern": "work/baseline/measurements.json", "schema": "assets/schemas/metric-measurements.schema.json", "template": "assets/templates/work/baseline/measurements.json"},
+    {"path_pattern": "work/sensitivity/sensitivity_plan.json", "schema": "assets/schemas/sensitivity-plan.schema.json", "template": "assets/templates/work/sensitivity/sensitivity_plan.json"},
+    {"path_pattern": "work/sensitivity/sensitivity_result.json", "schema": "assets/schemas/sensitivity-result.schema.json", "template": "assets/templates/work/sensitivity/sensitivity_result.json"},
+    {"path_pattern": "work/calibration/cv####/batch_manifest.json", "schema": "assets/schemas/calibration-batch-manifest.schema.json", "template": "assets/templates/work/calibration/batch_manifest.json"},
+    {"path_pattern": "work/calibration/cv####/candidates/<candidate_id>/parameter_record.json", "schema": "assets/schemas/parameter-record.schema.json", "template": "assets/templates/work/calibration/parameter_record.json"},
+    {"path_pattern": "work/calibration/cv####/candidates/<candidate_id>/shards/shard-######.json", "schema": "assets/schemas/execution-shard.schema.json", "template": "assets/templates/work/calibration/execution_shard.json"},
+    {"path_pattern": "work/calibration/cv####/candidates/<candidate_id>/measurements.json", "schema": "assets/schemas/metric-measurements.schema.json", "template": "assets/templates/work/calibration/measurements.json"},
+    {"path_pattern": "work/calibration/cv####/candidates/<candidate_id>/alignment_result.json", "schema": "assets/schemas/alignment-result.schema.json", "template": "assets/templates/work/calibration/alignment_result.json"},
+    {"path_pattern": "work/candidate-freeze/<candidate_id>/freeze_manifest.json", "schema": "assets/schemas/candidate-freeze-manifest.schema.json", "template": "assets/templates/work/candidate-freeze/freeze_manifest.json"},
+    {"path_pattern": "work/candidate-freeze/<candidate_id>/parameter_record.json", "schema": "assets/schemas/parameter-record.schema.json", "template": "assets/templates/work/candidate-freeze/parameter_record.json"},
+    {"path_pattern": "work/candidate-freeze/<candidate_id>/independent-recheck/shards/shard-######.json", "schema": "assets/schemas/execution-shard.schema.json", "template": "assets/templates/work/candidate-freeze/independent_recheck_execution_shard.json"},
+    {"path_pattern": "work/candidate-freeze/<candidate_id>/independent-recheck/measurements.json", "schema": "assets/schemas/metric-measurements.schema.json", "template": "assets/templates/work/candidate-freeze/independent_recheck_measurements.json"},
+    {"path_pattern": "work/candidate-freeze/<candidate_id>/independent-recheck/alignment_result.json", "schema": "assets/schemas/alignment-result.schema.json", "template": "assets/templates/work/candidate-freeze/independent_recheck_alignment_result.json"},
+    {"path_pattern": "work/formal/fv####/formal_plan.json", "schema": "assets/schemas/formal-plan.schema.json", "template": "assets/templates/work/formal/formal_plan.json"},
+    {"path_pattern": "work/formal/fv####/shards/shard-######.json", "schema": "assets/schemas/execution-shard.schema.json", "template": "assets/templates/work/formal/execution_shard.json"},
+    {"path_pattern": "work/formal/fv####/measurements.json", "schema": "assets/schemas/metric-measurements.schema.json", "template": "assets/templates/work/formal/measurements.json"},
+    {"path_pattern": "work/formal/fv####/alignment_result.json", "schema": "assets/schemas/alignment-result.schema.json", "template": "assets/templates/work/formal/alignment_result.json"},
+    {"path_pattern": "交付物/报告文档/report_manifest.json", "schema": "assets/schemas/alignment-report-manifest.schema.json", "template": "assets/templates/reports/report_manifest.json"}
+  ],
+  "report_paths": {
+    "report_manifest": "交付物/报告文档/report_manifest.json",
+    "final_report": "交付物/报告文档/对齐报告.md"
+  },
+  "promotion_rules": [
+    {"source": "work/baseline/measurements.json", "target": "artifacts/03-evaluation/baseline_measurements.json", "rule": "sha256_must_match"},
+    {"source": "work/formal/fv####/alignment_result.json", "target": "artifacts/04-alignment/formal_result.json", "rule": "selected_batch_sha256_must_match"},
+    {"source": "work/candidate-freeze/<candidate_id>/parameter_record.json", "target": "artifacts/04-alignment/aligned_parameters.json", "rule": "parameter_set_and_source_sha256_must_match"},
+    {"source": "work/formal/fv####/runtime/<runtime_file>", "target": "交付物/runtime/<runtime_file>", "rule": "sha256_must_match"}
+  ],
+  "record_ownership": {
+    "candidate_search_history": "各cv####/batch_manifest.json保存明细，artifacts/04-alignment/alignment_manifest.json.calibration_batches保存索引",
+    "candidate_freeze_and_formal_history": "artifacts/04-alignment/alignment_manifest.json.candidate_freezes和formal_batches",
+    "delivery_checks": "artifacts/05-delivery/delivery_manifest.json.checks",
+    "report_checks": "交付物/报告文档/report_manifest.json"
+  },
+  "task_scripts": ["simulator.py", "observer.py", "candidate_factory.py", "run_sensitivity.py", "run_calibration.py", "freeze_candidate.py", "run_formal.py", "render_reports.py"]
+}

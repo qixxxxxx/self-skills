@@ -1,0 +1,18 @@
+{
+  "schema_version": "slot-alignment.script-equivalence.v6",
+  "task_id": "<task-id>",
+  "runtime_bundle_sha256": "<sha256>",
+  "certified_script_sha256": "<sha256>",
+  "derived_script_bundle_sha256": "<sha256>",
+  "status": "passed",
+  "checks": [
+    {"check_id": "rng-sequence", "name_zh": "RNG调用顺序与最终状态", "status": "passed", "evidence_refs": ["work/script-equivalence/comparisons/<file>"]},
+    {"check_id": "economic-settlement", "name_zh": "投注、派奖和组件归属", "status": "passed", "evidence_refs": ["work/script-equivalence/comparisons/<file>"]},
+    {"check_id": "feature-state", "name_zh": "Feature与状态机语义", "status": "passed", "evidence_refs": ["work/script-equivalence/comparisons/<file>"]},
+    {"check_id": "metric-observation", "name_zh": "N/J/P/B原始测量", "status": "passed", "evidence_refs": ["work/script-equivalence/comparisons/<file>"]}
+  ],
+  "evidence_files": [
+    {"path": "work/script-equivalence/comparisons/<file>", "sha256": "<sha256>"}
+  ],
+  "verified_at": "<ISO-8601>"
+}

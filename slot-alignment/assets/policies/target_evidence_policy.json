@@ -1,0 +1,64 @@
+{
+  "schema_version": "slot-alignment.target-evidence-policy.v6",
+  "policy_id": "slot-alignment-target-evidence-v6",
+  "version": "6.0.0",
+  "status": "已授权",
+  "authority": "用户",
+  "authorized_at": "2026-09-03",
+  "applies_to_metric_library": "6.0.0",
+  "scope": "original_target_evidence_only",
+  "rules": {
+    "freeze_before_candidate": true,
+    "candidate_result_may_change_decision": false,
+    "exact_sources_without_sample_gate": ["user_confirmed_exact_rtp"],
+    "deterministic_exact_without_sample_gate": true,
+    "zero_sample_decision": "observe_no_evidence",
+    "below_minimum_decision": "observe_low_sample",
+    "between_minimum_and_recommended_decision": "active_low_sample",
+    "at_or_above_recommended_decision": "active_normal",
+    "observation_is_not_inapplicable": true,
+    "observation_is_not_formal_waiver": true,
+    "distribution_group_atomicity": "if_any_required_bin_is_below_minimum_observe_entire_distribution_group"
+  },
+  "metric_thresholds": {
+    "N1": {"minimum_sample": null, "recommended_sample": null},
+    "N2": {"minimum_sample": 200, "recommended_sample": 5000},
+    "N3": {"minimum_sample": 200, "recommended_sample": 5000, "minimum_event_count": 5, "recommended_event_count": 30},
+    "N4": {"minimum_sample": 200, "recommended_sample": 5000},
+    "N5": {"minimum_sample": 200, "recommended_sample": 2000},
+    "N6": {"minimum_sample": 500, "recommended_sample": 5000},
+    "J1": {"minimum_sample": 50, "recommended_sample": 200},
+    "J2": {"minimum_sample": 50, "recommended_sample": 200},
+    "J3": {"minimum_sample": 50, "recommended_sample": 200},
+    "P1": {"minimum_sample": 30, "recommended_sample": 100},
+    "B1": {"minimum_sample": 100, "recommended_sample": 300},
+    "B2": {"minimum_sample": 100, "recommended_sample": 300}
+  },
+  "p2_thresholds_by_opportunity_unit": {
+    "feature_entry": {"minimum_sample": 30, "recommended_sample": 100},
+    "complete_feature": {"minimum_sample": 30, "recommended_sample": 100},
+    "feature_spin": {"minimum_sample": 50, "recommended_sample": 200},
+    "positive_settlement_step": {"minimum_sample": 50, "recommended_sample": 200},
+    "pick": {"minimum_sample": 50, "recommended_sample": 200},
+    "respin_step": {"minimum_sample": 50, "recommended_sample": 200},
+    "visible_action": {"minimum_sample": 50, "recommended_sample": 200},
+    "other": {"minimum_sample": 50, "recommended_sample": 200}
+  },
+  "facet_overrides": {
+    "J2.primary_structure_p90": {"minimum_sample": 100, "recommended_sample": 200},
+    "J2.visible_step_reward_p90": {"minimum_sample": 100, "recommended_sample": 200},
+    "P1.feature_duration_p90": {"minimum_sample": 100, "recommended_sample": 200}
+  },
+  "categorical_bin_thresholds": {
+    "minimum_observed_count": 5,
+    "recommended_observed_count": 30,
+    "zero_count_is_not_proof_of_zero_probability": true,
+    "below_minimum_action": "merge_before_freeze_or_observe_entire_distribution_group"
+  },
+  "coverage": {
+    "complete": "all_profile_matched_instances_are_active",
+    "limited": "one_or_more_profile_matched_instances_are_observational",
+    "pass_label_complete": "完整范围通过",
+    "pass_label_limited": "有限范围通过"
+  }
+}

@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v5 Evaluation Policy",
+  "title": "Slot Alignment v6 Evaluation Policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "composite_scoring", "distance_methods", "j_player_budget_rules", "p_player_budget_rules", "b_player_budget_rules", "tolerance", "formal_grading", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "composite_scoring", "distance_methods", "j_player_budget_rules", "p_player_budget_rules", "b_player_budget_rules", "c_budget_contract", "formal_grading", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v5"},
-    "policy_id": {"const": "player-visible-alignment-evaluation-v5"},
-    "version": {"const": "5.8.0"},
+    "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v6"},
+    "policy_id": {"const": "player-visible-alignment-evaluation-v6"},
+    "version": {"const": "6.0.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
-    "applies_to_metric_library": {"pattern": "^5\\."},
+    "applies_to_metric_library": {"const": "6.0.0"},
     "decision_model": {
       "type": "object",
       "required": ["score_scale_enabled", "weights_enabled", "composite_score_enabled", "metric_compensation_enabled", "formal_metric_waiver_enabled", "all_hard_gates_must_pass", "all_active_alignment_subitems_must_pass", "card_aggregation", "conditional_group_aggregation"],
@@ -46,26 +46,35 @@
       }
     },
     "distance_methods": {"type": "object", "required": ["absolute_probability_error", "absolute_error", "total_variation", "half_l1"]},
-    "j_player_budget_rules": {"type": "object", "required": ["minimum_original_sample", "minimum_categorical_bin_count", "instance_score_formula", "J1", "J2", "J3", "category_score", "cross_category_weight"]},
-    "p_player_budget_rules": {"type": "object", "required": ["minimum_categorical_bin_count", "instance_score_formula", "P1", "P2", "category_score", "cross_category_weight"]},
-    "b_player_budget_rules": {"type": "object", "required": ["minimum_original_sample", "minimum_categorical_bin_count", "instance_score_formula", "B1", "B2", "category_score", "cross_category_weight"]},
-    "tolerance": {
+    "j_player_budget_rules": {"type": "object", "required": ["instance_score_formula", "J1", "J2", "J3", "category_score", "cross_category_weight"]},
+    "p_player_budget_rules": {"type": "object", "required": ["instance_score_formula", "P1", "P2", "category_score", "cross_category_weight"]},
+    "b_player_budget_rules": {"type": "object", "required": ["instance_score_formula", "B1", "B2", "category_score", "cross_category_weight"]},
+    "c_budget_contract": {
       "type": "object",
-      "required": ["J_source", "P_source", "B_source", "factor", "deterministic_rule_tolerance", "freeze_before_candidate", "candidate_result_may_change_tolerance"],
+      "additionalProperties": false,
+      "required": ["N_source", "J_source", "P_source", "B_source", "target_role", "distance_role", "c_budget_role", "freeze_before_candidate", "candidate_result_may_change_budget", "pass_rule", "deviation_ratio_formula", "deviation_ratio_role", "score_role", "decision_order", "deterministic_zero_budget_rule"],
       "properties": {
+        "N_source": {"const": "frozen_hard_gate_C_budget"},
         "J_source": {"const": "frozen_player_visible_C_budget"},
         "P_source": {"const": "frozen_player_visible_C_budget"},
         "B_source": {"const": "frozen_player_visible_C_budget"},
-        "factor": {"const": 1.0},
-        "deterministic_rule_tolerance": {"const": 0.0},
+        "target_role": {"const": "frozen_reference_value_only"},
+        "distance_role": {"const": "difference_measurement_only"},
+        "c_budget_role": {"const": "sole_maximum_pass_distance"},
         "freeze_before_candidate": {"const": true},
-        "candidate_result_may_change_tolerance": {"const": false}
+        "candidate_result_may_change_budget": {"const": false},
+        "pass_rule": {"const": "distance_lte_c_budget"},
+        "deviation_ratio_formula": {"const": "distance/c_budget_when_c_budget_gt_0"},
+        "deviation_ratio_role": {"const": "comparison_scoring_ranking_and_reporting_only"},
+        "score_role": {"const": "quality_grading_and_aggregation_only_cannot_override_pass"},
+        "decision_order": {"const": ["validate_status_and_samples", "compute_distance_from_frozen_target", "decide_pass_by_distance_lte_c_budget", "compute_deviation_ratio_for_comparison_scoring_ranking_and_reporting", "assign_grade_and_aggregate_without_overriding_pass"]},
+        "deterministic_zero_budget_rule": {"const": "distance_must_equal_zero"}
       }
     },
     "formal_grading": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["grades", "pass_grades", "labels_zh", "aggregation", "hard_gate_pass_limit", "deterministic_exact"],
+      "required": ["grades", "pass_grades", "labels_zh", "aggregation", "deterministic_exact"],
       "properties": {
         "grades": {"const": ["S", "A", "B", "C", "F", "U", "NA"]},
         "pass_grades": {"const": ["S", "A", "B", "C"]},
@@ -80,8 +89,7 @@
             "NA": "不适用"
           }
         },
-        "aggregation": {"const": "all_required_pass_then_scoped_composite_score"},
-        "hard_gate_pass_limit": {"const": 1.0},
+        "aggregation": {"const": "all_active_pass_then_scoped_composite_score"},
         "deterministic_exact": {"const": {"pass_grade": "S", "fail_grade": "F"}}
       }
     },
@@ -91,8 +99,9 @@
     },
     "sample_insufficiency": {
       "type": "object",
-      "required": ["stops_execution", "removes_metric_instance", "allows_waiver", "report_only_for_process_control", "final_status"],
+      "required": ["scope", "stops_execution", "removes_metric_instance", "allows_waiver", "report_only_for_process_control", "final_status"],
       "properties": {
+        "scope": {"const": "candidate_measurements_only"},
         "stops_execution": {"const": false},
         "removes_metric_instance": {"const": false},
         "allows_waiver": {"const": false},

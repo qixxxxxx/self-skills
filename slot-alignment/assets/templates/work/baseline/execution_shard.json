@@ -1,0 +1,21 @@
+{
+  "schema_version": "slot-alignment.execution-shard.v6",
+  "task_id": "<task-id>",
+  "mode": "<mode>",
+  "rtp_group": 1,
+  "phase": "BASELINE",
+  "shard_index": 0,
+  "entry_start": 0,
+  "entry_count": 250000,
+  "metric_contract_sha256": "<sha256>",
+  "candidate_parameter_sha256": null,
+  "runtime_bundle_sha256": "<sha256>",
+  "script_bundle_sha256": "<sha256>",
+  "base_seed": 0,
+  "shard_seed": 0,
+  "aggregate_measurements": {},
+  "accumulator_checkpoint": {},
+  "hash_scope": "canonical_json_without_output_sha256",
+  "output_sha256": "<sha256>",
+  "status": "completed"
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Alignment Manifest v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "mode", "metric_contract_sha256", "sample_execution_plan_sha256", "runtime_capability_matrix_sha256", "search", "sensitivity", "calibration_batches", "candidate_freezes", "formal_batches", "termination", "generated_at"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.alignment-manifest.v6"},
+    "task_id": {"type": "string", "minLength": 1},
+    "mode": {"type": "string", "minLength": 1},
+    "metric_contract_sha256": {"$ref": "#/$defs/sha256"},
+    "sample_execution_plan_sha256": {"$ref": "#/$defs/sha256"},
+    "runtime_capability_matrix_sha256": {"$ref": "#/$defs/sha256"},
+    "search": {"$ref": "#/$defs/search"},
+    "sensitivity": {"$ref": "#/$defs/sensitivity"},
+    "calibration_batches": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/batch"}},
+    "candidate_freezes": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"$ref": "#/$defs/freeze"}},
+    "formal_batches": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/formal"}},
+    "termination": {"$ref": "#/$defs/termination"},
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "hash_path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "seed", "maximum_candidates", "stagnation_rule", "upgrade_layers"],
+      "properties": {
+        "algorithm": {"type": "string", "minLength": 1},
+        "seed": {"type": "integer", "minimum": 0},
+        "maximum_candidates": {"type": "integer", "minimum": 1},
+        "stagnation_rule": {"type": "string", "minLength": 1},
+        "upgrade_layers": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "sensitivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan", "result"],
+      "properties": {"plan": {"$ref": "#/$defs/hash_path"}, "result": {"$ref": "#/$defs/hash_path"}}
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["batch_id", "path", "sha256", "candidate_count", "status"],
+      "properties": {
+        "batch_id": {"type": "string", "pattern": "^cv[0-9]{4}$"},
+        "path": {"type": "string", "pattern": "^work/calibration/cv[0-9]{4}/batch_manifest\\.json$"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "candidate_count": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["completed", "invalidated"]}
+      }
+    },
+    "termination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason_zh"],
+      "properties": {
+        "status": {"enum": ["formal_pass", "formal_not_pass", "formal_undetermined"]},
+        "reason_zh": {"type": "string", "minLength": 1}
+      }
+    },
+    "freeze": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "path", "sha256", "independent_recheck_status", "selected_for_formal"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "pattern": "^work/candidate-freeze/[^/]+/freeze_manifest\\.json$"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "independent_recheck_status": {"enum": ["通过", "不通过", "无法完整判定"]},
+        "selected_for_formal": {"type": "boolean"}
+      }
+    },
+    "formal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["batch_id", "candidate_id", "plan", "result", "status", "promoted_to_artifact"],
+      "properties": {
+        "batch_id": {"type": "string", "pattern": "^fv[0-9]{4}$"},
+        "candidate_id": {"type": "string", "minLength": 1},
+        "plan": {"$ref": "#/$defs/hash_path"},
+        "result": {"$ref": "#/$defs/hash_path"},
+        "status": {"enum": ["completed", "invalidated"]},
+        "promoted_to_artifact": {"type": "boolean"}
+      }
+    }
+  }
+}

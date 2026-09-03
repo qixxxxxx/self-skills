@@ -1,6 +1,6 @@
 interface:
-  display_name: "Slot 原版体验对齐 v5.9.0"
-  short_description: "按玩家感受对齐N/J/P/B并完成FORMAL交付"
-  default_prompt: "使用 $slot-alignment 冻结N/J/P/B玩家直观合同，完成原版体验对齐与独立FORMAL验收。"
+  display_name: "Slot 原版体验对齐 v6.0.0"
+  short_description: "完成独立FORMAL验收并生成单一中文对齐报告"
+  default_prompt: "使用 $slot-alignment 完成原版证据审计、自动对齐和独立FORMAL验收，并生成唯一的人类可读对齐报告.md。"
 policy:
   allow_implicit_invocation: false

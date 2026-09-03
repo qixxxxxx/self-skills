@@ -1,0 +1,8 @@
+{
+  "schema_version": "slot-alignment.metric-measurements.v6",
+  "task_id": "<task-id>",
+  "phase": "CALIBRATION",
+  "metric_contract_sha256": "<sha256>",
+  "measurements": {},
+  "audits": []
+}

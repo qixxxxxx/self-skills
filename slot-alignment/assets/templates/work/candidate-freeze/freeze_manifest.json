@@ -1,0 +1,26 @@
+{
+  "schema_version": "slot-alignment.candidate-freeze-manifest.v6",
+  "task_id": "<task-id>",
+  "candidate_id": "<candidate-id>",
+  "status": "READY_FOR_FORMAL",
+  "parameter_record": {"path": "work/candidate-freeze/<candidate-id>/parameter_record.json", "sha256": "<sha256>"},
+  "parameter_sha256": "<sha256>",
+  "runtime_bundle_sha256": "<sha256>",
+  "runtime_files": [
+    {"name": "game_core.json", "path": "work/candidate-freeze/<candidate-id>/runtime/game_core.json", "sha256": "<sha256>"},
+    {"name": "payout_config.json", "path": "work/candidate-freeze/<candidate-id>/runtime/payout_config.json", "sha256": "<sha256>"},
+    {"name": "reel_config.json", "path": "work/candidate-freeze/<candidate-id>/runtime/reel_config.json", "sha256": "<sha256>"},
+    {"name": "symbol_catalog.json", "path": "work/candidate-freeze/<candidate-id>/runtime/symbol_catalog.json", "sha256": "<sha256>"}
+  ],
+  "metric_contract_sha256": "<sha256>",
+  "script_bundle_sha256": "<sha256>",
+  "runtime_capability_matrix_sha256": "<sha256>",
+  "independent_recheck": {
+    "paid_entries": 2000000,
+    "seed_independent": true,
+    "measurements": {"path": "work/candidate-freeze/<candidate-id>/independent-recheck/measurements.json", "sha256": "<sha256>"},
+    "alignment_result": {"path": "work/candidate-freeze/<candidate-id>/independent-recheck/alignment_result.json", "sha256": "<sha256>"},
+    "status": "通过"
+  },
+  "frozen_at": "<ISO-8601>"
+}

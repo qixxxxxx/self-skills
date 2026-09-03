@@ -11,11 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 def render(library):
     category_names = {item["category_id"]: item["name_zh"] for item in library["categories"]}
     lines = [
-        "# Slot Alignment v5指标目录",
+        "# Slot Alignment 6.0 指标目录",
         "",
         f"版本：`{library['version']}`",
         "",
-        "本目录只包含新任务使用的四类十三张指标卡；中奖组、组件、结算模型、Feature、符号和盘面作用域只按框架规则扩展卡内子项，不增加权重。",
+        "本文件由`references/指标目录/index.json`确定性生成，只用于快速阅读卡与Facet；不得手工修改或反向覆盖JSON。详细画像和实例规则见[指标与玩法画像](../01-指标框架.md)，算法与通过值见[评价合同](../02-评价合同.md)。",
+        "",
+        "中奖组、组件、结算模型、Feature、符号和盘面作用域只按框架扩展卡内子项，不增加卡权重。",
         "",
     ]
     for category in library["categories"]:
@@ -28,12 +30,12 @@ def render(library):
     lines += ["## 审计", "", "| ID | 名称 | 来源卡 | 内容 |", "|---|---|---|---|"]
     for audit in library["audits"]:
         lines.append(f"| {audit['audit_id']} | {audit['name_zh']} | {', '.join(audit['source_cards'])} | {', '.join(audit['includes'])} |")
-    lines += ["", "全部N/J/P/B必需项先过C级线，任一失败不得用分数补偿。当前已落定N/J/P/B单项分、卡分和分类分；跨分类综合权重留待后续授权。", ""]
+    lines += ["", "全部N/J/P/B活动正式项都只按“距离 <= C级通过值”判定，任一失败不得用分数补偿。原版证据低于最低线的实例在候选前整项或整组转为观察，不参与通过判定但必须完整披露；存在观察项时最多只能给出有限范围通过。当前已落定N/J/P/B单项分、卡分和分类分；跨分类综合权重留待后续授权。", ""]
     return "\n".join(lines)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="生成v5指标中文汇总")
+    parser = argparse.ArgumentParser(description="生成6.0指标中文汇总")
     parser.add_argument("--library", default=str(ROOT / "references/指标目录/index.json"))
     parser.add_argument("--output", default=str(ROOT / "references/指标目录/index.md"))
     parser.add_argument("--check", action="store_true")
@@ -42,8 +44,8 @@ def main():
     output = Path(args.output)
     if args.check:
         if not output.is_file() or output.read_text(encoding="utf-8") != text:
-            raise SystemExit("v5指标中文汇总不是当前JSON的确定性结果")
-        print("OK: v5指标中文汇总一致")
+            raise SystemExit("6.0指标中文汇总不是当前JSON的确定性结果")
+        print("OK: 6.0指标中文汇总一致")
     else:
         output.write_text(text, encoding="utf-8")
         print(output)

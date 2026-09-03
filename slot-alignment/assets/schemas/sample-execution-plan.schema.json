@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment Sample Execution Plan v1",
+  "title": "Slot Alignment Sample Execution Plan v6",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "task_id", "frozen_before_candidate", "rtp_group", "sample_unit", "policy", "rng_protocol", "shard_size", "calibration", "formal"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.sample-execution-plan.v1"},
+    "schema_version": {"const": "slot-alignment.sample-execution-plan.v6"},
     "task_id": {"type": "string", "minLength": 1},
     "frozen_before_candidate": {"const": true},
     "rtp_group": {"const": 1},
@@ -15,8 +15,8 @@
       "additionalProperties": false,
       "required": ["id", "version", "sha256"],
       "properties": {
-        "id": {"const": "slot-alignment-fixed-sample-execution-v1"},
-        "version": {"const": "1.1.0"},
+        "id": {"const": "slot-alignment-fixed-sample-execution-v6"},
+        "version": {"const": "6.0.0"},
         "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
       }
     },

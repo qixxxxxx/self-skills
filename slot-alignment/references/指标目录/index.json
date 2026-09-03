@@ -1,11 +1,12 @@
 {
-  "schema_version": "slot-alignment.metric-library.v5",
+  "schema_version": "slot-alignment.metric-library.v6",
   "library_id": "slot-alignment-player-experience-metrics",
-  "version": "5.5.0",
+  "version": "6.0.0",
   "status": "active",
   "principles": {
     "top_level_categories_are_mutually_exclusive": true,
-    "all_profile_matched_formal_subitems_required": true,
+    "all_profile_matched_instances_receive_pre_candidate_evidence_decision": true,
+    "all_active_formal_subitems_required": true,
     "formal_metric_waiver_allowed": false,
     "weights_allowed": true,
     "composite_score_allowed": true,
@@ -359,7 +360,7 @@
         {
           "facet_id": "feature_duration_p90",
           "name_zh": "较长完整玩法长度",
-          "sample_unit": "feature_cycle",
+          "sample_unit": "complete_feature_cycle",
           "measurement": "P90(count(player_visible_primary_actions))",
           "target_source": "sealed_original_evidence",
           "distance_method": "absolute_error",

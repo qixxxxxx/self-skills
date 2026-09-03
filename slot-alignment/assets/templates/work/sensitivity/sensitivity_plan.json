@@ -1,0 +1,12 @@
+{
+  "schema_version": "slot-alignment.sensitivity-plan.v6",
+  "task_id": "<task-id>",
+  "metric_contract_sha256": "<sha256>",
+  "parameter_authority_sha256": "<sha256>",
+  "runtime_bundle_sha256": "<sha256>",
+  "fixed_seed": 0,
+  "parameters": [
+    {"parameter_id": "<parameter-id>", "runtime_path": "<runtime-json-path>", "parameter_type": "structured_weight", "perturbation": {"relative": 0.05}, "expected_metric_ids": ["N1"], "search_layer": "<layer-id>"}
+  ],
+  "created_at": "<ISO-8601>"
+}

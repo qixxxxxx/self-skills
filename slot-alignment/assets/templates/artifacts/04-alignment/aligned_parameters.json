@@ -1,0 +1,12 @@
+{
+  "schema_version": "slot-alignment.aligned-parameters.v6",
+  "task_id": "<task-id>",
+  "candidate_id": "<candidate-id>",
+  "freeze_manifest_sha256": "<sha256>",
+  "parameter_record": {"path": "work/candidate-freeze/<candidate-id>/parameter_record.json", "sha256": "<sha256>"},
+  "runtime_bundle_sha256": "<sha256>",
+  "parameters": [
+    {"parameter_id": "<parameter-id>", "runtime_path": "<runtime-json-path>", "value": "<value>"}
+  ],
+  "generated_at": "<ISO-8601>"
+}

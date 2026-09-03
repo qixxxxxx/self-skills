@@ -1,0 +1,37 @@
+{
+  "schema_version": "slot-alignment.alignment-manifest.v6",
+  "task_id": "<task-id>",
+  "mode": "<mode>",
+  "metric_contract_sha256": "<sha256>",
+  "sample_execution_plan_sha256": "<sha256>",
+  "runtime_capability_matrix_sha256": "<sha256>",
+  "search": {
+    "algorithm": "<algorithm>",
+    "seed": 0,
+    "maximum_candidates": 1,
+    "stagnation_rule": "<rule>",
+    "upgrade_layers": ["<layer-id>"]
+  },
+  "sensitivity": {
+    "plan": {"path": "work/sensitivity/sensitivity_plan.json", "sha256": "<sha256>"},
+    "result": {"path": "work/sensitivity/sensitivity_result.json", "sha256": "<sha256>"}
+  },
+  "calibration_batches": [
+    {"batch_id": "cv0001", "path": "work/calibration/cv0001/batch_manifest.json", "sha256": "<sha256>", "candidate_count": 1, "status": "completed"}
+  ],
+  "candidate_freezes": [
+    {"candidate_id": "<candidate-id>", "path": "work/candidate-freeze/<candidate-id>/freeze_manifest.json", "sha256": "<sha256>", "independent_recheck_status": "通过", "selected_for_formal": true}
+  ],
+  "formal_batches": [
+    {
+      "batch_id": "fv0001",
+      "candidate_id": "<candidate-id>",
+      "plan": {"path": "work/formal/fv0001/formal_plan.json", "sha256": "<sha256>"},
+      "result": {"path": "work/formal/fv0001/alignment_result.json", "sha256": "<sha256>"},
+      "status": "completed",
+      "promoted_to_artifact": true
+    }
+  ],
+  "termination": {"status": "formal_pass", "reason_zh": "<reason>"},
+  "generated_at": "<ISO-8601>"
+}

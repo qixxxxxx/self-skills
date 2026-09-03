@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Final Report Manifest v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_contract_version", "task_id", "source_files", "report_file", "placeholders_resolved", "generated_at"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.alignment-report-manifest.v6"},
+    "report_contract_version": {"const": "slot-alignment.report.v6"},
+    "task_id": {"type": "string", "minLength": 1},
+    "source_files": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/file"}},
+    "report_file": {
+      "allOf": [
+        {"$ref": "#/$defs/file"},
+        {"properties": {"path": {"const": "交付物/报告文档/对齐报告.md"}}}
+      ]
+    },
+    "placeholders_resolved": {"const": true},
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    }
+  }
+}

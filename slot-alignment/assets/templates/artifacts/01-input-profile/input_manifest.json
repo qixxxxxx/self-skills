@@ -1,0 +1,53 @@
+{
+  "schema_version": "slot-alignment.input-manifest.v6",
+  "task_id": "<task-id>",
+  "game_code": "<game-code>",
+  "game_name_zh": "<游戏中文名>",
+  "mode": "<mode>",
+  "runtime_environment": "test",
+  "rtp_group": 1,
+  "status": "READY",
+  "directories": {
+    "config-test": {"path": "<absolute-path>", "purpose": "测试Runtime配置仓库", "branch": "main"},
+    "config-prod": {"path": "<absolute-path>", "purpose": "正式Runtime配置工作树", "branch": "release", "repository": "config-test"},
+    "slot-docs": {"path": "<absolute-path>", "purpose": "项目资料仓库", "branch": "main"},
+    "slot-math-workbench": {"path": "<absolute-path>", "purpose": "数学与对齐工作区", "repository": "slot-docs"},
+    "pragmatic-workbench": {"path": "<absolute-path>", "purpose": "Pragmatic专项工作区", "branch": "main"},
+    "server-dev": {"path": "<absolute-path>", "purpose": "开发服务端与测试Runtime缓存", "branch": "dev"},
+    "server-prod": {"path": "<absolute-path>", "purpose": "正式服务端与Runtime缓存", "branch": "release", "repository": "server-dev"}
+  },
+  "runtime_candidates": [
+    {
+      "candidate_id": "<runtime-candidate-id>",
+      "directory_id": "server-dev",
+      "source_path": "server-dev:config-package-cache/main/<game-code>/<hash>/",
+      "bundle_sha256": "<sha256>",
+      "files": [
+        {"name": "game_core.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"},
+        {"name": "payout_config.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"},
+        {"name": "reel_config.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"},
+        {"name": "symbol_catalog.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"}
+      ]
+    }
+  ],
+  "selected_baseline": {
+    "candidate_id": "<runtime-candidate-id>",
+    "directory_id": "server-dev",
+    "source_path": "server-dev:config-package-cache/main/<game-code>/<hash>/",
+    "bundle_sha256": "<sha256>",
+    "files": [
+      {"name": "game_core.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"},
+      {"name": "payout_config.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"},
+      {"name": "reel_config.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"},
+      {"name": "symbol_catalog.json", "source_path": "<directory-id:path>", "resolved_path": "<absolute-path>", "sha256": "<sha256>"}
+    ],
+    "sealed_path": "work/baseline/runtime"
+  },
+  "original_sources": [
+    {"source_id": "<source-id>", "type": "capture", "path": "slot-math-workbench:<game-code>/capture-summary/<source>/", "sha256": "<sha256>", "coverage_zh": "<coverage>"}
+  ],
+  "certified_script": {"path": "slot-docs:<game-code>/math/scripts/<script>.py", "sha256": "<sha256>"},
+  "target_rtp": {"value": 0.96, "confirmation_type": "confirmed_by_user", "confirmation_evidence_sha256": "<sha256>"},
+  "placeholders": [],
+  "created_at": "<ISO-8601>"
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Metric Targets v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "frozen_before_candidate", "targets"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.metric-targets.v6"},
+    "task_id": {"type": "string", "minLength": 1},
+    "frozen_before_candidate": {"const": true},
+    "targets": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[NJPB][1-9][0-9]*\\.[a-z0-9_.:-]+$"},
+      "additionalProperties": {"$ref": "#/$defs/target"}
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_status", "value", "source"],
+      "properties": {
+        "target_status": {"enum": ["available", "no_evidence"]},
+        "value": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "number"},
+            {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {"type": "number", "minimum": 0}
+            }
+          ]
+        },
+        "source": {
+          "type": "object",
+          "required": ["method"],
+          "properties": {
+            "method": {
+              "enum": [
+                "user_confirmed_exact_rtp",
+                "sealed_original_evidence",
+                "original_component_share_mapped_to_user_confirmed_total_rtp"
+              ]
+            },
+            "confirmation_type": {"enum": ["provided_by_user", "confirmed_by_user"]},
+            "confirmation_evidence_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "evidence_refs": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            }
+          },
+          "additionalProperties": true
+        },
+        "sample_count": {"type": "integer", "minimum": 0},
+        "event_count": {"type": "integer", "minimum": 0},
+        "bucket_count": {"type": "integer", "minimum": 0},
+        "deterministic_exact": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"target_status": {"const": "available"}}},
+          "then": {"properties": {"value": {"not": {"type": "null"}}}}
+        },
+        {
+          "if": {"properties": {"target_status": {"const": "no_evidence"}}},
+          "then": {"properties": {"value": {"type": "null"}, "sample_count": {"const": 0}}, "required": ["sample_count"]}
+        }
+      ]
+    }
+  }
+}

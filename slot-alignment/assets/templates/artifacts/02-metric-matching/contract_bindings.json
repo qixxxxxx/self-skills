@@ -1,0 +1,13 @@
+{
+  "schema_version": "slot-alignment.contract-bindings.v6",
+  "contract_version": "<task-contract-version>",
+  "task_id": "<task-id>",
+  "mode": "<mode>",
+  "rtp_group": 1,
+  "frozen_before_candidate": true,
+  "runtime_bundle_sha256": "<sha256>",
+  "original_evidence_sha256": "<sha256>",
+  "script_sha256": "<sha256>",
+  "game_profile_sha256": "<sha256>",
+  "parameter_authority_sha256": "<sha256>"
+}

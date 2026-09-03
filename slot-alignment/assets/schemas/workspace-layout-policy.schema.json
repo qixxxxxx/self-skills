@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Workspace Layout Policy v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "task_root", "runtime_files", "authoritative_artifacts", "work_records", "report_paths", "promotion_rules", "record_ownership", "task_scripts"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.workspace-layout-policy.v6"},
+    "policy_id": {"const": "slot-alignment-workspace-layout-v6"},
+    "version": {"const": "6.0.0"},
+    "status": {"const": "已授权"},
+    "authority": {"const": "用户"},
+    "authorized_at": {"type": "string", "format": "date"},
+    "task_root": {"const": "slot-math-workbench:<game_code>/alignments/<mode>/<task_id>/"},
+    "runtime_files": {"const": ["game_core.json", "payout_config.json", "reel_config.json", "symbol_catalog.json"]},
+    "authoritative_artifacts": {"type": "array", "minItems": 16, "maxItems": 16, "items": {"$ref": "#/$defs/artifact"}},
+    "work_records": {"type": "array", "minItems": 19, "maxItems": 19, "items": {"$ref": "#/$defs/work_record"}},
+    "report_paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_manifest", "final_report"],
+      "properties": {
+        "report_manifest": {"const": "交付物/报告文档/report_manifest.json"},
+        "final_report": {"const": "交付物/报告文档/对齐报告.md"}
+      }
+    },
+    "promotion_rules": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/promotion"}},
+    "record_ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_search_history", "candidate_freeze_and_formal_history", "delivery_checks", "report_checks"],
+      "properties": {
+        "candidate_search_history": {"type": "string", "minLength": 1},
+        "candidate_freeze_and_formal_history": {"type": "string", "minLength": 1},
+        "delivery_checks": {"type": "string", "minLength": 1},
+        "report_checks": {"type": "string", "minLength": 1}
+      }
+    },
+    "task_scripts": {"const": ["simulator.py", "observer.py", "candidate_factory.py", "run_sensitivity.py", "run_calibration.py", "freeze_candidate.py", "run_formal.py", "render_reports.py"]}
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "path", "schema", "template"],
+      "properties": {
+        "stage": {"type": "integer", "minimum": 1, "maximum": 5},
+        "path": {"type": "string", "pattern": "^artifacts/"},
+        "schema": {"type": "string", "pattern": "^assets/schemas/.+\\.schema\\.json$"},
+        "template": {"type": "string", "pattern": "^assets/templates/.+\\.json$"}
+      }
+    },
+    "work_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_pattern", "schema", "template"],
+      "properties": {
+        "path_pattern": {"type": "string", "minLength": 1},
+        "schema": {"type": "string", "pattern": "^assets/schemas/.+\\.schema\\.json$"},
+        "template": {"type": "string", "pattern": "^assets/templates/.+\\.json$"}
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target", "rule"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "rule": {"enum": ["sha256_must_match", "selected_batch_sha256_must_match", "parameter_set_and_source_sha256_must_match"]}
+      }
+    }
+  }
+}

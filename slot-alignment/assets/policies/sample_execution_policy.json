@@ -1,10 +1,10 @@
 {
-  "schema_version": "slot-alignment.sample-execution-policy.v1",
-  "policy_id": "slot-alignment-fixed-sample-execution-v1",
-  "version": "1.1.0",
+  "schema_version": "slot-alignment.sample-execution-policy.v6",
+  "policy_id": "slot-alignment-fixed-sample-execution-v6",
+  "version": "6.0.0",
   "status": "已授权",
   "authority": "用户",
-  "authorized_at": "2026-09-01",
+  "authorized_at": "2026-09-03",
   "source_path": "assets/policies/sample_execution_policy.json",
   "sample_unit": "complete_paid_entry",
   "rng_protocol": {
@@ -44,6 +44,8 @@
   "execution": {
     "default_shard_size": 250000,
     "shard_semantics": "logical_checkpoint_and_rng_partition",
+    "short_final_shard_allowed": true,
+    "stage_smaller_than_shard_uses_single_short_shard": true,
     "internal_micro_batches_allowed": true,
     "internal_micro_batch_must_preserve_rng_stream": true,
     "benchmark_required": true,

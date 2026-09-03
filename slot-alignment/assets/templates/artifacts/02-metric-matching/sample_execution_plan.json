@@ -1,12 +1,12 @@
 {
-  "schema_version": "slot-alignment.sample-execution-plan.v1",
+  "schema_version": "slot-alignment.sample-execution-plan.v6",
   "task_id": "<task-id>",
   "frozen_before_candidate": true,
   "rtp_group": 1,
   "sample_unit": "complete_paid_entry",
   "policy": {
-    "id": "slot-alignment-fixed-sample-execution-v1",
-    "version": "1.1.0",
+    "id": "slot-alignment-fixed-sample-execution-v6",
+    "version": "6.0.0",
     "sha256": "<sha256>"
   },
   "rng_protocol": "chunk_seeded",

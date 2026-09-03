@@ -15,8 +15,9 @@ from validate_sample_plan import validate_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 LIBRARY_PATH = ROOT / "references" / "指标目录" / "index.json"
-HARD_POLICY_PATH = ROOT / "assets" / "policies" / "hard_gate_tolerance_policy.json"
+HARD_POLICY_PATH = ROOT / "assets" / "policies" / "hard_gate_budget_policy.json"
 EVALUATION_POLICY_PATH = ROOT / "assets" / "policies" / "alignment_evaluation_policy.json"
+TARGET_EVIDENCE_POLICY_PATH = ROOT / "assets" / "policies" / "target_evidence_policy.json"
 SAMPLE_POLICY_PATH = ROOT / "assets" / "policies" / "sample_execution_policy.json"
 RUNTIME_CAPABILITY_POLICY_PATH = ROOT / "assets" / "policies" / "runtime_capability_policy.json"
 
@@ -27,6 +28,48 @@ def safe_id(value):
     if not value:
         raise ValueError("无法生成空子项ID")
     return value
+
+
+def labeled_scope(scope, bindings):
+    labels = {}
+    maps = {
+        "component": {item["component_id"]: item["name_zh"] for item in bindings["components"]},
+        "feature": {item["feature_id"]: item["name_zh"] for item in bindings["features"]},
+        "settlement": {item["settlement_id"]: item["name_zh"] for item in bindings["settlements"]},
+        "continuous_settlement": {item["continuous_id"]: item["name_zh"] for item in bindings["continuous_settlements"]},
+        "mechanic": {item["mechanic_id"]: item["name_zh"] for item in bindings["special_mechanics"]},
+        "board": {item["board_scope_id"]: item["name_zh"] for item in bindings["boards"]},
+    }
+    for key, values in maps.items():
+        if scope.get(key) in values:
+            labels[key] = values[scope[key]]
+    scope_names = {
+        **maps["component"],
+        **maps["feature"],
+    }
+    if scope.get("scope") in scope_names:
+        labels["scope"] = scope_names[scope["scope"]]
+    if "win_group" in scope:
+        labels["win_group"] = next(
+            (item["name_zh"] for item in bindings["win_groups"] if item["component_id"] == scope.get("component") and item["group_id"] == scope["win_group"]),
+            scope["win_group"],
+        )
+    if "symbol_group" in scope:
+        labels["symbol_group"] = next(
+            (group["name_zh"] for board in bindings["boards"] if board["board_scope_id"] == scope.get("board") for group in board["symbol_groups"] if group["group_id"] == scope["symbol_group"]),
+            scope["symbol_group"],
+        )
+    mechanic = next((item for item in bindings["special_mechanics"] if item["mechanic_id"] == scope.get("mechanic")), None)
+    if mechanic:
+        state_names = mechanic["result_state_names_zh"]
+        if "state" in scope:
+            labels["state"] = state_names.get(scope["state"], scope["state"])
+        if "states" in scope:
+            labels["states"] = {state: state_names.get(state, state) for state in scope["states"]}
+    board = next((item for item in bindings["boards"] if item["board_scope_id"] == scope.get("board")), None)
+    if board:
+        labels["symbol_groups"] = {item["group_id"]: item["name_zh"] for item in board["symbol_groups"]}
+    return {**scope, **({"labels_zh": labels} if labels else {})}
 
 
 def subitems(card_id, facet_id, bindings):
@@ -132,6 +175,7 @@ def subitems(card_id, facet_id, bindings):
                 for bin_id in bins:
                     result.append((f"{item['continuous_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
                         "budget_rule": "J3.depth.bin",
+                        "requires_bin_count": True,
                         "aggregation": {**aggregation, "role": "bin"},
                     }))
             else:
@@ -241,6 +285,8 @@ def subitems(card_id, facet_id, bindings):
             for profile in board["key_symbol_profiles"]:
                 aggregation = {"dimension_id": "b1-2", "group_id": f"{board['board_scope_id']}.{profile['symbol_id']}", "mode": "half_overall_half_items"}
                 base_scope = {"board": board["board_scope_id"], "component": board["component_id"], "visual_phase": board["visual_phase"], "symbol": profile["symbol_id"], "sample_filter": profile["sample_filter"]}
+                if profile.get("trigger_threshold") is not None:
+                    base_scope["trigger_threshold"] = profile["trigger_threshold"]
                 if facet_id == "key_symbol_count_bin_rate":
                     for bin_id in profile["count_bins"]:
                         result.append((f"{board['board_scope_id']}.{profile['symbol_id']}.{bin_id}", {**base_scope, "bin": bin_id}, {
@@ -317,8 +363,85 @@ def distance_contract(facet, target_record, extra):
     return result
 
 
-def n_c_tolerance(card_id, target, scope, bindings, policy):
-    rule = policy["c_tolerance_rules"][card_id]
+def target_evidence_threshold(card_id, facet_id, scope, policy):
+    if card_id == "P2":
+        threshold = dict(policy["p2_thresholds_by_opportunity_unit"][scope["opportunity_unit"]])
+    else:
+        threshold = dict(policy["metric_thresholds"][card_id])
+    threshold.update(policy["facet_overrides"].get(f"{card_id}.{facet_id}", {}))
+    return threshold
+
+
+def classify_target_evidence(card, facet, scope, extra, target_record, policy):
+    source_method = target_record.get("source", {}).get("method")
+    threshold = target_evidence_threshold(card["card_id"], facet["facet_id"], scope, policy)
+    exact = source_method in policy["rules"]["exact_sources_without_sample_gate"] or target_record.get("deterministic_exact") is True
+    if exact:
+        return "active", {
+            "classification": "exact",
+            "sample_count": None,
+            "minimum_usable_count": None,
+            "recommended_count": None,
+            "event_count": None,
+            "minimum_event_count": None,
+            "recommended_event_count": None,
+            "bucket_count": None,
+            "minimum_bucket_count": None,
+            "recommended_bucket_count": None,
+        }, None
+
+    sample_count = target_record.get("sample_count")
+    if not isinstance(sample_count, int) or isinstance(sample_count, bool):
+        raise SystemExit(f"{card['card_id']}.{facet['facet_id']}原版目标必须记录整数sample_count")
+    target_status = target_record["target_status"]
+    event_count = target_record.get("event_count")
+    minimum_event = threshold.get("minimum_event_count")
+    recommended_event = threshold.get("recommended_event_count")
+    if minimum_event is not None and (not isinstance(event_count, int) or isinstance(event_count, bool)):
+        raise SystemExit(f"{card['card_id']}.{facet['facet_id']}必须记录整数event_count")
+    bucket_count = target_record.get("bucket_count")
+    bin_policy = policy["categorical_bin_thresholds"]
+    minimum_bucket = bin_policy["minimum_observed_count"] if extra.get("requires_bin_count") else None
+    recommended_bucket = bin_policy["recommended_observed_count"] if extra.get("requires_bin_count") else None
+    if minimum_bucket is not None and (not isinstance(bucket_count, int) or isinstance(bucket_count, bool)):
+        raise SystemExit(f"{card['card_id']}.{facet['facet_id']}分布档位必须记录整数bucket_count")
+
+    evidence = {
+        "classification": "low",
+        "sample_count": sample_count,
+        "minimum_usable_count": threshold["minimum_sample"],
+        "recommended_count": threshold["recommended_sample"],
+        "event_count": event_count,
+        "minimum_event_count": minimum_event,
+        "recommended_event_count": recommended_event,
+        "bucket_count": bucket_count,
+        "minimum_bucket_count": minimum_bucket,
+        "recommended_bucket_count": recommended_bucket,
+    }
+    if target_status == "no_evidence":
+        return "observe_no_evidence", evidence, "原版有效分母为0，无法生成可靠目标，转为观察项"
+
+    gaps = []
+    if sample_count < threshold["minimum_sample"]:
+        gaps.append(f"有效样本{sample_count}<{threshold['minimum_sample']}")
+    if minimum_event is not None and event_count < minimum_event:
+        gaps.append(f"实际事件{event_count}<{minimum_event}")
+    if minimum_bucket is not None and bucket_count < minimum_bucket:
+        gaps.append(f"档位计数{bucket_count}<{minimum_bucket}")
+    if gaps:
+        return "observe_low_sample", evidence, "；".join(gaps) + "，低于原版证据最低可用线"
+
+    normal = sample_count >= threshold["recommended_sample"]
+    if recommended_event is not None:
+        normal = normal and event_count >= recommended_event
+    if recommended_bucket is not None:
+        normal = normal and bucket_count >= recommended_bucket
+    evidence["classification"] = "normal" if normal else "low"
+    return "active", evidence, None
+
+
+def n_c_budget(card_id, target, scope, bindings, policy):
+    rule = policy["c_budget_rules"][card_id]
     method = rule["method"]
     if method == "fixed_absolute":
         return float(rule["value"])
@@ -346,7 +469,7 @@ def _clamped_relative(target, rule):
     return min(max(value, float(rule["minimum"])), float(rule["maximum"]))
 
 
-def j_c_tolerance(target, scope, extra, bindings, policy):
+def j_c_budget(target, scope, extra, bindings, policy):
     rules = policy["j_player_budget_rules"]
     rule_id = extra["budget_rule"]
     feature = _is_feature_component(scope.get("component"), bindings)
@@ -376,7 +499,7 @@ def j_c_tolerance(target, scope, extra, bindings, policy):
     raise ValueError(f"J类不支持的C级玩家预算规则: {rule_id}")
 
 
-def p_c_tolerance(target, extra, policy):
+def p_c_budget(target, extra, policy):
     rules = policy["p_player_budget_rules"]
     rule_id = extra["budget_rule"]
     if rule_id == "P1.entry_award.bin":
@@ -406,7 +529,7 @@ def _rare_clamped_relative(target, rule):
     return min(max(target * float(rule["relative"]), floor), float(rule["maximum"]))
 
 
-def b_c_tolerance(target, extra, policy):
+def b_c_budget(target, extra, policy):
     rules = policy["b_player_budget_rules"]
     rule_id = extra["budget_rule"]
     parts = rule_id.split(".")
@@ -428,7 +551,7 @@ def contract_digest(contract):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="编译slot-alignment v5.9指标合同")
+    parser = argparse.ArgumentParser(description="编译slot-alignment 6.0指标合同")
     parser.add_argument("--profile", required=True)
     parser.add_argument("--targets", required=True)
     parser.add_argument("--bindings", required=True)
@@ -437,14 +560,25 @@ def main():
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     profile = load_json(args.profile)
-    targets = load_json(args.targets).get("targets", {})
+    targets_file = load_json(args.targets)
+    targets = targets_file.get("targets", {})
     bindings_file = load_json(args.bindings)
     sample_plan = load_json(args.sample_plan)
     runtime_capabilities = load_json(args.runtime_capabilities)
     library = load_json(LIBRARY_PATH)
     hard_policy = load_json(HARD_POLICY_PATH)
     evaluation_policy = load_json(EVALUATION_POLICY_PATH)
+    target_evidence_policy = load_json(TARGET_EVIDENCE_POLICY_PATH)
     sample_policy = load_json(SAMPLE_POLICY_PATH)
+    for schema_name, value in [
+        ("game-profile-metric-bindings.schema.json", profile),
+        ("metric-targets.schema.json", targets_file),
+        ("contract-bindings.schema.json", bindings_file),
+        ("target-evidence-policy.schema.json", target_evidence_policy),
+    ]:
+        Draft202012Validator(load_json(ROOT / "assets/schemas" / schema_name)).validate(value)
+    if targets_file["task_id"] != bindings_file["task_id"]:
+        raise SystemExit("targets.task_id与合同绑定不一致")
     try:
         validate_plan(sample_plan, sample_policy)
     except Exception as exc:
@@ -455,12 +589,18 @@ def main():
         raise SystemExit("Runtime能力矩阵的task_id或mode与合同绑定不一致")
     if runtime_capabilities.get("rtp_group") != 1 or runtime_capabilities.get("frozen_before_candidate") is not True:
         raise SystemExit("Runtime能力矩阵必须在候选前冻结且rtp_group=1")
+    capability_bindings = {
+        "runtime_bundle_sha256": "runtime_bundle_sha256",
+        "certified_script_sha256": "script_sha256",
+        "parameter_authority_sha256": "parameter_authority_sha256",
+    }
+    for matrix_key, binding_key in capability_bindings.items():
+        if runtime_capabilities.get(matrix_key) != bindings_file[binding_key]:
+            raise SystemExit(f"Runtime能力矩阵的{matrix_key}与合同绑定不一致")
     capability_errors = validate_matrix(runtime_capabilities, args.runtime_capabilities)
     if capability_errors:
         raise SystemExit("Runtime能力覆盖未通过，禁止编译候选合同: " + "; ".join(capability_errors))
     bindings = profile["metric_bindings"]
-    profile_schema = load_json(ROOT / "assets/schemas/game-profile-metric-bindings.schema.json")
-    Draft202012Validator(profile_schema).validate(profile)
     component_ids = [item["component_id"] for item in bindings["components"]]
     component_set = set(component_ids)
     if len(component_ids) != len(component_set):
@@ -468,6 +608,9 @@ def main():
     feature_ids = [item["feature_id"] for item in bindings["features"]]
     if len(feature_ids) != len(set(feature_ids)):
         raise SystemExit("features.feature_id重复")
+    invalid_sigma_scopes = set(bindings["sigma_scopes"]) - (component_set | set(feature_ids))
+    if "overall" in bindings["sigma_scopes"] or invalid_sigma_scopes:
+        raise SystemExit(f"sigma_scopes只能引用组件或Feature且不得重复overall: {sorted(invalid_sigma_scopes | ({'overall'} & set(bindings['sigma_scopes'])))}")
     for feature in bindings["features"]:
         entry_mode = feature["entry_award_evaluation_mode"]
         if entry_mode == "categorical_distribution":
@@ -518,8 +661,6 @@ def main():
     for item in bindings["continuous_settlements"]:
         if item["component_id"] not in settlement_components:
             raise SystemExit(f"{item['continuous_id']} component_id必须引用存在结算的组件")
-        if not item["variable_depth"]:
-            raise SystemExit(f"{item['continuous_id']}没有可变J3深度，不应进入continuous_settlements")
     groups_by_component = {component: [] for component in component_ids}
     for group in bindings["win_groups"]:
         if group["component_id"] not in component_set:
@@ -550,6 +691,8 @@ def main():
         if uncovered:
             raise SystemExit(f"{component}派奖元素未被win_groups覆盖: {sorted(uncovered)}")
     for mechanic in bindings["special_mechanics"]:
+        if set(mechanic["result_state_names_zh"]) != set(mechanic["result_states"]):
+            raise SystemExit(f"{mechanic['mechanic_id']} result_state_names_zh必须完整对应result_states")
         unknown = set(mechanic["inactive_state_ids"]) - set(mechanic["result_states"])
         if unknown:
             raise SystemExit(f"{mechanic['mechanic_id']} inactive_state_ids不在result_states中: {sorted(unknown)}")
@@ -558,12 +701,20 @@ def main():
                 raise SystemExit(f"{mechanic['mechanic_id']}可变机制结果至少需要两个玩家可见状态")
             if not mechanic["guaranteed_resolution"] and not mechanic["inactive_state_ids"]:
                 raise SystemExit(f"{mechanic['mechanic_id']}非必然机制必须包含没发生或没生效状态")
+        elif len(mechanic["result_states"]) != 1 or mechanic["inactive_state_ids"]:
+            raise SystemExit(f"{mechanic['mechanic_id']}固定机制必须只有一个结果且不得配置无效状态")
     board_keys = [(item["component_id"], item["visual_phase"]) for item in bindings["boards"]]
     if len(board_keys) != len(set(board_keys)):
         raise SystemExit("每个组件的initial/cascade_visible正式盘面只能各有一个")
+    initial_components = {item["component_id"] for item in bindings["boards"] if item["visual_phase"] == "initial"}
+    continuous_components = {item["component_id"] for item in bindings["continuous_settlements"]}
     for board in bindings["boards"]:
         if board["component_id"] not in component_set:
             raise SystemExit(f"{board['board_scope_id']} component_id不在components中")
+        if board["visual_phase"] == "cascade_visible" and board["component_id"] not in continuous_components:
+            raise SystemExit(f"{board['board_scope_id']}没有连续结算，不得声明cascade_visible盘面")
+        if board["visual_phase"] == "cascade_visible" and board["component_id"] not in initial_components:
+            raise SystemExit(f"{board['board_scope_id']}声明cascade_visible前必须先冻结同组件initial盘面")
         symbols = set(board["symbols"])
         key_profiles = board["key_symbol_profiles"]
         key_symbols = {item["symbol_id"] for item in key_profiles}
@@ -594,10 +745,11 @@ def main():
             raise SystemExit(f"{board['board_scope_id']} reel_height_profiles.reel_id重复")
         if board["shape_mode"] == "variable_reel_height" and len(reel_profiles) != board["columns"]:
             raise SystemExit(f"{board['board_scope_id']}可变卷轴高度必须逐列冻结高度档位")
-    cards, missing = [], []
+    if bindings_file["game_profile_sha256"] != sha256_file(args.profile):
+        raise SystemExit("合同绑定的game_profile_sha256与当前画像不一致")
+    pending, missing = [], []
     used_targets = set()
     for card in library["cards"]:
-        instances = []
         for facet in card["facets"]:
             for subitem_id, scope, extra in subitems(card["card_id"], facet["facet_id"], bindings):
                 instance_id = f"{card['card_id']}.{facet['facet_id']}.{safe_id(subitem_id)}"
@@ -609,6 +761,8 @@ def main():
                 target_source = target_record.get("source", {})
                 target_method = target_source.get("method")
                 if card["card_id"] == "N1":
+                    if target_record["target_status"] != "available":
+                        raise SystemExit("N1目标不得标记为无证据")
                     if target_method != "user_confirmed_exact_rtp":
                         raise SystemExit("N1目标必须由用户直接提供或明确确认")
                     if target_source.get("confirmation_type") not in {"provided_by_user", "confirmed_by_user"}:
@@ -620,94 +774,115 @@ def main():
                         raise SystemExit("N1目标必须是(0,1]内的唯一数值，禁止区间")
                 if card["card_id"] == "N6" and target_method != "original_component_share_mapped_to_user_confirmed_total_rtp":
                     raise SystemExit("N6目标必须按原版组件占比映射用户确认总RTP")
-                if card["category_id"] == "J":
-                    minimum_sample = int(evaluation_policy["j_player_budget_rules"]["minimum_original_sample"])
-                    sample_count = target_record.get("sample_count")
-                    if not isinstance(sample_count, int) or isinstance(sample_count, bool) or sample_count < minimum_sample:
-                        raise SystemExit(f"{instance_id}原版有效样本必须至少{minimum_sample}")
-                    if extra.get("requires_bin_count"):
-                        minimum_bin = int(evaluation_policy["j_player_budget_rules"]["minimum_categorical_bin_count"])
-                        bucket_count = target_record.get("bucket_count")
-                        if not isinstance(bucket_count, int) or isinstance(bucket_count, bool) or bucket_count < minimum_bin:
-                            raise SystemExit(f"{instance_id}原版档位计数必须至少{minimum_bin}，否则应先合并尾部")
+                decision, target_evidence, reason = classify_target_evidence(card, facet, scope, extra, target_record, target_evidence_policy)
+                if decision == "active":
                     if card["card_id"] == "J1" and (not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1):
-                        raise SystemExit(f"{instance_id} J1参与率必须在(0,1)内；0或100%不生成实例")
-                if card["category_id"] == "P":
-                    p_rules = evaluation_policy["p_player_budget_rules"]
-                    if card["card_id"] == "P1":
-                        minimum_sample = int(p_rules["P1"]["minimum_original_feature_cycles"])
-                    else:
-                        minimum_sample = int(p_rules["P2"]["minimum_original_sample_by_opportunity_unit"][scope["opportunity_unit"]])
-                    sample_count = target_record.get("sample_count")
-                    if not isinstance(sample_count, int) or isinstance(sample_count, bool) or sample_count < minimum_sample:
-                        raise SystemExit(f"{instance_id}原版有效样本必须至少{minimum_sample}")
-                    if extra.get("requires_bin_count"):
-                        minimum_bin = int(p_rules["minimum_categorical_bin_count"])
-                        bucket_count = target_record.get("bucket_count")
-                        if not isinstance(bucket_count, int) or isinstance(bucket_count, bool) or bucket_count < minimum_bin:
-                            raise SystemExit(f"{instance_id}原版档位计数必须至少{minimum_bin}，否则应先合并玩家结果档位")
-                        if not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1:
-                            raise SystemExit(f"{instance_id}档位占比必须在(0,1)内；0或100%不生成分布实例")
+                        raise SystemExit(f"{instance_id}活动J1参与率必须在(0,1)内")
+                    if card["category_id"] in {"P", "B"} and extra.get("requires_bin_count") and (not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1):
+                        raise SystemExit(f"{instance_id}活动档位占比必须在(0,1)内")
                     if facet["facet_id"].startswith("feature_duration_") and (not finite_number(target_record.get("value")) or float(target_record["value"]) <= 0):
                         raise SystemExit(f"{instance_id}玩法长度目标必须大于0")
-                if card["category_id"] == "B":
-                    b_rules = evaluation_policy["b_player_budget_rules"]
-                    minimum_sample = int(b_rules["minimum_original_sample"])
-                    sample_count = target_record.get("sample_count")
-                    if not isinstance(sample_count, int) or isinstance(sample_count, bool) or sample_count < minimum_sample:
-                        raise SystemExit(f"{instance_id}原版有效盘面必须至少{minimum_sample}")
-                    if extra.get("requires_bin_count"):
-                        minimum_bin = int(b_rules["minimum_categorical_bin_count"])
-                        bucket_count = target_record.get("bucket_count")
-                        if not isinstance(bucket_count, int) or isinstance(bucket_count, bool) or bucket_count < minimum_bin:
-                            raise SystemExit(f"{instance_id}原版档位计数必须至少{minimum_bin}，否则应先合并相邻尾部")
-                        if not finite_number(target_record.get("value")) or not 0 < float(target_record["value"]) < 1:
-                            raise SystemExit(f"{instance_id}档位占比必须在(0,1)内")
-                if card["kind"] == "hard_gate":
-                    budget = n_c_tolerance(card["card_id"], target_record["value"], scope, bindings, hard_policy)
-                    tolerance = {"source": "hard_gate_player_budget", "base": budget, "factor": 1.0, "effective": budget}
-                elif card["category_id"] == "J":
-                    budget = j_c_tolerance(target_record["value"], scope, extra, bindings, evaluation_policy)
-                    tolerance = {"source": "j_player_visible_budget", "base": budget, "factor": 1.0, "effective": budget}
-                elif card["category_id"] == "P":
-                    budget = p_c_tolerance(target_record["value"], extra, evaluation_policy)
-                    tolerance = {"source": "p_player_visible_budget", "base": budget, "factor": 1.0, "effective": budget}
-                elif card["category_id"] == "B":
-                    budget = b_c_tolerance(target_record["value"], extra, evaluation_policy)
-                    tolerance = {"source": "b_player_visible_budget", "base": budget, "factor": 1.0, "effective": budget}
-                elif target_record.get("deterministic_exact"):
-                    tolerance = {"source": "deterministic_exact", "base": 0.0, "factor": 1.0, "effective": 0.0}
-                else:
-                    raise SystemExit(f"{instance_id}没有可用的C级预算规则")
-                instance = {
-                    "instance_id": instance_id,
-                    "facet_id": facet["facet_id"],
+                pending.append({
+                    "card": card,
+                    "facet": facet,
                     "subitem_id": safe_id(subitem_id),
                     "scope": scope,
-                    "sample_unit": facet["sample_unit"],
-                    "measurement": facet["measurement"],
+                    "extra": extra,
+                    "instance_id": instance_id,
+                    "target_record": target_record,
+                    "decision": decision,
+                    "target_evidence": target_evidence,
+                    "reason_zh": reason,
+                })
+    if missing:
+        raise SystemExit("缺少目标或显式无证据记录: " + ", ".join(sorted(missing)))
+    extra_targets = set(targets) - used_targets
+    if extra_targets:
+        raise SystemExit(f"存在未绑定的目标: {sorted(extra_targets)}")
+
+    blocked_groups = set()
+    for item in pending:
+        aggregation = item["extra"].get("aggregation")
+        if item["decision"] != "active" and aggregation and aggregation["mode"] == "half_overall_half_items":
+            blocked_groups.add((item["card"]["card_id"], aggregation["dimension_id"], aggregation["group_id"]))
+    for item in pending:
+        aggregation = item["extra"].get("aggregation")
+        key = (item["card"]["card_id"], aggregation["dimension_id"], aggregation["group_id"]) if aggregation else None
+        if key in blocked_groups:
+            item["decision"] = "observe_distribution_group"
+            item["reason_zh"] = "同一分布组存在低于最低可用线的目标或档位，整组在候选前转为观察项"
+
+    cards, observational = [], []
+    for card in library["cards"]:
+        expected = [item for item in pending if item["card"]["card_id"] == card["card_id"]]
+        instances = []
+        for item in expected:
+            target_record, scope, extra = item["target_record"], item["scope"], item["extra"]
+            if item["decision"] != "active":
+                observational.append({
+                    "instance_id": item["instance_id"],
+                    "card_id": card["card_id"],
+                    "facet_id": item["facet"]["facet_id"],
+                    "subitem_id": item["subitem_id"],
+                    "scope": labeled_scope(scope, bindings),
+                    "sample_unit": item["facet"]["sample_unit"],
                     "target_source": target_record["source"],
                     "target": target_record["value"],
-                    "distance": distance_contract(facet, target_record, extra),
-                    "tolerance": tolerance,
-                    "status": "active",
-                }
-                if extra.get("aggregation"):
-                    instance["aggregation"] = extra["aggregation"]
-                instances.append(instance)
+                    "decision": item["decision"],
+                    "target_evidence": item["target_evidence"],
+                    "reason_zh": item["reason_zh"],
+                })
+                continue
+            if card["kind"] == "hard_gate":
+                budget = n_c_budget(card["card_id"], target_record["value"], scope, bindings, hard_policy)
+                c_budget = {"source": "hard_gate_player_budget", "value": budget}
+            elif card["category_id"] == "J":
+                budget = j_c_budget(target_record["value"], scope, extra, bindings, evaluation_policy)
+                c_budget = {"source": "j_player_visible_budget", "value": budget}
+            elif card["category_id"] == "P":
+                budget = p_c_budget(target_record["value"], extra, evaluation_policy)
+                c_budget = {"source": "p_player_visible_budget", "value": budget}
+            elif card["category_id"] == "B":
+                budget = b_c_budget(target_record["value"], extra, evaluation_policy)
+                c_budget = {"source": "b_player_visible_budget", "value": budget}
+            elif target_record.get("deterministic_exact"):
+                c_budget = {"source": "deterministic_exact", "value": 0.0}
+            else:
+                raise SystemExit(f"{item['instance_id']}没有可用的C级通过值规则")
+            instance = {
+                "instance_id": item["instance_id"],
+                "facet_id": item["facet"]["facet_id"],
+                "subitem_id": item["subitem_id"],
+                "scope": labeled_scope(scope, bindings),
+                "sample_unit": item["facet"]["sample_unit"],
+                "measurement": item["facet"]["measurement"],
+                "target_source": target_record["source"],
+                "target": target_record["value"],
+                "target_evidence": item["target_evidence"],
+                "distance": distance_contract(item["facet"], target_record, extra),
+                "c_budget": c_budget,
+                "status": "active",
+            }
+            if extra.get("aggregation"):
+                instance["aggregation"] = extra["aggregation"]
+            instances.append(instance)
         cards.append({
             "card_id": card["card_id"],
             "name_zh": card["name_zh"],
             "category_id": card["category_id"],
             "kind": card["kind"],
-            "status": "active" if instances else "不适用",
+            "status": "active" if instances else ("观察" if expected else "不适用"),
             "instances": instances,
         })
-    if missing:
-        raise SystemExit("缺少目标: " + ", ".join(sorted(missing)))
-    extra_targets = set(targets) - used_targets
-    if extra_targets:
-        raise SystemExit(f"存在未绑定的目标: {sorted(extra_targets)}")
+    active_count = sum(len(card["instances"]) for card in cards)
+    coverage = {
+        "status": "有限" if observational else "完整",
+        "expected_instance_count": len(pending),
+        "active_instance_count": active_count,
+        "observational_instance_count": len(observational),
+        "active_low_sample_instance_count": sum(item["target_evidence"]["classification"] == "low" for card in cards for item in card["instances"]),
+        "observational_instances": observational,
+    }
     audits = [{
         "audit_id": item["audit_id"],
         "name_zh": item["name_zh"],
@@ -718,22 +893,26 @@ def main():
     hashes = {key: bindings_file[key] for key in ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256"]}
     hashes["sample_execution_plan_sha256"] = sha256_file(args.sample_plan)
     hashes["runtime_capability_matrix_sha256"] = sha256_file(args.runtime_capabilities)
+    hashes["targets_sha256"] = sha256_file(args.targets)
+    hashes["contract_bindings_sha256"] = sha256_file(args.bindings)
     hashes["contract_sha256"] = "0" * 64
     contract = {
-        "schema_version": "slot-alignment.metric-contract.v5",
+        "schema_version": "slot-alignment.metric-contract.v6",
         "contract_version": bindings_file["contract_version"],
-        "report_contract_version": "slot-alignment.report.v5",
+        "report_contract_version": "slot-alignment.report.v6",
         "task_id": bindings_file["task_id"],
         "mode": bindings_file["mode"],
         "rtp_group": 1,
         "frozen_before_candidate": True,
         "metric_library": {"id": library["library_id"], "version": library["version"], "path": "references/指标目录/index.json", "sha256": sha256_file(LIBRARY_PATH)},
         "policies": {
-            "hard_gate_tolerance": {"id": hard_policy["policy_id"], "version": hard_policy["version"], "path": "assets/policies/hard_gate_tolerance_policy.json", "sha256": sha256_file(HARD_POLICY_PATH)},
+            "hard_gate_budget": {"id": hard_policy["policy_id"], "version": hard_policy["version"], "path": "assets/policies/hard_gate_budget_policy.json", "sha256": sha256_file(HARD_POLICY_PATH)},
             "alignment_evaluation": {"id": evaluation_policy["policy_id"], "version": evaluation_policy["version"], "path": "assets/policies/alignment_evaluation_policy.json", "sha256": sha256_file(EVALUATION_POLICY_PATH)},
+            "target_evidence": {"id": target_evidence_policy["policy_id"], "version": target_evidence_policy["version"], "path": "assets/policies/target_evidence_policy.json", "sha256": sha256_file(TARGET_EVIDENCE_POLICY_PATH)},
             "sample_execution": {"id": sample_policy["policy_id"], "version": sample_policy["version"], "path": "assets/policies/sample_execution_policy.json", "sha256": sha256_file(SAMPLE_POLICY_PATH)},
-            "runtime_capability": {"id": "slot-alignment-runtime-capability-coverage-v1", "version": "1.0.0", "path": "assets/policies/runtime_capability_policy.json", "sha256": sha256_file(RUNTIME_CAPABILITY_POLICY_PATH)},
+            "runtime_capability": {"id": "slot-alignment-runtime-capability-coverage-v6", "version": "6.0.0", "path": "assets/policies/runtime_capability_policy.json", "sha256": sha256_file(RUNTIME_CAPABILITY_POLICY_PATH)},
         },
+        "coverage": coverage,
         "cards": cards,
         "audits": audits,
         "hashes": hashes,

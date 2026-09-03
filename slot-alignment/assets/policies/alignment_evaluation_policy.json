@@ -1,11 +1,11 @@
 {
-  "schema_version": "slot-alignment.alignment-evaluation-policy.v5",
-  "policy_id": "player-visible-alignment-evaluation-v5",
-  "version": "5.8.0",
+  "schema_version": "slot-alignment.alignment-evaluation-policy.v6",
+  "policy_id": "player-visible-alignment-evaluation-v6",
+  "version": "6.0.0",
   "status": "已授权",
   "authority": "用户",
   "authorized_at": "2026-09-03",
-  "applies_to_metric_library": "5.5.0",
+  "applies_to_metric_library": "6.0.0",
   "decision_model": {
     "score_scale_enabled": true,
     "weights_enabled": true,
@@ -54,9 +54,7 @@
     }
   },
   "j_player_budget_rules": {
-    "minimum_original_sample": 500,
-    "minimum_categorical_bin_count": 30,
-    "instance_score_formula": "max(0, 100 * (1 - distance/C_budget))",
+    "instance_score_formula": "max(0, 100 * (1 - distance/c_budget))",
     "J1": {
       "base": {"relative": 0.1, "ordinary_floor": 0.008, "maximum": 0.025},
       "feature": {"relative": 0.12, "ordinary_floor": 0.008, "maximum": 0.03},
@@ -107,10 +105,8 @@
     "cross_category_weight": "pending_user_authorization"
   },
   "p_player_budget_rules": {
-    "minimum_categorical_bin_count": 30,
-    "instance_score_formula": "max(0, 100 * (1 - distance/C_budget))",
+    "instance_score_formula": "max(0, 100 * (1 - distance/c_budget))",
     "P1": {
-      "minimum_original_feature_cycles": 500,
       "entry_award": {
         "bin": {"relative": 0.2, "ordinary_floor": 0.005, "maximum": 0.03},
         "rare_bin_floor_rule": "min(target, ordinary_floor)",
@@ -127,16 +123,6 @@
     },
     "P2": {
       "mechanic_families": ["multiplier_modifier", "collection_upgrade", "transform_replace", "expand_persist", "respin_special_result", "random_modifier_selection", "pick_wheel_path", "other"],
-      "minimum_original_sample_by_opportunity_unit": {
-        "feature_spin": 1000,
-        "positive_settlement_step": 1000,
-        "feature_entry": 500,
-        "complete_feature": 500,
-        "pick": 1000,
-        "respin_step": 1000,
-        "visible_action": 1000,
-        "other": 1000
-      },
       "result_bin": {"relative": 0.15, "ordinary_floor": 0.005, "maximum": 0.03},
       "rare_bin_floor_rule": "min(target, ordinary_floor)",
       "overall": 0.04,
@@ -147,9 +133,7 @@
     "cross_category_weight": "pending_user_authorization"
   },
   "b_player_budget_rules": {
-    "minimum_original_sample": 1000,
-    "minimum_categorical_bin_count": 30,
-    "instance_score_formula": "max(0, 100 * (1 - distance/C_budget))",
+    "instance_score_formula": "max(0, 100 * (1 - distance/c_budget))",
     "B1": {
       "symbol_group_composition": {
         "bin": {"relative": 0.15, "ordinary_floor": 0.01, "maximum": 0.04},
@@ -193,14 +177,28 @@
     "category_score": "mean_active_B1_B2_card_scores_equal_card_weight",
     "cross_category_weight": "pending_user_authorization"
   },
-  "tolerance": {
+  "c_budget_contract": {
+    "N_source": "frozen_hard_gate_C_budget",
     "J_source": "frozen_player_visible_C_budget",
     "P_source": "frozen_player_visible_C_budget",
     "B_source": "frozen_player_visible_C_budget",
-    "factor": 1.0,
-    "deterministic_rule_tolerance": 0.0,
+    "target_role": "frozen_reference_value_only",
+    "distance_role": "difference_measurement_only",
+    "c_budget_role": "sole_maximum_pass_distance",
     "freeze_before_candidate": true,
-    "candidate_result_may_change_tolerance": false
+    "candidate_result_may_change_budget": false,
+    "pass_rule": "distance_lte_c_budget",
+    "deviation_ratio_formula": "distance/c_budget_when_c_budget_gt_0",
+    "deviation_ratio_role": "comparison_scoring_ranking_and_reporting_only",
+    "score_role": "quality_grading_and_aggregation_only_cannot_override_pass",
+    "decision_order": [
+      "validate_status_and_samples",
+      "compute_distance_from_frozen_target",
+      "decide_pass_by_distance_lte_c_budget",
+      "compute_deviation_ratio_for_comparison_scoring_ranking_and_reporting",
+      "assign_grade_and_aggregate_without_overriding_pass"
+    ],
+    "deterministic_zero_budget_rule": "distance_must_equal_zero"
   },
   "formal_grading": {
     "grades": ["S", "A", "B", "C", "F", "U", "NA"],
@@ -214,8 +212,7 @@
       "U": "无法判定",
       "NA": "不适用"
     },
-    "aggregation": "all_required_pass_then_scoped_composite_score",
-    "hard_gate_pass_limit": 1.0,
+    "aggregation": "all_active_pass_then_scoped_composite_score",
     "deterministic_exact": {
       "pass_grade": "S",
       "fail_grade": "F"
@@ -223,6 +220,7 @@
   },
   "statuses": ["通过", "不通过", "样本不足", "不适用", "计算异常"],
   "sample_insufficiency": {
+    "scope": "candidate_measurements_only",
     "stops_execution": false,
     "removes_metric_instance": false,
     "allows_waiver": false,
@@ -235,9 +233,9 @@
     "通过"
   ],
   "final_status_rules": {
-    "无法完整判定": "任一正式实例为样本不足、计算异常或存在合同缺口",
-    "不通过": "不存在未判定实例且任一必需正式实例未达C级最低通过线",
-    "通过": "全部必需正式实例达到C级最低通过线，再按当前score_scope内阶段分评C/B/A/S"
+    "无法完整判定": "任一活动正式实例为候选样本不足、计算异常或存在合同缺口",
+    "不通过": "不存在未判定实例且任一活动正式实例未达C级最低通过线",
+    "通过": "全部活动正式实例达到C级最低通过线，再按当前score_scope内阶段分评C/B/A/S；覆盖范围由指标合同单独说明"
   },
   "audit_policy": {
     "affects_formal_status": false,

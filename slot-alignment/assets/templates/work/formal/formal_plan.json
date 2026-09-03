@@ -1,0 +1,18 @@
+{
+  "schema_version": "slot-alignment.formal-plan.v6",
+  "task_id": "<task-id>",
+  "batch_id": "fv0001",
+  "candidate_id": "<candidate-id>",
+  "freeze_manifest_sha256": "<sha256>",
+  "metric_contract_sha256": "<sha256>",
+  "sample_execution_plan_sha256": "<sha256>",
+  "runtime_bundle_sha256": "<sha256>",
+  "script_bundle_sha256": "<sha256>",
+  "selected_paid_entry_count": 10000000,
+  "base_seed": 0,
+  "independent_from_calibration": true,
+  "shards": [
+    {"shard_index": 0, "entry_start": 0, "entry_count": 250000, "shard_seed": 0, "path": "work/formal/fv0001/shards/shard-000000.json"}
+  ],
+  "created_at": "<ISO-8601>"
+}

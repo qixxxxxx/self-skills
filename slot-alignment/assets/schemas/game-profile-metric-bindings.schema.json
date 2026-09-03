@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v5 Game Profile Metric Bindings",
+  "title": "Slot Alignment v6 Game Profile Metric Bindings",
   "type": "object",
   "required": ["schema_version", "metric_bindings"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.game-profile.v5"},
+    "schema_version": {"const": "slot-alignment.game-profile.v6"},
     "metric_bindings": {
       "type": "object",
       "additionalProperties": false,
@@ -24,12 +24,15 @@
   "$defs": {
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
     "string_list": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "feature": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["feature_id", "feature_type", "endogenous_entry", "entry_award_evaluation_mode", "duration_evaluation_mode", "duration_unit"],
+      "required": ["feature_id", "name_zh", "evidence_refs", "feature_type", "endogenous_entry", "entry_award_evaluation_mode", "duration_evaluation_mode", "duration_unit"],
       "properties": {
         "feature_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         "feature_type": {"enum": ["free_spin", "respin", "hold_and_spin", "award_draw", "bonus_sequence", "other"]},
         "endogenous_entry": {"type": "boolean"},
         "entry_award_evaluation_mode": {"enum": ["not_applicable", "fixed_rule", "categorical_distribution"]},
@@ -42,9 +45,11 @@
     "settlement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["settlement_id", "component_id", "settlement_type", "elements", "primary_size_axis", "variable_primary_size"],
+      "required": ["settlement_id", "name_zh", "evidence_refs", "component_id", "settlement_type", "elements", "primary_size_axis", "variable_primary_size"],
       "properties": {
         "settlement_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         "component_id": {"$ref": "#/$defs/id"},
         "settlement_type": {"enum": ["payline", "ways", "count_pay", "cluster", "full_screen", "other"]},
         "elements": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
@@ -58,10 +63,12 @@
     "win_group": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["component_id", "group_id", "role", "elements"],
+      "required": ["component_id", "group_id", "name_zh", "evidence_refs", "role", "elements"],
       "properties": {
         "component_id": {"$ref": "#/$defs/id"},
         "group_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         "role": {"enum": ["signature", "regular_high", "regular_low", "regular_other", "special"]},
         "elements": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
       }
@@ -69,9 +76,11 @@
     "continuous": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["continuous_id", "component_id", "variable_depth"],
+      "required": ["continuous_id", "name_zh", "evidence_refs", "component_id", "variable_depth"],
       "properties": {
         "continuous_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         "component_id": {"$ref": "#/$defs/id"},
         "variable_depth": {"type": "boolean"}
       }
@@ -79,9 +88,11 @@
     "component": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["component_id", "display_bet_basis", "variable_simultaneous_win_count", "variable_visible_step_reward"],
+      "required": ["component_id", "name_zh", "evidence_refs", "display_bet_basis", "variable_simultaneous_win_count", "variable_visible_step_reward"],
       "properties": {
         "component_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         "display_bet_basis": {"$ref": "#/$defs/id"},
         "variable_simultaneous_win_count": {"type": "boolean"},
         "simultaneous_win_count_bins": {"type": "array", "minItems": 2, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
@@ -92,23 +103,32 @@
     "mechanic": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mechanic_id", "mechanic_family", "opportunity_unit", "result_evaluation_mode", "guaranteed_resolution", "result_states", "inactive_state_ids"],
+      "required": ["mechanic_id", "name_zh", "evidence_refs", "mechanic_family", "opportunity_unit", "result_evaluation_mode", "guaranteed_resolution", "result_states", "result_state_names_zh", "inactive_state_ids"],
       "properties": {
         "mechanic_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         "mechanic_family": {"enum": ["multiplier_modifier", "collection_upgrade", "transform_replace", "expand_persist", "respin_special_result", "random_modifier_selection", "pick_wheel_path", "other"]},
         "opportunity_unit": {"enum": ["feature_spin", "positive_settlement_step", "feature_entry", "complete_feature", "pick", "respin_step", "visible_action", "other"]},
         "result_evaluation_mode": {"enum": ["fixed_rule", "categorical_distribution"]},
         "guaranteed_resolution": {"type": "boolean"},
         "result_states": {"type": "array", "minItems": 1, "maxItems": 6, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "result_state_names_zh": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "string", "minLength": 1}
+        },
         "inactive_state_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
       }
     },
     "board": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["board_scope_id", "component_id", "visual_phase", "rows", "columns", "shape_mode", "symbols", "symbol_groups", "key_symbol_profiles", "aggregation_profile", "reel_height_profiles"],
+      "required": ["board_scope_id", "name_zh", "evidence_refs", "component_id", "visual_phase", "rows", "columns", "shape_mode", "symbols", "symbol_groups", "key_symbol_profiles", "aggregation_profile", "reel_height_profiles"],
       "properties": {
         "board_scope_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
         "component_id": {"$ref": "#/$defs/id"},
         "visual_phase": {"enum": ["initial", "cascade_visible"]},
         "rows": {"type": "integer", "minimum": 1},
@@ -150,9 +170,10 @@
     "symbol_group": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["group_id", "role", "symbols"],
+      "required": ["group_id", "name_zh", "role", "symbols"],
       "properties": {
         "group_id": {"$ref": "#/$defs/id"},
+        "name_zh": {"type": "string", "minLength": 1},
         "role": {"enum": ["signature", "regular_high", "regular_low", "regular_other"]},
         "symbols": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
       }
@@ -164,8 +185,15 @@
       "properties": {
         "symbol_id": {"$ref": "#/$defs/id"},
         "count_bins": {"type": "array", "minItems": 2, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-        "sample_filter": {"enum": ["all_stable_boards", "untriggered_only"]}
-      }
+        "sample_filter": {"enum": ["all_stable_boards", "untriggered_only"]},
+        "trigger_threshold": {"type": "integer", "minimum": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"sample_filter": {"const": "untriggered_only"}}},
+          "then": {"required": ["trigger_threshold"]}
+        }
+      ]
     },
     "aggregation_profile": {
       "type": "object",

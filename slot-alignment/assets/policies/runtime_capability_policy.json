@@ -1,8 +1,10 @@
 {
-  "schema_version": "slot-alignment.runtime-capability-policy.v1",
-  "policy_id": "slot-alignment-runtime-capability-coverage-v1",
-  "version": "1.0.0",
+  "schema_version": "slot-alignment.runtime-capability-policy.v6",
+  "policy_id": "slot-alignment-runtime-capability-coverage-v6",
+  "version": "6.0.0",
   "status": "已授权",
+  "authority": "用户",
+  "authorized_at": "2026-09-03",
   "source_path": "assets/policies/runtime_capability_policy.json",
   "required_layers": [
     "certified_script",

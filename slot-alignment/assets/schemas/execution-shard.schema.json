@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment Execution Shard v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "mode", "rtp_group", "phase", "shard_index", "entry_start", "entry_count", "metric_contract_sha256", "candidate_parameter_sha256", "runtime_bundle_sha256", "script_bundle_sha256", "base_seed", "shard_seed", "aggregate_measurements", "accumulator_checkpoint", "hash_scope", "output_sha256", "status"],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.execution-shard.v6"},
+    "task_id": {"type": "string", "minLength": 1},
+    "mode": {"type": "string", "minLength": 1},
+    "rtp_group": {"const": 1},
+    "phase": {"enum": ["BASELINE", "CALIBRATION", "INDEPENDENT_RECHECK", "FORMAL"]},
+    "batch_id": {"type": "string", "pattern": "^(cv|fv)[0-9]{4}$"},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "shard_index": {"type": "integer", "minimum": 0},
+    "entry_start": {"type": "integer", "minimum": 0},
+    "entry_count": {"type": "integer", "minimum": 1, "maximum": 250000},
+    "metric_contract_sha256": {"$ref": "#/$defs/sha256"},
+    "candidate_parameter_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+    "runtime_bundle_sha256": {"$ref": "#/$defs/sha256"},
+    "script_bundle_sha256": {"$ref": "#/$defs/sha256"},
+    "base_seed": {"type": "integer", "minimum": 0},
+    "shard_seed": {"type": "integer", "minimum": 0},
+    "aggregate_measurements": {"type": "object"},
+    "accumulator_checkpoint": {"type": "object"},
+    "hash_scope": {"const": "canonical_json_without_output_sha256"},
+    "output_sha256": {"$ref": "#/$defs/sha256"},
+    "status": {"const": "completed"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"phase": {"const": "BASELINE"}}},
+      "then": {"properties": {"candidate_parameter_sha256": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"phase": {"const": "CALIBRATION"}}},
+      "then": {
+        "required": ["batch_id", "candidate_id"],
+        "properties": {
+          "batch_id": {"pattern": "^cv[0-9]{4}$"},
+          "candidate_parameter_sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"phase": {"const": "INDEPENDENT_RECHECK"}}},
+      "then": {
+        "required": ["candidate_id"],
+        "properties": {"candidate_parameter_sha256": {"$ref": "#/$defs/sha256"}}
+      }
+    },
+    {
+      "if": {"properties": {"phase": {"const": "FORMAL"}}},
+      "then": {
+        "required": ["batch_id", "candidate_id"],
+        "properties": {
+          "batch_id": {"pattern": "^fv[0-9]{4}$"},
+          "candidate_parameter_sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    }
+  ],
+  "$defs": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}
