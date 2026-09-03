@@ -1,0 +1,23 @@
+{
+  "schema_version": "slot-alignment.delivery-manifest.v7",
+  "report_contract_version": "slot-alignment.report.v7",
+  "task_id": "<task_id>",
+  "runtime_version": "<task_id>",
+  "rtp_group": 1,
+  "metric_contract_sha256": "<sha256>",
+  "alignment_manifest_sha256": "<sha256>",
+  "formal_result_sha256": "<sha256>",
+  "certified_script_sha256": "<sha256>",
+  "source_runtime_bundle_sha256": "<sha256>",
+  "delivery_runtime_bundle_sha256": "<sha256>",
+  "runtime_files": [],
+  "checks": {
+    "same_certified_script": true,
+    "same_metric_contract": true,
+    "formal_independent_seed": true,
+    "runtime_files_match": true,
+    "runtime_version_matches_task_id": true,
+    "rtp_group_is_one": true
+  },
+  "generated_at": "<iso8601>"
+}

@@ -1,47 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment Runtime Capability Policy v6",
+  "title": "Slot Alignment v7 Script Runtime Capability Policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "required_layers", "required_capability_ids", "rules", "allowed_exemptions"],
+  "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "implementation_sources", "rules", "required_bindings"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.runtime-capability-policy.v6"},
-    "policy_id": {"const": "slot-alignment-runtime-capability-coverage-v6"},
-    "version": {"const": "6.0.0"},
+    "schema_version": {"const": "slot-alignment.runtime-capability-policy.v7"},
+    "policy_id": {"const": "slot-alignment-script-runtime-capability-v7"},
+    "version": {"const": "7.0.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
     "source_path": {"const": "assets/policies/runtime_capability_policy.json"},
-    "required_layers": {
-      "const": ["certified_script", "server_runtime", "candidate_generator", "calibration_simulator", "formal_simulator", "optimizer"]
-    },
-    "required_capability_ids": {
-      "const": ["state-reel-set-pool-cardinality", "reel-set-selection-scope", "reel-strip-symbol-count-and-order", "stop-weights", "refill-profile-count", "refill-symbol-weights", "height-weights", "feature-mechanic-weights"]
-    },
-    "rules": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "authorized_native_capability_must_be_fully_covered",
-        "implementation_must_not_narrow_authorized_cardinality",
-        "optimizer_exposure_and_sensitivity_plan_required",
-        "equivalence_required_before_calibration",
-        "search_cost_is_not_valid_exemption",
-        "candidate_failure_requires_planned_capability_escalation",
-        "status_query_does_not_change_execution_scope"
-      ],
-      "properties": {
-        "authorized_native_capability_must_be_fully_covered": {"const": true},
-        "implementation_must_not_narrow_authorized_cardinality": {"const": true},
-        "optimizer_exposure_and_sensitivity_plan_required": {"const": true},
-        "equivalence_required_before_calibration": {"const": true},
-        "search_cost_is_not_valid_exemption": {"const": true},
-        "candidate_failure_requires_planned_capability_escalation": {"const": true},
-        "status_query_does_not_change_execution_scope": {"const": true}
-      }
-    },
-    "allowed_exemptions": {
-      "const": ["explicit_user_lock", "server_runtime_not_deliverable", "pre_candidate_mathematical_irrelevance_proof", "game_profile_not_applicable"]
-    }
+    "implementation_sources": {"const": ["sealed_runtime", "user_certified_python_script"]},
+    "rules": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "boolean"}},
+    "required_bindings": {"const": ["runtime_bundle_sha256", "certified_script_sha256", "parameter_authority_sha256"]}
   }
 }

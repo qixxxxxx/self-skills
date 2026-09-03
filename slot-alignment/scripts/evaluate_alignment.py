@@ -19,10 +19,10 @@ def validate(schema_name, value, label):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="计算slot-alignment 6.0逐卡判定")
+    parser = argparse.ArgumentParser(description="计算slot-alignment 7.0逐卡判定")
     parser.add_argument("--contract", required=True)
     parser.add_argument("--measurements", required=True)
-    parser.add_argument("--phase", choices=["BASELINE", "CALIBRATION", "INDEPENDENT_RECHECK", "FORMAL"], required=True)
+    parser.add_argument("--phase", choices=["BASELINE", "CALIBRATION", "FORMAL"], required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     contract = load_json(args.contract)
@@ -36,6 +36,10 @@ def main():
         raise SystemExit("测量文件task_id与指标合同不一致")
     if measurements["phase"] != args.phase:
         raise SystemExit("测量文件phase与命令行阶段不一致")
+    if measurements["execution"]["certified_script_sha256"] != contract["hashes"]["script_sha256"]:
+        raise SystemExit("测量文件使用的认证脚本与冻结合同不一致")
+    if args.phase == "FORMAL" and measurements["execution"]["independent_seed"] is not True:
+        raise SystemExit("FORMAL必须使用新的独立seed")
     instance_ids = {item["instance_id"] for card in contract["cards"] for item in card["instances"]}
     extra_ids = set(measurements["measurements"]) - instance_ids
     if extra_ids:

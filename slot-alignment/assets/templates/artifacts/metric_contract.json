@@ -1,0 +1,15 @@
+{
+  "schema_version": "slot-alignment.metric-contract.v7",
+  "contract_version": "7.0.0",
+  "report_contract_version": "slot-alignment.report.v7",
+  "task_id": "<task_id>",
+  "mode": "<mode>",
+  "rtp_group": 1,
+  "frozen_before_candidate": true,
+  "metric_library": {},
+  "policies": {},
+  "coverage": {},
+  "cards": [],
+  "audits": [],
+  "hashes": {}
+}

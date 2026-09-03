@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment 7.0 Retired Standalone Artifact",
+  "description": "7.0轻量流程不再使用此独立产物；以preflight、source_summary、metric_contract、alignment_manifest、formal_result和delivery_manifest为准。",
+  "not": {}
+}

@@ -1,14 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v6 Result",
+  "title": "Slot Alignment v7 Result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "task_id", "phase", "metric_contract_sha256", "card_results", "audits", "summary"],
+  "required": ["schema_version", "task_id", "phase", "metric_contract_sha256", "execution", "card_results", "audits", "summary"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.alignment-result.v6"},
+    "schema_version": {"const": "slot-alignment.alignment-result.v7"},
     "task_id": {"type": "string", "minLength": 1},
-    "phase": {"enum": ["BASELINE", "CALIBRATION", "INDEPENDENT_RECHECK", "FORMAL"]},
+    "phase": {"enum": ["BASELINE", "CALIBRATION", "FORMAL"]},
     "metric_contract_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "runtime_bundle_sha256", "certified_script_sha256", "seed_plan_sha256", "paid_entry_count", "independent_seed"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "runtime_bundle_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "certified_script_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "adapter_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+        "seed_plan_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "paid_entry_count": {"type": "integer", "minimum": 1},
+        "independent_seed": {"type": "boolean"}
+      }
+    },
     "card_results": {"type": "array", "minItems": 13, "maxItems": 13, "items": {"$ref": "#/$defs/card_result"}},
     "audits": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/audit_result"}},
     "summary": {"$ref": "#/$defs/summary"}

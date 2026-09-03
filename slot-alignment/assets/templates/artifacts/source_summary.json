@@ -1,0 +1,13 @@
+{
+  "schema_version": "slot-alignment.source-summary.v7",
+  "task_id": "<task_id>",
+  "status": "READY_FOR_CONTRACT",
+  "frozen_before_candidate": true,
+  "source_bundle_sha256": "<sha256>",
+  "sources": [],
+  "sample_counts": {
+    "complete_paid_entries": 0
+  },
+  "targets": {},
+  "generated_at": "<iso8601>"
+}

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
-from alignment import finite_number, grade_score, load_json, sha256_file
+from alignment import finite_number, grade_score, load_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -330,9 +328,9 @@ def final_summary(result):
     return f"当前有{summary['insufficient_or_error_instances']}项活动指标因候选样本不足或计算异常无法判定。"
 
 
-def render(input_manifest, contract, result, library, policy):
-    if not (input_manifest["task_id"] == contract["task_id"] == result["task_id"]):
-        raise SystemExit("输入清单、指标合同和评价结果的task_id不一致")
+def render(preflight, contract, result, library, policy):
+    if not (preflight["task_id"] == contract["task_id"] == result["task_id"]):
+        raise SystemExit("开工合同、指标合同和评价结果的task_id不一致")
     if result["phase"] != "FORMAL":
         raise SystemExit("最终对齐报告只能使用FORMAL结果")
     summary = result["summary"]
@@ -349,7 +347,7 @@ def render(input_manifest, contract, result, library, policy):
     observed = summary["observational_instance_count"]
     normal = max(0, summary["active_instance_count"] - active_low)
     lines = [
-        f"# {input_manifest['game_name_zh']} 对齐报告",
+        f"# {preflight['game']['game_name_zh']} 对齐报告",
         "",
         f"> **对齐结论：{summary['conclusion']}**",
         ">",
@@ -361,9 +359,9 @@ def render(input_manifest, contract, result, library, policy):
         "",
         "| 项目 | 内容 |",
         "|---|---|",
-        f"| 游戏 | {input_manifest['game_name_zh']}（{input_manifest['game_code']}） |",
-        f"| 任务 | {contract['task_id']} · {contract['mode']} · {input_manifest['runtime_environment']}环境 |",
-        f"| 目标RTP | {input_manifest['target_rtp']['value'] * 100:.4g}% |",
+        f"| 游戏 | {preflight['game']['game_name_zh']}（{preflight['game']['game_code']}） |",
+        f"| 任务 | {contract['task_id']} · {contract['mode']} · {preflight['runtime_environment']}环境 |",
+        f"| 目标RTP | {preflight['target_rtp']['value'] * 100:.4g}% |",
         f"| 正式验证 | FORMAL · RTP Group {contract['rtp_group']} |",
         "",
         "### 总体结果",
@@ -454,63 +452,36 @@ def atomic_write_text(path, content):
     temporary.replace(path)
 
 
-def validate_report_paths(task_root, input_path, contract_path, result_path, report_path, manifest_path):
+def validate_report_paths(task_root, preflight_path, contract_path, result_path, report_path):
     expected = [
-        (input_path, "artifacts/01-input-profile/input_manifest.json"),
-        (contract_path, "artifacts/02-metric-matching/metric_contract.json"),
-        (result_path, "artifacts/04-alignment/formal_result.json"),
+        (preflight_path, "artifacts/preflight.json"),
+        (contract_path, "artifacts/metric_contract.json"),
+        (result_path, "artifacts/formal_result.json"),
         (report_path, "交付物/报告文档/对齐报告.md"),
-        (manifest_path, "交付物/报告文档/report_manifest.json"),
     ]
     for actual, relative in expected:
         if actual.resolve() != (task_root / relative).resolve():
             raise SystemExit(f"正式报告路径必须为{relative}: {actual}")
 
-
-def write_report_manifest(task_root, input_path, contract_path, result_path, report_path, manifest_path):
-    expected = [
-        (input_path, "artifacts/01-input-profile/input_manifest.json"),
-        (contract_path, "artifacts/02-metric-matching/metric_contract.json"),
-        (result_path, "artifacts/04-alignment/formal_result.json"),
-        (report_path, "交付物/报告文档/对齐报告.md"),
-    ]
-    manifest = {
-        "schema_version": "slot-alignment.alignment-report-manifest.v6",
-        "report_contract_version": "slot-alignment.report.v6",
-        "task_id": task_root.name,
-        "source_files": [
-            {"path": relative, "sha256": sha256_file(actual)}
-            for actual, relative in expected[:3]
-        ],
-        "report_file": {"path": expected[3][1], "sha256": sha256_file(report_path)},
-        "placeholders_resolved": True,
-        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-    }
-    atomic_write_text(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
-
-
 def main():
     parser = argparse.ArgumentParser(description="生成唯一的人类可读Slot对齐报告")
-    parser.add_argument("--input-manifest", required=True)
+    parser.add_argument("--preflight", required=True)
     parser.add_argument("--contract", required=True)
     parser.add_argument("--result", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--task-root", help="正式交付时提供任务根目录，并同时生成report_manifest.json")
+    parser.add_argument("--task-root", help="提供时校验7.0固定交付路径")
     args = parser.parse_args()
-    input_path, contract_path, result_path, output = map(Path, (args.input_manifest, args.contract, args.result, args.output))
-    input_manifest, contract, result = load_json(input_path), load_json(contract_path), load_json(result_path)
+    preflight_path, contract_path, result_path, output = map(Path, (args.preflight, args.contract, args.result, args.output))
+    preflight, contract, result = load_json(preflight_path), load_json(contract_path), load_json(result_path)
     task_root = Path(args.task_root).resolve() if args.task_root else None
-    manifest_path = task_root / "交付物/报告文档/report_manifest.json" if task_root else None
     if task_root:
-        if input_manifest["task_id"] != task_root.name:
-            raise SystemExit(f"任务根目录名必须等于task_id: {task_root.name} != {input_manifest['task_id']}")
-        validate_report_paths(task_root, input_path, contract_path, result_path, output, manifest_path)
+        if preflight["task_id"] != task_root.name:
+            raise SystemExit(f"任务根目录名必须等于task_id: {task_root.name} != {preflight['task_id']}")
+        validate_report_paths(task_root, preflight_path, contract_path, result_path, output)
     atomic_write_text(
         output,
-        render(input_manifest, contract, result, load_json(LIBRARY_PATH), load_json(EVALUATION_POLICY_PATH)),
+        render(preflight, contract, result, load_json(LIBRARY_PATH), load_json(EVALUATION_POLICY_PATH)),
     )
-    if task_root:
-        write_report_manifest(task_root, input_path, contract_path, result_path, output, manifest_path)
     print(output)
 
 

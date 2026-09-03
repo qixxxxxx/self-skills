@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v6 Evaluation Policy",
+  "title": "Slot Alignment v7 Evaluation Policy",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "decision_model", "composite_scoring", "distance_methods", "j_player_budget_rules", "p_player_budget_rules", "b_player_budget_rules", "c_budget_contract", "formal_grading", "statuses", "sample_insufficiency", "final_status_precedence", "final_status_rules", "audit_policy"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v6"},
-    "policy_id": {"const": "player-visible-alignment-evaluation-v6"},
-    "version": {"const": "6.0.0"},
+    "schema_version": {"const": "slot-alignment.alignment-evaluation-policy.v7"},
+    "policy_id": {"const": "player-visible-alignment-evaluation-v7"},
+    "version": {"const": "7.0.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
-    "applies_to_metric_library": {"const": "6.0.0"},
+    "applies_to_metric_library": {"const": "7.0.0"},
     "decision_model": {
       "type": "object",
       "required": ["score_scale_enabled", "weights_enabled", "composite_score_enabled", "metric_compensation_enabled", "formal_metric_waiver_enabled", "all_hard_gates_must_pass", "all_active_alignment_subitems_must_pass", "card_aggregation", "conditional_group_aggregation"],

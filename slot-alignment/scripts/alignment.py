@@ -383,10 +383,11 @@ def evaluate_contract(contract, measurements, phase, contract_sha256, evaluation
     coverage_status = contract.get("coverage", {}).get("status", "完整")
     conclusion = final_status if final_status != "通过" else ("完整范围通过" if coverage_status == "完整" else "有限范围通过")
     return {
-        "schema_version": "slot-alignment.alignment-result.v6",
+        "schema_version": "slot-alignment.alignment-result.v7",
         "task_id": contract["task_id"],
         "phase": phase,
         "metric_contract_sha256": contract_sha256,
+        "execution": measurements["execution"],
         "card_results": card_results,
         "audits": audit_results,
         "summary": {

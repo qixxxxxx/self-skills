@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def render(library):
     category_names = {item["category_id"]: item["name_zh"] for item in library["categories"]}
     lines = [
-        "# Slot Alignment 6.0 指标目录",
+        "# Slot Alignment 7.0 指标目录",
         "",
         f"版本：`{library['version']}`",
         "",
@@ -35,7 +35,7 @@ def render(library):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="生成6.0指标中文汇总")
+    parser = argparse.ArgumentParser(description="生成7.0指标中文汇总")
     parser.add_argument("--library", default=str(ROOT / "references/指标目录/index.json"))
     parser.add_argument("--output", default=str(ROOT / "references/指标目录/index.md"))
     parser.add_argument("--check", action="store_true")
@@ -44,8 +44,8 @@ def main():
     output = Path(args.output)
     if args.check:
         if not output.is_file() or output.read_text(encoding="utf-8") != text:
-            raise SystemExit("6.0指标中文汇总不是当前JSON的确定性结果")
-        print("OK: 6.0指标中文汇总一致")
+            raise SystemExit("7.0指标中文汇总不是当前JSON的确定性结果")
+        print("OK: 7.0指标中文汇总一致")
     else:
         output.write_text(text, encoding="utf-8")
         print(output)

@@ -1,11 +1,11 @@
 {
-  "schema_version": "slot-alignment.target-evidence-policy.v6",
-  "policy_id": "slot-alignment-target-evidence-v6",
-  "version": "6.0.0",
+  "schema_version": "slot-alignment.target-evidence-policy.v7",
+  "policy_id": "slot-alignment-target-evidence-v7",
+  "version": "7.0.0",
   "status": "已授权",
   "authority": "用户",
   "authorized_at": "2026-09-03",
-  "applies_to_metric_library": "6.0.0",
+  "applies_to_metric_library": "7.0.0",
   "scope": "original_target_evidence_only",
   "rules": {
     "freeze_before_candidate": true,

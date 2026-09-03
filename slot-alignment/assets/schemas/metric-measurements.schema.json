@@ -1,14 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment Metric Measurements v6",
+  "title": "Slot Alignment v7 Metric Measurements",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "task_id", "phase", "metric_contract_sha256", "measurements", "audits"],
+  "required": ["schema_version", "task_id", "phase", "metric_contract_sha256", "execution", "measurements", "audits"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.metric-measurements.v6"},
+    "schema_version": {"const": "slot-alignment.metric-measurements.v7"},
     "task_id": {"type": "string", "minLength": 1},
-    "phase": {"enum": ["BASELINE", "CALIBRATION", "INDEPENDENT_RECHECK", "FORMAL"]},
+    "phase": {"enum": ["BASELINE", "CALIBRATION", "FORMAL"]},
     "metric_contract_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "execution": {"$ref": "#/$defs/execution"},
     "measurements": {
       "type": "object",
       "propertyNames": {"pattern": "^[NJPB][1-9][0-9]*\\.[a-z0-9_.:-]+$"},
@@ -20,6 +21,20 @@
     }
   },
   "$defs": {
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "runtime_bundle_sha256", "certified_script_sha256", "seed_plan_sha256", "paid_entry_count", "independent_seed"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "runtime_bundle_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "certified_script_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "adapter_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+        "seed_plan_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "paid_entry_count": {"type": "integer", "minimum": 1},
+        "independent_seed": {"type": "boolean"}
+      }
+    },
     "sample_evidence": {
       "type": "object",
       "additionalProperties": false,

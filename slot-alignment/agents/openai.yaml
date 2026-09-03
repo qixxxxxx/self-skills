@@ -1,6 +1,4 @@
 interface:
-  display_name: "Slot 原版体验对齐 v6.0.0"
-  short_description: "完成独立FORMAL验收并生成单一中文对齐报告"
-  default_prompt: "使用 $slot-alignment 完成原版证据审计、自动对齐和独立FORMAL验收，并生成唯一的人类可读对齐报告.md。"
-policy:
-  allow_implicit_invocation: false
+  display_name: "Slot 原版体验对齐 7.0"
+  short_description: "基于Runtime与认证脚本完成轻量自动对齐和FORMAL交付"
+  default_prompt: "使用 $slot-alignment 按四阶段轻量流程完成原版样本整理、自动调参、独立FORMAL验收和中文交付。"

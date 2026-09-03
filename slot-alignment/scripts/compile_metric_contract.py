@@ -8,9 +8,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from alignment import dump_json, finite_number, load_json, sha256_file
-from validate_runtime_capability_coverage import validate_matrix
-from validate_sample_plan import validate_plan
+from alignment import canonical_json_sha256, dump_json, finite_number, load_json, sha256_file
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +17,6 @@ HARD_POLICY_PATH = ROOT / "assets" / "policies" / "hard_gate_budget_policy.json"
 EVALUATION_POLICY_PATH = ROOT / "assets" / "policies" / "alignment_evaluation_policy.json"
 TARGET_EVIDENCE_POLICY_PATH = ROOT / "assets" / "policies" / "target_evidence_policy.json"
 SAMPLE_POLICY_PATH = ROOT / "assets" / "policies" / "sample_execution_policy.json"
-RUNTIME_CAPABILITY_POLICY_PATH = ROOT / "assets" / "policies" / "runtime_capability_policy.json"
 
 
 def safe_id(value):
@@ -551,55 +548,57 @@ def contract_digest(contract):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="编译slot-alignment 6.0指标合同")
-    parser.add_argument("--profile", required=True)
-    parser.add_argument("--targets", required=True)
-    parser.add_argument("--bindings", required=True)
-    parser.add_argument("--sample-plan", required=True)
-    parser.add_argument("--runtime-capabilities", required=True)
+    parser = argparse.ArgumentParser(description="编译slot-alignment 7.0轻量指标合同")
+    parser.add_argument("--preflight", required=True)
+    parser.add_argument("--source-summary", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
-    profile = load_json(args.profile)
-    targets_file = load_json(args.targets)
-    targets = targets_file.get("targets", {})
-    bindings_file = load_json(args.bindings)
-    sample_plan = load_json(args.sample_plan)
-    runtime_capabilities = load_json(args.runtime_capabilities)
+    preflight = load_json(args.preflight)
+    source_summary = load_json(args.source_summary)
+    profile = preflight["game_profile"]
+    targets = source_summary.get("targets", {})
+    sample_plan = preflight["sample_plan"]
     library = load_json(LIBRARY_PATH)
     hard_policy = load_json(HARD_POLICY_PATH)
     evaluation_policy = load_json(EVALUATION_POLICY_PATH)
     target_evidence_policy = load_json(TARGET_EVIDENCE_POLICY_PATH)
     sample_policy = load_json(SAMPLE_POLICY_PATH)
     for schema_name, value in [
-        ("game-profile-metric-bindings.schema.json", profile),
-        ("metric-targets.schema.json", targets_file),
-        ("contract-bindings.schema.json", bindings_file),
+        ("preflight.schema.json", preflight),
+        ("source-summary.schema.json", source_summary),
         ("target-evidence-policy.schema.json", target_evidence_policy),
     ]:
         Draft202012Validator(load_json(ROOT / "assets/schemas" / schema_name)).validate(value)
-    if targets_file["task_id"] != bindings_file["task_id"]:
-        raise SystemExit("targets.task_id与合同绑定不一致")
-    try:
-        validate_plan(sample_plan, sample_policy)
-    except Exception as exc:
-        raise SystemExit(f"样本执行计划无效: {exc}") from exc
-    if sample_plan["task_id"] != bindings_file["task_id"]:
-        raise SystemExit("样本执行计划task_id与合同绑定不一致")
-    if runtime_capabilities.get("task_id") != bindings_file["task_id"] or runtime_capabilities.get("mode") != bindings_file["mode"]:
-        raise SystemExit("Runtime能力矩阵的task_id或mode与合同绑定不一致")
-    if runtime_capabilities.get("rtp_group") != 1 or runtime_capabilities.get("frozen_before_candidate") is not True:
-        raise SystemExit("Runtime能力矩阵必须在候选前冻结且rtp_group=1")
-    capability_bindings = {
-        "runtime_bundle_sha256": "runtime_bundle_sha256",
-        "certified_script_sha256": "script_sha256",
-        "parameter_authority_sha256": "parameter_authority_sha256",
+    if source_summary["task_id"] != preflight["task_id"]:
+        raise SystemExit("source_summary.task_id与preflight不一致")
+    n1_target = targets.get("N1.total_rtp.overall", {})
+    if n1_target.get("value") != preflight["target_rtp"]["value"]:
+        raise SystemExit("N1目标与preflight中用户确认的唯一RTP不一致")
+    calibration = sample_plan["calibration"]
+    tiers = [value for value in [calibration.get("probe"), calibration["screen"], calibration["refine"], calibration["final"]] if value is not None]
+    if tiers != sorted(tiers):
+        raise SystemExit("候选样本阶梯必须按累计样本递增")
+    formal = sample_plan["formal"]
+    if formal["selected_paid_entry_count"] not in formal["tiers"]:
+        raise SystemExit("FORMAL样本数必须来自用户确认的档位")
+    parameter_authority = preflight["parameter_authority"]
+    invalid_parameters = [
+        item["parameter_id"]
+        for item in parameter_authority["parameters"]
+        if item["authorization"] == "authorized" and item["script_support"] != "supported"
+    ]
+    if invalid_parameters:
+        raise SystemExit(f"授权参数未被认证脚本支持: {invalid_parameters}")
+    bindings_file = {
+        "task_id": preflight["task_id"],
+        "mode": preflight["mode"],
+        "contract_version": "7.0.0",
+        "runtime_bundle_sha256": preflight["runtime"]["bundle_sha256"],
+        "original_evidence_sha256": source_summary["source_bundle_sha256"],
+        "script_sha256": preflight["certified_script"]["sha256"],
+        "game_profile_sha256": canonical_json_sha256(preflight["game_profile"]),
+        "parameter_authority_sha256": canonical_json_sha256(parameter_authority),
     }
-    for matrix_key, binding_key in capability_bindings.items():
-        if runtime_capabilities.get(matrix_key) != bindings_file[binding_key]:
-            raise SystemExit(f"Runtime能力矩阵的{matrix_key}与合同绑定不一致")
-    capability_errors = validate_matrix(runtime_capabilities, args.runtime_capabilities)
-    if capability_errors:
-        raise SystemExit("Runtime能力覆盖未通过，禁止编译候选合同: " + "; ".join(capability_errors))
     bindings = profile["metric_bindings"]
     component_ids = [item["component_id"] for item in bindings["components"]]
     component_set = set(component_ids)
@@ -745,7 +744,7 @@ def main():
             raise SystemExit(f"{board['board_scope_id']} reel_height_profiles.reel_id重复")
         if board["shape_mode"] == "variable_reel_height" and len(reel_profiles) != board["columns"]:
             raise SystemExit(f"{board['board_scope_id']}可变卷轴高度必须逐列冻结高度档位")
-    if bindings_file["game_profile_sha256"] != sha256_file(args.profile):
+    if bindings_file["game_profile_sha256"] != canonical_json_sha256(profile):
         raise SystemExit("合同绑定的game_profile_sha256与当前画像不一致")
     pending, missing = [], []
     used_targets = set()
@@ -891,15 +890,14 @@ def main():
         "required": True,
     } for item in library["audits"]]
     hashes = {key: bindings_file[key] for key in ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256"]}
-    hashes["sample_execution_plan_sha256"] = sha256_file(args.sample_plan)
-    hashes["runtime_capability_matrix_sha256"] = sha256_file(args.runtime_capabilities)
-    hashes["targets_sha256"] = sha256_file(args.targets)
-    hashes["contract_bindings_sha256"] = sha256_file(args.bindings)
+    hashes["preflight_sha256"] = sha256_file(args.preflight)
+    hashes["source_summary_sha256"] = sha256_file(args.source_summary)
+    hashes["sample_plan_sha256"] = canonical_json_sha256(sample_plan)
     hashes["contract_sha256"] = "0" * 64
     contract = {
-        "schema_version": "slot-alignment.metric-contract.v6",
+        "schema_version": "slot-alignment.metric-contract.v7",
         "contract_version": bindings_file["contract_version"],
-        "report_contract_version": "slot-alignment.report.v6",
+        "report_contract_version": "slot-alignment.report.v7",
         "task_id": bindings_file["task_id"],
         "mode": bindings_file["mode"],
         "rtp_group": 1,
@@ -909,8 +907,7 @@ def main():
             "hard_gate_budget": {"id": hard_policy["policy_id"], "version": hard_policy["version"], "path": "assets/policies/hard_gate_budget_policy.json", "sha256": sha256_file(HARD_POLICY_PATH)},
             "alignment_evaluation": {"id": evaluation_policy["policy_id"], "version": evaluation_policy["version"], "path": "assets/policies/alignment_evaluation_policy.json", "sha256": sha256_file(EVALUATION_POLICY_PATH)},
             "target_evidence": {"id": target_evidence_policy["policy_id"], "version": target_evidence_policy["version"], "path": "assets/policies/target_evidence_policy.json", "sha256": sha256_file(TARGET_EVIDENCE_POLICY_PATH)},
-            "sample_execution": {"id": sample_policy["policy_id"], "version": sample_policy["version"], "path": "assets/policies/sample_execution_policy.json", "sha256": sha256_file(SAMPLE_POLICY_PATH)},
-            "runtime_capability": {"id": "slot-alignment-runtime-capability-coverage-v6", "version": "6.0.0", "path": "assets/policies/runtime_capability_policy.json", "sha256": sha256_file(RUNTIME_CAPABILITY_POLICY_PATH)},
+            "sample_execution": {"id": sample_policy["policy_id"], "version": sample_policy["version"], "path": "assets/policies/sample_execution_policy.json", "sha256": sha256_file(SAMPLE_POLICY_PATH)}
         },
         "coverage": coverage,
         "cards": cards,

@@ -1,84 +1,52 @@
 {
-  "schema_version": "slot-alignment.sample-execution-policy.v6",
-  "policy_id": "slot-alignment-fixed-sample-execution-v6",
-  "version": "6.0.0",
+  "schema_version": "slot-alignment.sample-execution-policy.v7",
+  "policy_id": "slot-alignment-light-sample-execution-v7",
+  "version": "7.0.0",
   "status": "已授权",
   "authority": "用户",
   "authorized_at": "2026-09-03",
   "source_path": "assets/policies/sample_execution_policy.json",
   "sample_unit": "complete_paid_entry",
+  "user_confirmation_required": true,
   "rng_protocol": {
-    "calibration_default": "chunk_seeded",
+    "candidate_default": "chunk_seeded",
     "formal_default": "chunk_seeded",
-    "diagnostics_only": ["crn_v1"]
-  },
-  "calibration": {
-    "stages": [
-      {"stage_id": "screen", "cumulative_paid_entries": 100000, "candidate_scope": "all"},
-      {"stage_id": "review", "cumulative_paid_entries": 500000, "candidate_scope": "survivors"},
-      {"stage_id": "finalist", "cumulative_paid_entries": 2000000, "candidate_scope": "finalists"}
-    ],
-    "independent_recheck": {
-      "top_candidate_count": 2,
-      "additional_paid_entries": 2000000,
-      "independent_seed": true
-    }
-  },
-  "formal": {
-    "paid_entry_tiers": [10000000, 20000000, 50000000],
-    "minimum_conditional_sample": 2000,
-    "conditional_probability_semantics": "whole_metric_instance_denominator_exposure_per_paid_entry",
-    "required_paid_entries_formula": "ceil(minimum_conditional_sample / conditional_exposure_probability)",
-    "selection_rule": "smallest_tier_covering_all_active_conditional_instances_else_max_tier",
-    "maximum_paid_entries": 50000000,
-    "maximum_tier_insufficient_action": "run_max_tier_then_mark_affected_instances_sample_insufficient_U",
-    "state_frequency_must_not_drive_tier": true,
     "formal_seed_must_be_independent": true
   },
-  "forbidden_sample_constraints": [
-    "minimum_1000_for_each_rare_state",
-    "minimum_1000000_feature_cycles",
-    "minimum_20000_for_single_p2_state",
-    "rtp_99ci_half_width_0.0015_as_independent_requirement"
-  ],
+  "calibration_defaults": {
+    "probe": 20000,
+    "screen": 100000,
+    "refine": 500000,
+    "final": 2000000,
+    "probe_optional": true,
+    "tiers_are_cumulative": true,
+    "frozen_early_stop_rules_allowed": true,
+    "every_search_layer_must_run_every_tier": false
+  },
+  "formal_defaults": {
+    "paid_entry_tiers": [
+      10000000,
+      20000000,
+      50000000
+    ],
+    "minimum_conditional_sample": 2000,
+    "selection_rule": "smallest_confirmed_tier_covering_all_active_conditional_instances_else_confirmed_maximum",
+    "state_frequency_must_not_drive_tier": true
+  },
   "execution": {
-    "default_shard_size": 250000,
-    "shard_semantics": "logical_checkpoint_and_rng_partition",
-    "short_final_shard_allowed": true,
-    "stage_smaller_than_shard_uses_single_short_shard": true,
-    "internal_micro_batches_allowed": true,
-    "internal_micro_batch_must_preserve_rng_stream": true,
-    "benchmark_required": true,
-    "benchmark_is_blocking_gate": false,
-    "benchmark_profiles": ["core_simulation", "formal_full_observation"],
-    "worker_runtime_must_be_persistent": true,
-    "worker_static_context_loads_once": true,
-    "candidate_context_builds_once_per_worker": true,
-    "core_loop_implementation": "compiled_or_vectorized_batch_with_python_orchestration",
-    "accumulator_cardinality": "bounded_by_frozen_metric_support",
-    "parallelism_layer_count": 1,
-    "nested_parallelism_forbidden": true,
-    "checkpoint_payload": "shard_aggregates_only",
-    "single_multi_worker_and_resume_must_be_equivalent": true,
+    "checkpoint_optional_for_short_runs": true,
+    "checkpoint_fingerprint_required": true,
+    "worker_and_micro_batch_are_not_contract_inputs": true,
+    "seed_mapping_must_be_stable": true,
+    "bounded_streaming_accumulators_required": true,
+    "full_parallel_equivalence_report_required": false,
+    "fallback_to_single_worker_on_instability": true,
     "hot_path_forbidden": [
+      "per_entry_json_or_ndjson",
       "rng_object_per_random_draw",
       "per_entry_hash",
-      "decimal_string_conversion",
-      "per_entry_json_or_ndjson",
       "duplicate_settlement_calculation",
-      "per_entry_tdigest_update",
-      "unbounded_exact_value_counts",
-      "per_entry_string_key_construction",
-      "per_entry_business_object_allocation"
-    ],
-    "hot_path_preferred": [
-      "integer_symbol_ids",
-      "array_counters",
-      "scaled_integer_payouts",
-      "preindexed_bounded_metric_support",
-      "compiled_or_vectorized_chunk_core",
-      "immutable_worker_runtime_context",
-      "candidate_parameter_delta_context"
+      "unbounded_exact_value_counts"
     ]
   }
 }

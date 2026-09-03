@@ -1,12 +1,12 @@
 {
-  "schema_version": "slot-alignment.hard-gate-budget-policy.v6",
-  "policy_id": "player-experience-hard-gate-budgets-v6",
-  "version": "6.0.0",
+  "schema_version": "slot-alignment.hard-gate-budget-policy.v7",
+  "policy_id": "player-experience-hard-gate-budgets-v7",
+  "version": "7.0.0",
   "status": "已授权",
   "authority": "用户",
   "authorized_at": "2026-09-03",
   "source_path": "assets/policies/hard_gate_budget_policy.json",
-  "applies_to": "slot-alignment 6.0任务，候选出现前冻结N类C级通过值",
+  "applies_to": "slot-alignment 7.0任务，候选出现前冻结N类C级通过值",
   "c_budget_rules": {
     "N1": {"method": "fixed_absolute", "value": 0.003},
     "N2": {"method": "target_relative_clamped", "relative": 0.06, "minimum": 0.008, "maximum": 0.02},

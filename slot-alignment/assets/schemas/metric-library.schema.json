@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v6 Metric Library",
+  "title": "Slot Alignment v7 Metric Library",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "library_id", "version", "status", "principles", "categories", "cards", "audits"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.metric-library.v6"},
+    "schema_version": {"const": "slot-alignment.metric-library.v7"},
     "library_id": {"type": "string", "minLength": 1},
-    "version": {"type": "string", "pattern": "^6\\."},
+    "version": {"type": "string", "pattern": "^7\\."},
     "status": {"const": "active"},
     "principles": {
       "type": "object",

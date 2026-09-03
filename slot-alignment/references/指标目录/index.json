@@ -1,7 +1,7 @@
 {
-  "schema_version": "slot-alignment.metric-library.v6",
+  "schema_version": "slot-alignment.metric-library.v7",
   "library_id": "slot-alignment-player-experience-metrics",
-  "version": "6.0.0",
+  "version": "7.0.0",
   "status": "active",
   "principles": {
     "top_level_categories_are_mutually_exclusive": true,

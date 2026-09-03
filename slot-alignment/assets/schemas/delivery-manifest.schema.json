@@ -1,28 +1,36 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v6 Delivery Manifest",
+  "title": "Slot Alignment v7 Delivery Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "report_contract_version", "task_id", "runtime_version", "rtp_group", "source_formal_result", "formal_result_sha256", "alignment_manifest_sha256", "aligned_parameters_sha256", "runtime_files", "checks", "generated_at"],
+  "required": [
+    "schema_version",
+    "report_contract_version",
+    "task_id",
+    "runtime_version",
+    "rtp_group",
+    "metric_contract_sha256",
+    "alignment_manifest_sha256",
+    "formal_result_sha256",
+    "certified_script_sha256",
+    "source_runtime_bundle_sha256",
+    "delivery_runtime_bundle_sha256",
+    "runtime_files",
+    "checks",
+    "generated_at"
+  ],
   "properties": {
-    "schema_version": {"const": "slot-alignment.delivery-manifest.v6"},
-    "report_contract_version": {"const": "slot-alignment.report.v6"},
+    "schema_version": {"const": "slot-alignment.delivery-manifest.v7"},
+    "report_contract_version": {"const": "slot-alignment.report.v7"},
     "task_id": {"type": "string", "minLength": 1},
     "runtime_version": {"type": "string", "minLength": 1},
     "rtp_group": {"const": 1},
-    "source_formal_result": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["batch_id", "path", "sha256"],
-      "properties": {
-        "batch_id": {"type": "string", "pattern": "^fv[0-9]{4}$"},
-        "path": {"type": "string", "pattern": "^work/formal/fv[0-9]{4}/alignment_result\\.json$"},
-        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
-      }
-    },
-    "formal_result_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "metric_contract_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "alignment_manifest_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "aligned_parameters_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "formal_result_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "certified_script_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "source_runtime_bundle_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "delivery_runtime_bundle_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "runtime_files": {
       "type": "array",
       "minItems": 4,
@@ -30,22 +38,25 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "source_path", "path", "sha256"],
+        "required": ["name", "source_sha256", "delivery_sha256"],
         "properties": {
           "name": {"enum": ["game_core.json", "payout_config.json", "reel_config.json", "symbol_catalog.json"]},
-          "source_path": {"type": "string", "pattern": "^work/formal/fv[0-9]{4}/runtime/(game_core|payout_config|reel_config|symbol_catalog)\\.json$"},
-          "path": {"type": "string", "minLength": 1},
-          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          "source_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "delivery_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
         }
       }
     },
     "checks": {
-      "const": {
-        "formal_source_matches_artifact": true,
-        "formal_runtime_matches_delivery": true,
-        "runtime_version_matches_task": true,
-        "rtp_group_is_one": true,
-        "aligned_parameters_match_freeze": true
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["same_certified_script", "same_metric_contract", "formal_independent_seed", "runtime_files_match", "runtime_version_matches_task_id", "rtp_group_is_one"],
+      "properties": {
+        "same_certified_script": {"const": true},
+        "same_metric_contract": {"const": true},
+        "formal_independent_seed": {"const": true},
+        "runtime_files_match": {"const": true},
+        "runtime_version_matches_task_id": {"const": true},
+        "rtp_group_is_one": {"const": true}
       }
     },
     "generated_at": {"type": "string", "format": "date-time"}

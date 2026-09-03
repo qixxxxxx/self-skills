@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slot Alignment v7 Preflight",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "mode",
+    "status",
+    "rtp_group",
+    "runtime_environment",
+    "python_bin",
+    "workspace",
+    "game",
+    "target_rtp",
+    "certified_script",
+    "runtime",
+    "parameter_authority",
+    "sample_plan",
+    "game_profile",
+    "smoke_check",
+    "placeholders",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "slot-alignment.preflight.v7"},
+    "task_id": {"type": "string", "pattern": "^aln-[a-z0-9-]+-[0-9]{8}-[0-9]{3}$"},
+    "mode": {"type": "string", "minLength": 1},
+    "status": {"const": "READY_FOR_SAMPLES"},
+    "rtp_group": {"const": 1},
+    "runtime_environment": {"enum": ["test", "prod"]},
+    "python_bin": {"type": "string", "minLength": 1},
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_root"],
+      "properties": {
+        "task_root": {"type": "string", "minLength": 1}
+      }
+    },
+    "game": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["game_code", "game_name_zh"],
+      "properties": {
+        "game_code": {"type": "string", "minLength": 1},
+        "game_name_zh": {"type": "string", "minLength": 1}
+      }
+    },
+    "target_rtp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "confirmation_type", "confirmation_evidence_sha256"],
+      "properties": {
+        "value": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "confirmation_type": {"enum": ["provided_by_user", "confirmed_by_user"]},
+        "confirmation_evidence_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "certified_script": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "entrypoint", "status"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "entrypoint": {"type": "string", "minLength": 1},
+        "status": {"const": "user_confirmed"},
+        "adapter_path": {"type": ["string", "null"]},
+        "adapter_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_path", "sealed_path", "bundle_sha256", "files"],
+      "properties": {
+        "source_path": {"type": "string", "minLength": 1},
+        "sealed_path": {"const": "work/baseline/runtime"},
+        "bundle_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "files": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "sha256"],
+            "properties": {
+              "name": {"enum": ["game_core.json", "payout_config.json", "reel_config.json", "symbol_catalog.json"]},
+              "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+            }
+          }
+        }
+      }
+    },
+    "parameter_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "parameters", "locked_semantics"],
+      "properties": {
+        "status": {"const": "READY"},
+        "parameters": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["parameter_id", "runtime_path", "authorization", "script_support"],
+            "properties": {
+              "parameter_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.:-]*$"},
+              "runtime_path": {"type": "string", "minLength": 1},
+              "authorization": {"enum": ["authorized", "locked"]},
+              "script_support": {"enum": ["supported", "unsupported"]}
+            }
+          }
+        },
+        "locked_semantics": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "sample_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmed_by_user", "sample_unit", "rng_protocol", "calibration", "formal"],
+      "properties": {
+        "confirmed_by_user": {"const": true},
+        "sample_unit": {"const": "complete_paid_entry"},
+        "rng_protocol": {"const": "chunk_seeded"},
+        "calibration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["probe", "screen", "refine", "final", "maximum_candidates", "early_stop_rules"],
+          "properties": {
+            "probe": {"type": ["integer", "null"], "minimum": 1},
+            "screen": {"type": "integer", "minimum": 1},
+            "refine": {"type": "integer", "minimum": 1},
+            "final": {"type": "integer", "minimum": 1},
+            "maximum_candidates": {"type": "integer", "minimum": 1},
+            "early_stop_rules": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "formal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tiers", "selected_paid_entry_count", "minimum_conditional_sample", "independent_seed"],
+          "properties": {
+            "tiers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+            "selected_paid_entry_count": {"type": "integer", "minimum": 1},
+            "minimum_conditional_sample": {"type": "integer", "minimum": 1},
+            "independent_seed": {"const": true},
+            "conditional_exposure_probabilities": {
+              "type": "object",
+              "additionalProperties": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+            }
+          }
+        }
+      }
+    },
+    "game_profile": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["metric_bindings", "evidence_refs"],
+      "properties": {
+        "metric_bindings": {"type": "object", "minProperties": 1},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "smoke_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "seed", "entry_count", "evidence_sha256"],
+      "properties": {
+        "status": {"const": "passed"},
+        "seed": {"type": "integer", "minimum": 0},
+        "entry_count": {"type": "integer", "minimum": 1},
+        "evidence_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "placeholders": {"type": "array", "maxItems": 0},
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

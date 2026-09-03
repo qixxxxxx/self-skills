@@ -1,0 +1,18 @@
+{
+  "schema_version": "slot-alignment.alignment-result.v7",
+  "task_id": "<task_id>",
+  "phase": "FORMAL",
+  "metric_contract_sha256": "<sha256>",
+  "execution": {
+    "candidate_id": "<candidate_id>",
+    "runtime_bundle_sha256": "<sha256>",
+    "certified_script_sha256": "<sha256>",
+    "adapter_sha256": null,
+    "seed_plan_sha256": "<sha256>",
+    "paid_entry_count": 10000000,
+    "independent_seed": true
+  },
+  "card_results": [],
+  "audits": [],
+  "summary": {}
+}

@@ -1,0 +1,74 @@
+{
+  "schema_version": "slot-alignment.preflight.v7",
+  "task_id": "<task_id>",
+  "mode": "<mode>",
+  "status": "READY_FOR_SAMPLES",
+  "rtp_group": 1,
+  "runtime_environment": "test",
+  "python_bin": "/Users/lq/slot_math_env/bin/python",
+  "workspace": {
+    "task_root": "slot-math-workbench:<game_code>/alignments/<mode>/<task_id>/"
+  },
+  "game": {
+    "game_code": "<game_code>",
+    "game_name_zh": "<game_name_zh>"
+  },
+  "target_rtp": {
+    "value": 0.96,
+    "confirmation_type": "confirmed_by_user",
+    "confirmation_evidence_sha256": "<sha256>"
+  },
+  "certified_script": {
+    "path": "<certified_script_path>",
+    "sha256": "<sha256>",
+    "entrypoint": "<entrypoint>",
+    "status": "user_confirmed",
+    "adapter_path": null,
+    "adapter_sha256": null
+  },
+  "runtime": {
+    "source_path": "<runtime_path>",
+    "sealed_path": "work/baseline/runtime",
+    "bundle_sha256": "<sha256>",
+    "files": []
+  },
+  "parameter_authority": {
+    "status": "READY",
+    "parameters": [],
+    "locked_semantics": [
+      "玩法、状态机、结算、RNG顺序和盘面结构"
+    ]
+  },
+  "sample_plan": {
+    "confirmed_by_user": true,
+    "sample_unit": "complete_paid_entry",
+    "rng_protocol": "chunk_seeded",
+    "calibration": {
+      "probe": 20000,
+      "screen": 100000,
+      "refine": 500000,
+      "final": 2000000,
+      "maximum_candidates": 100,
+      "early_stop_rules": []
+    },
+    "formal": {
+      "tiers": [10000000, 20000000, 50000000],
+      "selected_paid_entry_count": 10000000,
+      "minimum_conditional_sample": 2000,
+      "independent_seed": true,
+      "conditional_exposure_probabilities": {}
+    }
+  },
+  "game_profile": {
+    "metric_bindings": {},
+    "evidence_refs": []
+  },
+  "smoke_check": {
+    "status": "passed",
+    "seed": 0,
+    "entry_count": 100,
+    "evidence_sha256": "<sha256>"
+  },
+  "placeholders": [],
+  "generated_at": "<iso8601>"
+}

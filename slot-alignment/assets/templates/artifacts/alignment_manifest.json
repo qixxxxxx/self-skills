@@ -1,0 +1,36 @@
+{
+  "schema_version": "slot-alignment.alignment-manifest.v7",
+  "task_id": "<task_id>",
+  "mode": "<mode>",
+  "status": "READY_FOR_FORMAL",
+  "metric_contract_sha256": "<sha256>",
+  "certified_script_sha256": "<sha256>",
+  "adapter_sha256": null,
+  "baseline_runtime_bundle_sha256": "<sha256>",
+  "candidate_ledger": {
+    "path": "work/candidate_ledger.jsonl",
+    "sha256": "<sha256>",
+    "candidate_count": 1
+  },
+  "search": {
+    "stages_used": ["SCREEN"],
+    "authorized_parameter_ids": [],
+    "attempted_parameter_ids": [],
+    "ranking_rule": "failures_then_unknown_then_deviation_then_candidate_id",
+    "termination_reason_zh": "<reason>"
+  },
+  "selected_candidate": {
+    "candidate_id": "<candidate_id>",
+    "parameter_sha256": "<sha256>",
+    "runtime_bundle_sha256": "<sha256>",
+    "runtime_path": "work/selected/runtime",
+    "runtime_files": []
+  },
+  "formal_plan": {
+    "paid_entry_count": 10000000,
+    "seed_plan_sha256": "<sha256>",
+    "independent_seed": true,
+    "uses_candidate_measurements": false
+  },
+  "generated_at": "<iso8601>"
+}

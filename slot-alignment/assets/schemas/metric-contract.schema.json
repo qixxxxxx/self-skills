@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v6 Metric Contract",
+  "title": "Slot Alignment v7 Metric Contract",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "contract_version", "report_contract_version", "task_id", "mode", "rtp_group", "frozen_before_candidate", "metric_library", "policies", "coverage", "cards", "audits", "hashes"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.metric-contract.v6"},
+    "schema_version": {"const": "slot-alignment.metric-contract.v7"},
     "contract_version": {"type": "string", "minLength": 1},
-    "report_contract_version": {"const": "slot-alignment.report.v6"},
+    "report_contract_version": {"const": "slot-alignment.report.v7"},
     "task_id": {"type": "string", "minLength": 1},
     "mode": {"type": "string", "minLength": 1},
     "rtp_group": {"const": 1},
@@ -16,13 +16,12 @@
     "policies": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["hard_gate_budget", "alignment_evaluation", "target_evidence", "sample_execution", "runtime_capability"],
+      "required": ["hard_gate_budget", "alignment_evaluation", "target_evidence", "sample_execution"],
       "properties": {
         "hard_gate_budget": {"$ref": "#/$defs/binding"},
         "alignment_evaluation": {"$ref": "#/$defs/binding"},
         "target_evidence": {"$ref": "#/$defs/binding"},
-        "sample_execution": {"$ref": "#/$defs/binding"},
-        "runtime_capability": {"$ref": "#/$defs/binding"}
+        "sample_execution": {"$ref": "#/$defs/binding"}
       }
     },
     "coverage": {"$ref": "#/$defs/coverage"},
@@ -30,7 +29,7 @@
     "audits": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/audit"}},
     "hashes": {
       "type": "object",
-      "required": ["runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256", "sample_execution_plan_sha256", "runtime_capability_matrix_sha256", "targets_sha256", "contract_bindings_sha256", "contract_sha256"],
+      "required": ["preflight_sha256", "source_summary_sha256", "runtime_bundle_sha256", "original_evidence_sha256", "script_sha256", "game_profile_sha256", "parameter_authority_sha256", "sample_plan_sha256", "contract_sha256"],
       "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
     }
   },

@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment Target Evidence Policy v6",
+  "title": "Slot Alignment Target Evidence Policy v7",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "applies_to_metric_library", "scope", "rules", "metric_thresholds", "p2_thresholds_by_opportunity_unit", "facet_overrides", "categorical_bin_thresholds", "coverage"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.target-evidence-policy.v6"},
-    "policy_id": {"const": "slot-alignment-target-evidence-v6"},
-    "version": {"const": "6.0.0"},
+    "schema_version": {"const": "slot-alignment.target-evidence-policy.v7"},
+    "policy_id": {"const": "slot-alignment-target-evidence-v7"},
+    "version": {"const": "7.0.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
-    "applies_to_metric_library": {"const": "6.0.0"},
+    "applies_to_metric_library": {"const": "7.0.0"},
     "scope": {"const": "original_target_evidence_only"},
     "rules": {
       "const": {

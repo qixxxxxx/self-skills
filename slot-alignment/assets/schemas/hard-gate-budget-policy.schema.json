@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Slot Alignment v6 Hard Gate Budget Policy",
+  "title": "Slot Alignment v7 Hard Gate Budget Policy",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "policy_id", "version", "status", "authority", "authorized_at", "source_path", "applies_to", "c_budget_rules", "locked_metrics", "audit_only_metrics", "calculation"],
   "properties": {
-    "schema_version": {"const": "slot-alignment.hard-gate-budget-policy.v6"},
-    "policy_id": {"const": "player-experience-hard-gate-budgets-v6"},
-    "version": {"const": "6.0.0"},
+    "schema_version": {"const": "slot-alignment.hard-gate-budget-policy.v7"},
+    "policy_id": {"const": "player-experience-hard-gate-budgets-v7"},
+    "version": {"const": "7.0.0"},
     "status": {"const": "已授权"},
     "authority": {"const": "用户"},
     "authorized_at": {"type": "string", "format": "date"},
