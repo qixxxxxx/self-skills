@@ -5,7 +5,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from alignment import load_json, sha256_file
+from alignment import column_repeat_policy_errors, load_json, sha256_file
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +48,7 @@ def validate_preflight(value, path=None):
         errors.append("FORMAL样本数必须来自用户确认的档位")
     if formal["attempt_seed_rule"] != "pre_frozen_sequence_by_formal_attempt" or formal["same_candidate_retry"] is not False:
         errors.append("FORMAL必须按预冻结序列分配seed，且同一候选不得换seed重试")
+    errors.extend(column_repeat_policy_errors(value["game_profile"]))
     script_path = Path(value["certified_script"]["path"])
     if script_path.is_absolute() and script_path.is_file() and sha256_file(script_path) != value["certified_script"]["sha256"]:
         errors.append("用户认证脚本SHA-256与实际文件不一致")

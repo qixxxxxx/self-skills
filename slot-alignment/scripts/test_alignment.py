@@ -141,6 +141,7 @@ class AlignmentV7Test(unittest.TestCase):
                     "boards": [],
                     "sigma_scopes": [],
                 },
+                "column_repeat_policy": {"scopes": []},
                 "evidence_refs": ["rule:test"],
             },
             "smoke_check": {"status": "passed", "seed": 1, "entry_count": 100, "evidence_sha256": SHA},
@@ -173,6 +174,74 @@ class AlignmentV7Test(unittest.TestCase):
             },
             "generated_at": datetime.now().astimezone().isoformat(),
         }
+
+    def board_preflight(self, normal="forbidden", scatter="forbidden", wild="forbidden"):
+        value = self.preflight()
+        value["game_profile"]["metric_bindings"]["boards"] = [{
+            "board_scope_id": "base.initial",
+            "name_zh": "基础游戏初始盘面",
+            "component_id": "base",
+            "visual_phase": "initial",
+            "columns": 5,
+            "symbols": ["low-1", "high-1", "scatter", "wild"],
+            "symbol_groups": [
+                {"group_id": "low", "name_zh": "低值符号", "symbols": ["low-1"]},
+                {"group_id": "high", "name_zh": "高值符号", "symbols": ["high-1"]},
+            ],
+            "key_symbol_profiles": [
+                {"symbol_id": "scatter", "sample_filter": "untriggered_only", "trigger_threshold": 3, "count_bins": ["0", "1"]},
+                {"symbol_id": "wild", "sample_filter": "all", "trigger_threshold": None, "count_bins": ["0", "1"]},
+            ],
+            "aggregation_profile": None,
+            "shape_mode": "fixed",
+            "reel_height_profiles": [],
+        }]
+        value["game_profile"]["column_repeat_policy"]["scopes"] = [{
+            "board_scope_id": "base.initial",
+            "applicability": "applicable_non_cascade",
+            "normal_symbols": {
+                "same_symbol_repeat_in_column": normal,
+                "confirmed_by": "user_confirmed",
+                "evidence_refs": ["user:normal-repeat"],
+            },
+            "special_symbols": [
+                {"symbol_id": "scatter", "same_symbol_repeat_in_column": scatter, "confirmed_by": "specification", "evidence_refs": ["spec:scatter-repeat"]},
+                {"symbol_id": "wild", "same_symbol_repeat_in_column": wild, "confirmed_by": "user_confirmed", "evidence_refs": ["user:wild-repeat"]},
+            ],
+        }]
+        return value
+
+    def board_source_summary(self):
+        value = self.source_summary()
+        source = {"method": "sealed_original_evidence", "evidence_refs": ["source:board"]}
+        def scalar(number, bucket_count=None):
+            result = {"target_status": "available", "value": number, "source": source, "sample_count": 5000}
+            if bucket_count is not None:
+                result["bucket_count"] = bucket_count
+            return result
+        value["targets"].update({
+            "B1.symbol_group_share_bin_rate.base.initial.low": scalar(0.4, 2000),
+            "B1.symbol_group_share_bin_rate.base.initial.high": scalar(0.4, 2000),
+            "B1.symbol_group_composition_shift.base.initial": scalar({"low": 0.4, "high": 0.4}),
+            "B1.key_symbol_count_bin_rate.base.initial.scatter.0": scalar(0.8, 4000),
+            "B1.key_symbol_count_bin_rate.base.initial.scatter.1": scalar(0.2, 1000),
+            "B1.key_symbol_count_distribution_shift.base.initial.scatter": scalar({"0": 0.8, "1": 0.2}),
+            "B1.key_symbol_count_bin_rate.base.initial.wild.0": scalar(0.9, 4500),
+            "B1.key_symbol_count_bin_rate.base.initial.wild.1": scalar(0.1, 500),
+            "B1.key_symbol_count_distribution_shift.base.initial.wild": scalar({"0": 0.9, "1": 0.1}),
+        })
+        return value
+
+    def compile_board_contract(self, preflight=None):
+        preflight_path = self.root / "board-preflight.json"
+        source_path = self.root / "board-source.json"
+        contract_path = self.root / "board-contract.json"
+        write(preflight_path, preflight or self.board_preflight())
+        write(source_path, self.board_source_summary())
+        self.run_script("validate_preflight.py", "--preflight", preflight_path)
+        self.run_script("validate_source_summary.py", "--summary", source_path, "--preflight", preflight_path)
+        self.run_script("compile_metric_contract.py", "--preflight", preflight_path, "--source-summary", source_path, "--output", contract_path)
+        return preflight_path, contract_path
 
     def compile_and_evaluate(self, artifacts=False):
         parent = self.root / "artifacts" if artifacts else self.root
@@ -359,6 +428,78 @@ class AlignmentV7Test(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("candidate_total_limit", result.stderr)
+
+    def test_column_repeat_forbidden_becomes_zero_budget_b1_gate(self):
+        preflight_path, contract_path = self.compile_board_contract()
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        instances = [
+            item for card in contract["cards"] for item in card["instances"]
+            if item["facet_id"] == "column_repeat_violation_rate"
+        ]
+        self.assertEqual([item["subitem_id"] for item in instances], [
+            "base.initial.normal-symbols", "base.initial.special.scatter", "base.initial.special.wild",
+        ])
+        self.assertTrue(all(item["target"] == 0 and item["c_budget"]["value"] == 0 for item in instances))
+        self.assertTrue(all(item["scope"]["cell_scope"] == "generated_this_action" for item in instances))
+        self.assertTrue(all(item["scope"]["carried_cell_handling"] == "excluded" for item in instances))
+        self.assertTrue(all(item["scope"]["minimum_comparable_cells"] == 2 for item in instances))
+        measurements = {
+            "schema_version": "slot-alignment.metric-measurements.v7",
+            "task_id": self.task_id,
+            "phase": "FORMAL",
+            "metric_contract_sha256": sha256(contract_path),
+            "execution": {
+                "candidate_id": "candidate-repeat-test", "runtime_bundle_sha256": "4" * 64,
+                "certified_script_sha256": sha256(self.script), "adapter_sha256": None,
+                "seed_plan_sha256": "5" * 64, "paid_entry_count": 10000000, "independent_seed": True,
+            },
+            "measurements": {},
+            "audits": [],
+        }
+        for card in contract["cards"]:
+            for instance in card["instances"]:
+                measurements["measurements"][instance["instance_id"]] = {
+                    "candidate": instance["target"],
+                    "sample_evidence": {"target_count": 5000, "candidate_count": 10000, "required_target_count": None, "required_candidate_count": 1, "gap_zh": None},
+                }
+        for audit in contract["audits"]:
+            measurements["audits"].append({"audit_id": audit["audit_id"], "status": "符合", "details": {}})
+        measurement_path = self.root / "repeat-measurements.json"
+        result_path = self.root / "repeat-result.json"
+        write(measurement_path, measurements)
+        self.run_script("evaluate_alignment.py", "--contract", contract_path, "--measurements", measurement_path, "--phase", "FORMAL", "--output", result_path)
+        self.assertEqual(json.loads(result_path.read_text(encoding="utf-8"))["summary"]["final_status"], "通过")
+        measurements["measurements"]["B1.column_repeat_violation_rate.base.initial.special.scatter"]["candidate"] = 0.001
+        write(measurement_path, measurements)
+        self.run_script("evaluate_alignment.py", "--contract", contract_path, "--measurements", measurement_path, "--phase", "FORMAL", "--output", result_path)
+        self.assertEqual(json.loads(result_path.read_text(encoding="utf-8"))["summary"]["final_status"], "不通过")
+        report_path = self.root / "repeat-report.md"
+        self.run_script("render_alignment_report.py", "--preflight", preflight_path, "--contract", contract_path, "--result", result_path, "--output", report_path)
+        report = report_path.read_text(encoding="utf-8")
+        self.assertIn("本次新落符号同列重复违规率", report)
+        self.assertIn("Scatter符号", report)
+        self.assertIn("Wild符号", report)
+        self.assertIn("本次新产生（历史保留除外）", report)
+
+    def test_column_repeat_confirmation_must_cover_every_special_symbol(self):
+        preflight = self.board_preflight()
+        preflight["game_profile"]["column_repeat_policy"]["scopes"][0]["special_symbols"].pop()
+        path = self.root / "missing-special-confirmation.json"
+        write(path, preflight)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "validate_preflight.py"), "--preflight", str(path)],
+            check=False, capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("必须逐个确认全部特殊符号", result.stderr)
+
+    def test_allowed_column_repeat_adds_no_gate(self):
+        _, contract_path = self.compile_board_contract(self.board_preflight(normal="allowed", scatter="allowed", wild="allowed"))
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        self.assertFalse(any(
+            item["facet_id"] == "column_repeat_violation_rate"
+            for card in contract["cards"] for item in card["instances"]
+        ))
 
     def test_policy_and_library_validation(self):
         self.run_script("validate_metric_library.py")

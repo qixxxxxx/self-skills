@@ -18,7 +18,7 @@ CATEGORY_CONTENT = {
     "N": "RTP、中奖率、触发率、波动和组件贡献",
     "J": "中奖内容、单次中奖和连续结算",
     "P": "玩法入场、玩法长度和特色机制",
-    "B": "符号构成、关键元素、聚集和盘面形态",
+    "B": "符号构成、关键元素、同列规则、聚集和盘面形态",
 }
 CATEGORY_NAMES = {"N": "数值指标", "J": "中奖结算", "P": "玩法过程", "B": "盘面呈现"}
 FACET_SUMMARIES = {
@@ -56,6 +56,7 @@ FACET_SUMMARIES = {
     "key_symbol_count_distribution_shift": "关键符号数量的整套分布相对原版移动了多少。",
     "aggregation_bin_rate": "稳定盘面的主要堆叠或聚集落入指定档位的概率。",
     "aggregation_distribution_shift": "主要堆叠或聚集的整套分布相对原版移动了多少。",
+    "column_repeat_violation_rate": "同一次Spin或Respin中新产生的符号违反同列重复规则的比例；历史黏住或锁定符号不参与比较，结果必须为0。",
     "reel_height_bin_rate": "指定卷轴出现某个高度档位的概率。",
     "reel_height_distribution_shift": "卷轴高度的整套分布相对原版移动了多少。",
     "active_cell_count_mean": "一张稳定盘面平均包含多少个有效格子。",
@@ -184,10 +185,14 @@ def scope_text(scope, facet_id):
         parts.append(f"第{reel_text(scope['reel'])}轴")
     if "bin" in scope:
         parts.append(bin_text(scope["bin"], facet_id, scope))
+    if scope.get("column_repeat_scope") == "normal_symbols":
+        parts.append("普通符号")
     for key, prefix in (("key_symbol", "关键符号"), ("symbol", "符号")):
         if scope.get(key):
             shown = symbol_text(scope[key])
             parts.append(shown if key == "symbol" else f"{prefix}{shown}")
+    if facet_id == "column_repeat_violation_rate":
+        parts.append("本次新产生（历史保留除外）")
     return " · ".join(parts) or "整体游戏"
 
 

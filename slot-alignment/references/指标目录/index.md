@@ -44,7 +44,7 @@
 
 | 卡 | 名称 | 类型 | 玩家问题 | Facet |
 |---|---|---|---|---|
-| B1 | 元素组成与聚集 | alignment | 盘面整体由哪些普通符号组成，关键元素出现多少，相同元素通常怎样聚集？ | 全盘普通符号组占比（absolute_probability_error）；普通符号组整体移动量（half_l1）；多符号组内部成员占比（absolute_probability_error）；多符号组内部整体移动量（total_variation）；关键元素数量档位占比（absolute_probability_error）；关键元素数量整体移动量（total_variation）；主要堆叠或聚集档位占比（absolute_probability_error）；主要堆叠或聚集整体移动量（total_variation） |
+| B1 | 元素组成与聚集 | alignment | 盘面整体由哪些普通符号组成，关键元素出现多少，相同元素通常怎样聚集？ | 全盘普通符号组占比（absolute_probability_error）；普通符号组整体移动量（half_l1）；多符号组内部成员占比（absolute_probability_error）；多符号组内部整体移动量（total_variation）；关键元素数量档位占比（absolute_probability_error）；关键元素数量整体移动量（total_variation）；主要堆叠或聚集档位占比（absolute_probability_error）；主要堆叠或聚集整体移动量（total_variation）；本次新落符号同列重复违规率（absolute_probability_error） |
 | B2 | 盘面形态 | alignment | 卷轴高矮、有效格数量和盘面参差程度是否接近原版？ | 逐卷轴高度档位占比（absolute_probability_error）；逐卷轴高度整体移动量（total_variation）；平均有效格数（absolute_error）；常见有效格数（absolute_error）；较大有效格数（absolute_error）；平均盘面参差程度（absolute_error）；较明显盘面参差程度（absolute_error） |
 
 ## 审计

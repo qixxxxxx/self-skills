@@ -34,6 +34,46 @@ def finite_number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def column_repeat_policy_errors(game_profile):
+    boards = game_profile["metric_bindings"].get("boards", [])
+    scopes = game_profile["column_repeat_policy"]["scopes"]
+    board_ids = [item["board_scope_id"] for item in boards]
+    scope_ids = [item["board_scope_id"] for item in scopes]
+    errors = []
+    if len(board_ids) != len(set(board_ids)):
+        errors.append("boards.board_scope_id重复")
+    if len(scope_ids) != len(set(scope_ids)):
+        errors.append("column_repeat_policy.board_scope_id重复")
+    missing = set(board_ids) - set(scope_ids)
+    extra = set(scope_ids) - set(board_ids)
+    if missing:
+        errors.append(f"缺少盘面同列重复确认: {sorted(missing)}")
+    if extra:
+        errors.append(f"同列重复确认引用未知盘面: {sorted(extra)}")
+    scope_map = {item["board_scope_id"]: item for item in scopes}
+    for board in boards:
+        board_id = board["board_scope_id"]
+        rule = scope_map.get(board_id)
+        if rule is None:
+            continue
+        special_ids = [item["symbol_id"] for item in rule["special_symbols"]]
+        if len(special_ids) != len(set(special_ids)):
+            errors.append(f"{board_id}特殊符号同列重复确认重复")
+        expected = {item["symbol_id"] for item in board["key_symbol_profiles"]}
+        if rule["applicability"] == "not_applicable_cascade":
+            if rule["normal_symbols"] is not None or special_ids:
+                errors.append(f"{board_id}消除盘面不得配置同列重复规则")
+            continue
+        if rule["normal_symbols"] is None:
+            errors.append(f"{board_id}非消除盘面必须确认普通符号是否允许同列重复")
+        if set(special_ids) != expected:
+            errors.append(
+                f"{board_id}必须逐个确认全部特殊符号且不得多填: "
+                f"缺少{sorted(expected - set(special_ids))}，多出{sorted(set(special_ids) - expected)}"
+            )
+    return errors
+
+
 def _probabilities(value, positions=None):
     if isinstance(value, dict):
         if positions is None:

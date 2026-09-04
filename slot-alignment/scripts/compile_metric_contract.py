@@ -8,7 +8,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from alignment import canonical_json_sha256, dump_json, finite_number, load_json, sha256_file
+from alignment import canonical_json_sha256, column_repeat_policy_errors, dump_json, finite_number, load_json, sha256_file
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -318,6 +318,41 @@ def subitems(card_id, facet_id, bindings):
                     "aggregation": {**aggregation, "role": "overall"},
                 }))
         return result
+    if card_id == "B1" and facet_id == "column_repeat_violation_rate":
+        result = []
+        policies = {item["board_scope_id"]: item for item in bindings["column_repeat_policy"]["scopes"]}
+        for board in boards:
+            policy = policies[board["board_scope_id"]]
+            if policy["applicability"] != "applicable_non_cascade":
+                continue
+            base_scope = {
+                "board": board["board_scope_id"],
+                "component": board["component_id"],
+                "visual_phase": board["visual_phase"],
+                "action_unit": "spin_or_respin_settlement",
+                "cell_scope": "generated_this_action",
+                "carried_cell_handling": "excluded",
+                "minimum_comparable_cells": 2,
+            }
+            normal_rule = policy["normal_symbols"]
+            if normal_rule["same_symbol_repeat_in_column"] == "forbidden":
+                symbols = [symbol for group in board["symbol_groups"] for symbol in group["symbols"]]
+                result.append((f"{board['board_scope_id']}.normal-symbols", {
+                    **base_scope, "column_repeat_scope": "normal_symbols", "symbols": symbols,
+                }, {"fixed_target": {
+                    "target_status": "available", "value": 0.0, "deterministic_exact": True,
+                    "source": {"method": f"{normal_rule['confirmed_by']}_exact_rule", "evidence_refs": normal_rule["evidence_refs"]},
+                }}))
+            for special_rule in policy["special_symbols"]:
+                if special_rule["same_symbol_repeat_in_column"] != "forbidden":
+                    continue
+                result.append((f"{board['board_scope_id']}.special.{special_rule['symbol_id']}", {
+                    **base_scope, "column_repeat_scope": "special_symbol", "symbol": special_rule["symbol_id"],
+                }, {"fixed_target": {
+                    "target_status": "available", "value": 0.0, "deterministic_exact": True,
+                    "source": {"method": f"{special_rule['confirmed_by']}_exact_rule", "evidence_refs": special_rule["evidence_refs"]},
+                }}))
+        return result
     if card_id == "B2" and facet_id in {"reel_height_bin_rate", "reel_height_distribution_shift"}:
         result = []
         for board in boards:
@@ -599,7 +634,11 @@ def main():
         "game_profile_sha256": canonical_json_sha256(preflight["game_profile"]),
         "parameter_authority_sha256": canonical_json_sha256(parameter_authority),
     }
-    bindings = profile["metric_bindings"]
+    repeat_errors = column_repeat_policy_errors(profile)
+    if repeat_errors:
+        raise SystemExit("；".join(repeat_errors))
+    bindings = deepcopy(profile["metric_bindings"])
+    bindings["column_repeat_policy"] = deepcopy(profile["column_repeat_policy"])
     component_ids = [item["component_id"] for item in bindings["components"]]
     component_set = set(component_ids)
     if len(component_ids) != len(component_set):
@@ -753,10 +792,16 @@ def main():
             for subitem_id, scope, extra in subitems(card["card_id"], facet["facet_id"], bindings):
                 instance_id = f"{card['card_id']}.{facet['facet_id']}.{safe_id(subitem_id)}"
                 target_record = targets.get(instance_id)
-                if target_record is None:
+                fixed_target = extra.get("fixed_target")
+                if fixed_target is not None and target_record is not None:
+                    raise SystemExit(f"{instance_id}由开工确认生成，不得在source_summary重复提供")
+                if fixed_target is not None:
+                    target_record = fixed_target
+                elif target_record is None:
                     missing.append(instance_id)
                     continue
-                used_targets.add(instance_id)
+                else:
+                    used_targets.add(instance_id)
                 target_source = target_record.get("source", {})
                 target_method = target_source.get("method")
                 if card["card_id"] == "N1":
@@ -837,7 +882,9 @@ def main():
                     "reason_zh": item["reason_zh"],
                 })
                 continue
-            if card["kind"] == "hard_gate":
+            if target_record.get("deterministic_exact"):
+                c_budget = {"source": "deterministic_exact", "value": 0.0}
+            elif card["kind"] == "hard_gate":
                 budget = n_c_budget(card["card_id"], target_record["value"], scope, bindings, hard_policy)
                 c_budget = {"source": "hard_gate_player_budget", "value": budget}
             elif card["category_id"] == "J":
@@ -849,8 +896,6 @@ def main():
             elif card["category_id"] == "B":
                 budget = b_c_budget(target_record["value"], extra, evaluation_policy)
                 c_budget = {"source": "b_player_visible_budget", "value": budget}
-            elif target_record.get("deterministic_exact"):
-                c_budget = {"source": "deterministic_exact", "value": 0.0}
             else:
                 raise SystemExit(f"{item['instance_id']}没有可用的C级通过值规则")
             instance = {

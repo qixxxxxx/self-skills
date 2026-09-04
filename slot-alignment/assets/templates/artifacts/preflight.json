@@ -66,6 +66,9 @@
   },
   "game_profile": {
     "metric_bindings": {},
+    "column_repeat_policy": {
+      "scopes": []
+    },
     "evidence_refs": []
   },
   "smoke_check": {

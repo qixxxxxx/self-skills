@@ -477,6 +477,15 @@
           "target_source": "sealed_original_evidence",
           "distance_method": "total_variation",
           "subitem_source": "profile_primary_aggregation_and_formal_board_scopes"
+        },
+        {
+          "facet_id": "column_repeat_violation_rate",
+          "name_zh": "本次新落符号同列重复违规率",
+          "sample_unit": "eligible_spin_or_respin_settlement_column",
+          "measurement": "columns_with_duplicate_forbidden_symbol_among_current_action_generated_cells/eligible_current_action_columns; carried_sticky_or_locked_cells_excluded",
+          "target_source": "specification_or_user_confirmed_exact",
+          "distance_method": "absolute_probability_error",
+          "subitem_source": "forbidden_column_repeat_rules"
         }
       ]
     },
