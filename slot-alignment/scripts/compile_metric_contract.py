@@ -799,17 +799,22 @@ def main():
     if extra_targets:
         raise SystemExit(f"存在未绑定的目标: {sorted(extra_targets)}")
 
-    blocked_groups = set()
+    incomplete_groups = set()
     for item in pending:
         aggregation = item["extra"].get("aggregation")
-        if item["decision"] != "active" and aggregation and aggregation["mode"] == "half_overall_half_items":
-            blocked_groups.add((item["card"]["card_id"], aggregation["dimension_id"], aggregation["group_id"]))
+        if (
+            item["decision"] != "active"
+            and aggregation
+            and aggregation["mode"] == "half_overall_half_items"
+            and aggregation["role"] == "bin"
+        ):
+            incomplete_groups.add((item["card"]["card_id"], aggregation["dimension_id"], aggregation["group_id"]))
     for item in pending:
         aggregation = item["extra"].get("aggregation")
         key = (item["card"]["card_id"], aggregation["dimension_id"], aggregation["group_id"]) if aggregation else None
-        if key in blocked_groups:
+        if key in incomplete_groups and aggregation["role"] == "overall":
             item["decision"] = "observe_distribution_group"
-            item["reason_zh"] = "同一分布组存在低于最低可用线的目标或档位，整组在候选前转为观察项"
+            item["reason_zh"] = "同一分布组存在证据不足档位，无法正式评价完整分布；证据达标档位仍单独评价"
 
     cards, observational = [], []
     for card in library["cards"]:

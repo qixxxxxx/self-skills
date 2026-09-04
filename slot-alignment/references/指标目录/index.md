@@ -55,4 +55,4 @@
 | A4 | 玩法过程派生统计 | P1, P2 | retrigger_count, extension_events, mechanic_occurrence_rate, mechanic_effective_rate, incremental_rtp |
 | A5 | 盘面派生统计 | B1, B2 | visual_symbol_group_coverage, key_symbol_presence_rate, terminal_board_diagnostics, fixed_board_rule_consistency |
 
-全部N/J/P/B活动正式项都只按“距离 <= C级通过值”判定，任一失败不得用分数补偿。原版证据低于最低线的实例在候选前整项或整组转为观察，不参与通过判定但必须完整披露；存在观察项时最多只能给出有限范围通过。当前已落定N/J/P/B单项分、卡分和分类分；跨分类综合权重留待后续授权。
+全部N/J/P/B活动正式项都只按“距离 <= C级通过值”判定，任一失败不得用分数补偿。原版证据不足的实例转为观察；分布缺桶时，证据达标档位仍正式评价，低样本档位和整体移动量转观察。存在观察项时最多只能给出有限范围通过。当前已落定N/J/P/B单项分、卡分和分类分；跨分类综合权重留待后续授权。

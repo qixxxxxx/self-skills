@@ -262,9 +262,10 @@ def _hierarchical_card_score(card, instance_results):
     dimension_scores = {}
     for (dimension_id, _group_id), group in grouped.items():
         if group["mode"] == "half_overall_half_items":
-            if not group["overall"] or not group["items"]:
+            if not group["items"]:
                 continue
-            score = sum(group["overall"]) / len(group["overall"]) * 0.5 + sum(group["items"]) / len(group["items"]) * 0.5
+            item_score = sum(group["items"]) / len(group["items"])
+            score = item_score if not group["overall"] else sum(group["overall"]) / len(group["overall"]) * 0.5 + item_score * 0.5
         else:
             if not group["items"]:
                 continue

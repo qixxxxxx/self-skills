@@ -25,7 +25,7 @@
         "at_or_above_recommended_decision": "active_normal",
         "observation_is_not_inapplicable": true,
         "observation_is_not_formal_waiver": true,
-        "distribution_group_atomicity": "if_any_required_bin_is_below_minimum_observe_entire_distribution_group"
+        "distribution_incomplete_action": "observe_only_insufficient_bins_and_complete_distribution_metric"
       }
     },
     "metric_thresholds": {
@@ -68,7 +68,7 @@
         "minimum_observed_count": 5,
         "recommended_observed_count": 30,
         "zero_count_is_not_proof_of_zero_probability": true,
-        "below_minimum_action": "merge_before_freeze_or_observe_entire_distribution_group"
+        "below_minimum_action": "merge_before_freeze_or_observe_bin_and_complete_distribution_metric"
       }
     },
     "coverage": {
