@@ -18,6 +18,12 @@
     "screen": 100000,
     "refine": 500000,
     "final": 2000000,
+    "candidate_batch_size": 100,
+    "candidate_total_limit": null,
+    "continue_until_formal_pass": true,
+    "formal_failure_resumes_search": true,
+    "duplicate_parameter_sets_forbidden": true,
+    "authorized_space_exhaustion_requires_evidence": true,
     "probe_optional": true,
     "tiers_are_cumulative": true,
     "frozen_early_stop_rules_allowed": true,
@@ -30,6 +36,8 @@
       50000000
     ],
     "minimum_conditional_sample": 2000,
+    "attempt_seed_rule": "pre_frozen_sequence_by_formal_attempt",
+    "same_candidate_retry_allowed": false,
     "selection_rule": "smallest_confirmed_tier_covering_all_active_conditional_instances_else_confirmed_maximum",
     "state_frequency_must_not_drive_tier": true
   },

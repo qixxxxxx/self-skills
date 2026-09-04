@@ -134,25 +134,30 @@
         "calibration": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["probe", "screen", "refine", "final", "maximum_candidates", "early_stop_rules"],
+          "required": ["probe", "screen", "refine", "final", "candidate_batch_size", "candidate_total_limit", "continuation_rule", "formal_failure_action", "early_stop_rules"],
           "properties": {
             "probe": {"type": ["integer", "null"], "minimum": 1},
             "screen": {"type": "integer", "minimum": 1},
             "refine": {"type": "integer", "minimum": 1},
             "final": {"type": "integer", "minimum": 1},
-            "maximum_candidates": {"type": "integer", "minimum": 1},
+            "candidate_batch_size": {"type": "integer", "minimum": 1},
+            "candidate_total_limit": {"const": null},
+            "continuation_rule": {"const": "continue_until_formal_pass_or_authorized_space_exhausted"},
+            "formal_failure_action": {"const": "resume_search_with_new_candidate"},
             "early_stop_rules": {"type": "array", "items": {"type": "string", "minLength": 1}}
           }
         },
         "formal": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["tiers", "selected_paid_entry_count", "minimum_conditional_sample", "independent_seed"],
+          "required": ["tiers", "selected_paid_entry_count", "minimum_conditional_sample", "independent_seed", "attempt_seed_rule", "same_candidate_retry"],
           "properties": {
             "tiers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
             "selected_paid_entry_count": {"type": "integer", "minimum": 1},
             "minimum_conditional_sample": {"type": "integer", "minimum": 1},
             "independent_seed": {"const": true},
+            "attempt_seed_rule": {"const": "pre_frozen_sequence_by_formal_attempt"},
+            "same_candidate_retry": {"const": false},
             "conditional_exposure_probabilities": {
               "type": "object",
               "additionalProperties": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}

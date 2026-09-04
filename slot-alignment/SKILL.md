@@ -109,9 +109,9 @@ game_profile
 
 先把基线作为`candidate_id=baseline`评价；通过时可直接进入FORMAL，不通过时进行参数敏感性和候选搜索。
 
-候选默认使用`PROBE → SCREEN → REFINE → FINAL`累计阶梯，但允许按冻结规则提前淘汰、提前晋级或升级参数面，不要求每个参数层跑满全部档位。普通候选只写入`work/candidate_ledger.jsonl`；只有唯一入选候选才物化完整Runtime。
+候选默认使用`PROBE → SCREEN → REFINE → FINAL`累计阶梯，并按`candidate_batch_size`分批生成。批大小只是单轮工作量，不是候选总上限；没有候选通过FORMAL时必须基于已有账本继续生成不重复的新候选。允许按冻结规则提前淘汰、提前晋级或升级参数面，不要求每个参数层跑满全部档位。普通候选只写入`work/candidate_ledger.jsonl`；只有进入FORMAL的候选才物化完整Runtime。
 
-FORMAL重新运行合同中的全部活动指标，不复用候选统计。完成后生成：
+FORMAL重新运行合同中的全部活动指标，不复用候选统计。FORMAL通过后完成交付；FORMAL失败时不得为同一候选换seed重刷，必须返回搜索并选择新的Runtime候选。只有FORMAL通过、授权参数空间按冻结精度穷尽、用户主动停止或技术故障时才能结束搜索。完成后生成：
 
 ```text
 artifacts/alignment_manifest.json
@@ -121,7 +121,7 @@ artifacts/delivery_manifest.json
 交付物/报告文档/对齐报告.md
 ```
 
-搜索穷尽仍无通过候选时，选择证据最完整的最优候选执行一次FORMAL并交付不通过证据。
+授权参数空间按冻结精度确实穷尽仍无通过结果时，交付证据最完整的最优FORMAL失败记录和搜索证据，状态记为`EXHAUSTED_NOT_PASS`。
 
 ## 唯一评价规则
 
@@ -153,6 +153,7 @@ T > 0时，偏差倍数R = D / T
 
 - 六份权威JSON、交付Runtime和唯一中文报告存在并通过校验。
 - 候选账本逐条绑定用户认证脚本和当前合同；FORMAL绑定同一认证脚本、唯一候选Runtime hash并使用独立seed。
+- 候选按批持续生成且参数组合不重复；未通过FORMAL时不得因批次结束或候选数量达到某个固定值而停止。
 - 全部活动N/J/P/B实例得到S/A/B/C、F或有证据的U；观察项和不适用项完整披露。
 - 不存在未解决占位、合同漂移、未授权参数、结果导向重抽或经验盘面出盘。
 - 交付Runtime与FORMAL实际使用的Runtime逐文件一致，`rtp_group=1`，版本字段等于`task_id`。

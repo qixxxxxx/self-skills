@@ -105,7 +105,10 @@ class AlignmentV7Test(unittest.TestCase):
                     "screen": 100000,
                     "refine": 500000,
                     "final": 2000000,
-                    "maximum_candidates": 20,
+                    "candidate_batch_size": 20,
+                    "candidate_total_limit": None,
+                    "continuation_rule": "continue_until_formal_pass_or_authorized_space_exhausted",
+                    "formal_failure_action": "resume_search_with_new_candidate",
                     "early_stop_rules": ["完全支配时淘汰"],
                 },
                 "formal": {
@@ -113,6 +116,8 @@ class AlignmentV7Test(unittest.TestCase):
                     "selected_paid_entry_count": 10000000,
                     "minimum_conditional_sample": 2000,
                     "independent_seed": True,
+                    "attempt_seed_rule": "pre_frozen_sequence_by_formal_attempt",
+                    "same_candidate_retry": False,
                     "conditional_exposure_probabilities": {},
                 },
             },
@@ -340,6 +345,20 @@ class AlignmentV7Test(unittest.TestCase):
         errors = []
         validate_candidate_ledger(ledger_path, manifest, sha256(self.script), "8" * 64, errors)
         self.assertTrue(any("未使用用户认证脚本" in item for item in errors))
+
+    def test_fixed_candidate_total_limit_is_rejected(self):
+        preflight = self.preflight()
+        preflight["sample_plan"]["calibration"]["candidate_total_limit"] = 100
+        path = self.root / "fixed-limit-preflight.json"
+        write(path, preflight)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "validate_preflight.py"), "--preflight", str(path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("candidate_total_limit", result.stderr)
 
     def test_policy_and_library_validation(self):
         self.run_script("validate_metric_library.py")

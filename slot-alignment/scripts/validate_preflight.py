@@ -37,9 +37,17 @@ def validate_preflight(value, path=None):
     tiers = [item for item in [calibration.get("probe"), calibration["screen"], calibration["refine"], calibration["final"]] if item is not None]
     if tiers != sorted(tiers):
         errors.append("候选样本阶梯必须递增")
+    if calibration["candidate_total_limit"] is not None:
+        errors.append("候选搜索不得设置固定总数上限")
+    if calibration["continuation_rule"] != "continue_until_formal_pass_or_authorized_space_exhausted":
+        errors.append("候选必须持续搜索到FORMAL通过或授权参数空间穷尽")
+    if calibration["formal_failure_action"] != "resume_search_with_new_candidate":
+        errors.append("FORMAL失败后必须返回搜索并生成新候选")
     formal = value["sample_plan"]["formal"]
     if formal["selected_paid_entry_count"] not in formal["tiers"]:
         errors.append("FORMAL样本数必须来自用户确认的档位")
+    if formal["attempt_seed_rule"] != "pre_frozen_sequence_by_formal_attempt" or formal["same_candidate_retry"] is not False:
+        errors.append("FORMAL必须按预冻结序列分配seed，且同一候选不得换seed重试")
     script_path = Path(value["certified_script"]["path"])
     if script_path.is_absolute() and script_path.is_file() and sha256_file(script_path) != value["certified_script"]["sha256"]:
         errors.append("用户认证脚本SHA-256与实际文件不一致")

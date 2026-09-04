@@ -48,7 +48,10 @@
       "screen": 100000,
       "refine": 500000,
       "final": 2000000,
-      "maximum_candidates": 100,
+      "candidate_batch_size": 100,
+      "candidate_total_limit": null,
+      "continuation_rule": "continue_until_formal_pass_or_authorized_space_exhausted",
+      "formal_failure_action": "resume_search_with_new_candidate",
       "early_stop_rules": []
     },
     "formal": {
@@ -56,6 +59,8 @@
       "selected_paid_entry_count": 10000000,
       "minimum_conditional_sample": 2000,
       "independent_seed": true,
+      "attempt_seed_rule": "pre_frozen_sequence_by_formal_attempt",
+      "same_candidate_retry": false,
       "conditional_exposure_probabilities": {}
     }
   },
