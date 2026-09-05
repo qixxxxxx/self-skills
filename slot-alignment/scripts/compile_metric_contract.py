@@ -891,7 +891,10 @@ def main():
                     "reason_zh": item["reason_zh"],
                 })
                 continue
-            if target_record.get("deterministic_exact"):
+            if card["card_id"] == "N1":
+                budget = n_c_budget(card["card_id"], target_record["value"], scope, bindings, hard_policy)
+                c_budget = {"source": "hard_gate_player_budget", "value": budget}
+            elif target_record.get("deterministic_exact"):
                 c_budget = {"source": "deterministic_exact", "value": 0.0}
             elif card["kind"] == "hard_gate":
                 budget = n_c_budget(card["card_id"], target_record["value"], scope, bindings, hard_policy)

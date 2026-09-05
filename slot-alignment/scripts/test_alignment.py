@@ -303,6 +303,25 @@ class AlignmentV7Test(unittest.TestCase):
         self.assertEqual(result["summary"]["final_status"], "通过")
         self.assertEqual(result["execution"]["candidate_id"], "candidate-1")
 
+    def test_n1_legacy_exact_flag_does_not_replace_rtp_budget(self):
+        preflight_path = self.root / "n1-preflight.json"
+        source_path = self.root / "n1-source.json"
+        contract_path = self.root / "n1-contract.json"
+        source = self.source_summary()
+        source["targets"]["N1.total_rtp.overall"]["deterministic_exact"] = True
+        write(preflight_path, self.preflight())
+        write(source_path, source)
+        self.run_script(
+            "compile_metric_contract.py", "--preflight", preflight_path,
+            "--source-summary", source_path, "--output", contract_path,
+        )
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        n1 = next(
+            item for card in contract["cards"] for item in card["instances"]
+            if item["instance_id"] == "N1.total_rtp.overall"
+        )
+        self.assertEqual(n1["c_budget"], {"source": "hard_gate_player_budget", "value": 0.003})
+
     def test_full_lightweight_delivery(self):
         preflight_path, contract_path, formal_path = self.compile_and_evaluate(artifacts=True)
         ledger_path = self.root / "work/candidate_ledger.jsonl"
