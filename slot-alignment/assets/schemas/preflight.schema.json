@@ -150,11 +150,17 @@
         "formal": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["tiers", "selected_paid_entry_count", "minimum_conditional_sample", "independent_seed", "attempt_seed_rule", "same_candidate_retry"],
+          "required": ["tiers", "tier_role", "selected_paid_entry_count", "maximum_paid_entry_count", "minimum_conditional_sample", "insufficient_sample_action", "extension_rule", "extension_uses_same_seed_stream", "extension_requires_user_confirmation", "independent_seed", "attempt_seed_rule", "same_candidate_retry"],
           "properties": {
             "tiers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+            "tier_role": {"const": "initial_checkpoints_not_upper_limit"},
             "selected_paid_entry_count": {"type": "integer", "minimum": 1},
+            "maximum_paid_entry_count": {"const": null},
             "minimum_conditional_sample": {"type": "integer", "minimum": 1},
+            "insufficient_sample_action": {"const": "extend_same_formal_attempt"},
+            "extension_rule": {"const": "double_cumulative_paid_entries_until_all_active_instances_decidable"},
+            "extension_uses_same_seed_stream": {"const": true},
+            "extension_requires_user_confirmation": {"const": false},
             "independent_seed": {"const": true},
             "attempt_seed_rule": {"const": "pre_frozen_sequence_by_formal_attempt"},
             "same_candidate_retry": {"const": false},

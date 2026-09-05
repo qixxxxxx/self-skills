@@ -21,7 +21,16 @@ def validate_plan(plan):
         raise ValueError("FORMAL失败后必须返回搜索并生成新候选")
     formal = plan["formal"]
     if formal["selected_paid_entry_count"] not in formal["tiers"]:
-        raise ValueError("FORMAL样本数必须来自确认档位")
+        raise ValueError("FORMAL初始样本数必须来自确认检查点")
+    if formal.get("tier_role") != "initial_checkpoints_not_upper_limit" or formal.get("maximum_paid_entry_count") is not None:
+        raise ValueError("FORMAL检查点不得作为固定样本上限")
+    if (
+        formal.get("insufficient_sample_action") != "extend_same_formal_attempt"
+        or formal.get("extension_rule") != "double_cumulative_paid_entries_until_all_active_instances_decidable"
+        or formal.get("extension_uses_same_seed_stream") is not True
+        or formal.get("extension_requires_user_confirmation") is not False
+    ):
+        raise ValueError("FORMAL样本不足时必须沿同一正式seed序列自动扩展到可判定")
     if formal.get("independent_seed") is not True:
         raise ValueError("FORMAL必须使用独立seed")
     if formal.get("attempt_seed_rule") != "pre_frozen_sequence_by_formal_attempt" or formal.get("same_candidate_retry") is not False:
@@ -34,7 +43,7 @@ def main():
     args = parser.parse_args()
     plan = load_json(args.preflight)["sample_plan"]
     validate_plan(plan)
-    print(f"OK: 候选每批{plan['calibration']['candidate_batch_size']}组持续搜索，FORMAL {plan['formal']['selected_paid_entry_count']}局")
+    print(f"OK: 候选每批{plan['calibration']['candidate_batch_size']}组持续搜索，FORMAL从{plan['formal']['selected_paid_entry_count']}局开始且不设样本上限")
 
 
 if __name__ == "__main__":

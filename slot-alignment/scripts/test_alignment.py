@@ -113,8 +113,14 @@ class AlignmentV7Test(unittest.TestCase):
                 },
                 "formal": {
                     "tiers": [10000000, 20000000, 50000000],
+                    "tier_role": "initial_checkpoints_not_upper_limit",
                     "selected_paid_entry_count": 10000000,
+                    "maximum_paid_entry_count": None,
                     "minimum_conditional_sample": 2000,
+                    "insufficient_sample_action": "extend_same_formal_attempt",
+                    "extension_rule": "double_cumulative_paid_entries_until_all_active_instances_decidable",
+                    "extension_uses_same_seed_stream": True,
+                    "extension_requires_user_confirmation": False,
                     "independent_seed": True,
                     "attempt_seed_rule": "pre_frozen_sequence_by_formal_attempt",
                     "same_candidate_retry": False,
@@ -428,6 +434,20 @@ class AlignmentV7Test(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("candidate_total_limit", result.stderr)
+
+    def test_fixed_formal_sample_limit_is_rejected(self):
+        preflight = self.preflight()
+        preflight["sample_plan"]["formal"]["maximum_paid_entry_count"] = 50000000
+        path = self.root / "fixed-formal-limit-preflight.json"
+        write(path, preflight)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "validate_preflight.py"), "--preflight", str(path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("maximum_paid_entry_count", result.stderr)
 
     def test_column_repeat_forbidden_becomes_zero_budget_b1_gate(self):
         preflight_path, contract_path = self.compile_board_contract()

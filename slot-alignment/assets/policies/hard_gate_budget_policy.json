@@ -22,7 +22,7 @@
     "formula": "c_budget = frozen_player_perception_C_budget",
     "candidate_result_may_change_budget": false,
     "original_self_comparison_may_expand_budget": false,
-    "insufficient_precision_action": "increase_sample_or_mark_U",
+    "insufficient_precision_action": "increase_sample_until_decidable",
     "N1_target": "single user-confirmed RTP scalar in (0,1]",
     "N1_distance": "abs(candidate-target)",
     "N1_interval_forbidden": true,

@@ -45,7 +45,16 @@ def validate_preflight(value, path=None):
         errors.append("FORMAL失败后必须返回搜索并生成新候选")
     formal = value["sample_plan"]["formal"]
     if formal["selected_paid_entry_count"] not in formal["tiers"]:
-        errors.append("FORMAL样本数必须来自用户确认的档位")
+        errors.append("FORMAL初始样本数必须来自用户确认的检查点")
+    if formal["tier_role"] != "initial_checkpoints_not_upper_limit" or formal["maximum_paid_entry_count"] is not None:
+        errors.append("FORMAL检查点不得作为固定样本上限")
+    if (
+        formal["insufficient_sample_action"] != "extend_same_formal_attempt"
+        or formal["extension_rule"] != "double_cumulative_paid_entries_until_all_active_instances_decidable"
+        or formal["extension_uses_same_seed_stream"] is not True
+        or formal["extension_requires_user_confirmation"] is not False
+    ):
+        errors.append("FORMAL样本不足时必须沿同一正式seed序列自动扩展到可判定")
     if formal["attempt_seed_rule"] != "pre_frozen_sequence_by_formal_attempt" or formal["same_candidate_retry"] is not False:
         errors.append("FORMAL必须按预冻结序列分配seed，且同一候选不得换seed重试")
     errors.extend(column_repeat_policy_errors(value["game_profile"]))
